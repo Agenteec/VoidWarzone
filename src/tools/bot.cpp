@@ -37,7 +37,7 @@ double nowSeconds() {
 
 int main(int argc, char** argv) {
     std::filesystem::path dataDir = std::filesystem::path(argv[0]).parent_path() / "data";
-    std::string master = "127.0.0.1:27400";
+    std::string master = "77.83.86.108:27400";
     std::string code;
     std::string address;
     std::string name = "bot";

@@ -33,7 +33,7 @@ struct LaunchOptions {
     std::uint16_t port = net::kGamePort;
     Difficulty difficulty = Difficulty::Normal;
     bool cheats = false;
-    std::string master = "127.0.0.1:27400";
+    std::string master = "77.83.86.108:27400";
     float uiScale = 0.0f;
     bool touch = false;
 };

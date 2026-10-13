@@ -38,5 +38,8 @@ endif()
 
 target_include_directories(vw_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${VW_SHADER_DIR})
 target_link_libraries(vw_client PRIVATE vw_core vw_net vw_host SDL3::SDL3 bgfx bx nlohmann_json::nlohmann_json spdlog::spdlog)
+if(ANDROID)
+    target_link_libraries(vw_client PRIVATE EGL GLESv3 android log)
+endif()
 vw_target_defaults(vw_client)
 vw_copy_data(vw_client)

@@ -1,0 +1,17 @@
+[Unit]
+Description=Void Warzone dedicated server
+After=network-online.target vw-master.service
+Wants=network-online.target
+
+[Service]
+User=voidwarzone
+ExecStart=/opt/voidwarzone/vw_server --port 27450 --data /opt/voidwarzone/data --name "Void Warzone EU" --max-players 16 --master 127.0.0.1:27400
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
