@@ -1,0 +1,53 @@
+{
+  "units": [
+    {
+      "id": "core", "structure": true, "maxHp": 5000, "armor": 5, "radius": 3.0,
+      "weapon": { "damage": 40, "range": 9, "cooldown": 1.0, "projectileSpeed": 18 },
+      "visual": { "shape": "cube", "height": 4.0 }
+    },
+    {
+      "id": "tower", "structure": true, "maxHp": 1500, "armor": 3, "radius": 1.0,
+      "weapon": { "damage": 30, "range": 8, "cooldown": 1.0, "projectileSpeed": 20 },
+      "visual": { "shape": "cylinder", "height": 3.0 }
+    },
+    {
+      "id": "portal", "structure": true, "maxHp": 8000, "armor": 5, "radius": 3.0,
+      "visual": { "shape": "sphere", "height": 6.0 }
+    },
+    {
+      "id": "void_tower", "structure": true, "maxHp": 1500, "armor": 3, "radius": 1.0,
+      "weapon": { "damage": 30, "range": 8, "cooldown": 1.0, "projectileSpeed": 20 },
+      "visual": { "shape": "cylinder", "height": 3.0 }
+    },
+    {
+      "id": "creep_melee", "maxHp": 140, "armor": 1, "radius": 0.45, "speed": 3.0, "sight": 7,
+      "weapon": { "damage": 12, "range": 0.4, "cooldown": 1.0 },
+      "visual": { "shape": "cube", "height": 0.9 }
+    },
+    {
+      "id": "creep_ranged", "maxHp": 90, "radius": 0.4, "speed": 3.0, "sight": 8,
+      "weapon": { "damage": 10, "range": 5, "cooldown": 1.2, "projectileSpeed": 14 },
+      "visual": { "shape": "cylinder", "height": 0.9 }
+    },
+    {
+      "id": "void_melee", "maxHp": 150, "armor": 1, "radius": 0.45, "speed": 3.0, "sight": 7,
+      "weapon": { "damage": 12, "range": 0.4, "cooldown": 1.0 },
+      "visual": { "shape": "cube", "height": 0.9 }
+    },
+    {
+      "id": "void_ranged", "maxHp": 90, "radius": 0.4, "speed": 3.0, "sight": 8,
+      "weapon": { "damage": 11, "range": 5, "cooldown": 1.2, "projectileSpeed": 14 },
+      "visual": { "shape": "sphere", "height": 0.9 }
+    },
+    {
+      "id": "tank", "maxHp": 500, "armor": 4, "radius": 0.7, "speed": 4.0, "sight": 9,
+      "weapon": { "damage": 35, "range": 6, "cooldown": 0.9, "projectileSpeed": 22 },
+      "visual": { "shape": "cube", "height": 1.0 }
+    },
+    {
+      "id": "scout", "maxHp": 200, "armor": 1, "radius": 0.45, "speed": 6.5, "sight": 10,
+      "weapon": { "damage": 9, "range": 4, "cooldown": 0.3, "projectileSpeed": 26 },
+      "visual": { "shape": "sphere", "height": 0.8 }
+    }
+  ]
+}

@@ -42,9 +42,17 @@ if(VW_BUILD_CLIENT)
     CPMAddPackage(NAME SDL3 GITHUB_REPOSITORY libsdl-org/SDL GIT_TAG release-3.4.16
         OPTIONS "SDL_SHARED OFF" "SDL_STATIC ON" "SDL_TEST_LIBRARY OFF" "SDL_EXAMPLES OFF")
 
+    if(ANDROID)
+        set(_vw_bgfx_tools OFF)
+    else()
+        set(_vw_bgfx_tools ON)
+    endif()
     CPMAddPackage(NAME bgfx GITHUB_REPOSITORY bkaradzic/bgfx.cmake GIT_TAG v1.164.9539-588
-        OPTIONS "BGFX_BUILD_EXAMPLES OFF" "BGFX_BUILD_TESTS OFF" "BGFX_BUILD_TOOLS OFF"
+        OPTIONS "BGFX_BUILD_EXAMPLES OFF" "BGFX_BUILD_TESTS OFF" "BGFX_BUILD_TOOLS ${_vw_bgfx_tools}"
+                "BGFX_BUILD_TOOLS_SHADER ${_vw_bgfx_tools}" "BGFX_BUILD_TOOLS_BIN2C OFF"
+                "BGFX_BUILD_TOOLS_GEOMETRY OFF" "BGFX_BUILD_TOOLS_TEXTURE OFF"
                 "BGFX_INSTALL OFF" "BGFX_CUSTOM_TARGETS OFF")
+    include(${bgfx_SOURCE_DIR}/cmake/bgfxToolUtils.cmake)
 endif()
 
 if(VW_BUILD_TESTS)

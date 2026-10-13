@@ -25,6 +25,7 @@ option(VW_BUILD_TESTS "Build tests" ${_vw_desktop})
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 include(CompilerOptions)
+include(Data)
 include(Dependencies)
 
 add_subdirectory(src/core)
