@@ -1,6 +1,7 @@
 function(vw_target_defaults target)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /MP)
+        target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
     else()
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
     endif()

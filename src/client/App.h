@@ -13,6 +13,7 @@
 #include "Prediction.h"
 #include "core/GameData.h"
 #include "core/Map.h"
+#include "net/MasterClient.h"
 #include "net/NetClient.h"
 #include "net/NetLibrary.h"
 #include "net/Protocol.h"
@@ -30,6 +31,7 @@ struct LaunchOptions {
     std::uint16_t port = net::kGamePort;
     Difficulty difficulty = Difficulty::Normal;
     bool cheats = false;
+    std::string master = "127.0.0.1:27400";
 };
 
 struct UnitVisual {
@@ -46,7 +48,7 @@ public:
     bool running() const { return running_; }
 
 private:
-    enum class Screen { Menu, Lan, Address, Connecting, Game };
+    enum class Screen { Menu, Lan, Address, Code, Online, Joining, Connecting, Game };
 
     struct Effect {
         Mesh mesh;
@@ -62,6 +64,8 @@ private:
     void setScreen(Screen screen);
     void startHost();
     void startConnect(const net::Address& address);
+    void startJoin(const std::string& code);
+    void updateLobby();
     void leaveGame(std::string status);
     bool onConnected();
 
@@ -109,6 +113,8 @@ private:
     std::unique_ptr<Map> map_;
     net::NetClient net_;
     net::LanBrowser lan_;
+    net::MasterClient lobby_;
+    double lobbyRefresh_ = 0.0;
     Prediction prediction_;
 
     std::vector<net::InterpolatedEntity> entities_;
@@ -120,6 +126,7 @@ private:
     Screen screen_ = Screen::Menu;
     std::string status_;
     std::string addressInput_;
+    std::string codeInput_;
     bool running_ = true;
     bool initialized_ = false;
     bool cameraPlaced_ = false;

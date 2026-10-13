@@ -10,6 +10,8 @@
 
 int main(int argc, char** argv) {
     vw::client::LaunchOptions options;
+    if (const char* env = std::getenv("VW_MASTER"); env && *env)
+        options.master = env;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
         const bool hasValue = i + 1 < argc;
@@ -23,6 +25,8 @@ int main(int argc, char** argv) {
             options.map = argv[++i];
         else if (arg == "--port" && hasValue)
             options.port = static_cast<std::uint16_t>(std::atoi(argv[++i]));
+        else if (arg == "--master" && hasValue)
+            options.master = argv[++i];
         else if (arg == "--cheats")
             options.cheats = true;
         else if (arg == "--difficulty" && hasValue)

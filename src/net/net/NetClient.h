@@ -11,6 +11,7 @@
 
 #include "core/Commands.h"
 #include "net/Connection.h"
+#include "net/Ice.h"
 #include "net/Snapshot.h"
 #include "net/Socket.h"
 
@@ -43,6 +44,8 @@ public:
     ~NetClient();
 
     bool connect(const Address& server, std::uint64_t dataHash, std::string name, double now);
+    bool connectVia(std::shared_ptr<IceAgent> agent, std::uint64_t dataHash, std::string name, double now);
+    std::string path() const { return ice_ ? ice_->selectedPath() : "udp"; }
     void disconnect();
     void update(double now);
     std::uint32_t sendCommand(const Command& command);
@@ -69,6 +72,9 @@ public:
 
 private:
     void sendRaw(const Writer& w);
+    void start(std::uint64_t dataHash, std::string name, double now);
+    void handlePacket(const std::uint8_t* buf, int n, double now);
+    PacketSink& sink() { return ice_ ? static_cast<PacketSink&>(*ice_) : socket_; }
     void sendConnectRequest();
     void handleAccept(Reader& r, double now);
     bool onSnapshot(Reader& r);
@@ -76,6 +82,7 @@ private:
     void fail(std::string error);
 
     UdpSocket socket_;
+    std::shared_ptr<IceAgent> ice_;
     Address server_;
     std::unique_ptr<Connection> conn_;
     ClientState state_ = ClientState::Disconnected;

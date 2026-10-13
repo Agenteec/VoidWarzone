@@ -117,15 +117,56 @@ void App::shutdown() {
 }
 
 void App::setScreen(Screen screen) {
+    const bool textBefore = screen_ == Screen::Address || screen_ == Screen::Code;
+    const bool textAfter = screen == Screen::Address || screen == Screen::Code;
     if (screen_ == Screen::Lan && screen != Screen::Lan)
         lan_.stop();
-    if (screen_ == Screen::Address && screen != Screen::Address)
+    if (textBefore && !textAfter)
         SDL_StopTextInput(window_);
     if (screen == Screen::Lan)
         lan_.start();
-    if (screen == Screen::Address)
+    if (!textBefore && textAfter)
         SDL_StartTextInput(window_);
+    if (screen == Screen::Online) {
+        lobby_.browse(options_.master, now_);
+        lobbyRefresh_ = now_;
+    }
     screen_ = screen;
+}
+
+void App::startJoin(const std::string& code) {
+    status_.clear();
+    if (!lobby_.join(options_.master, code, now_)) {
+        status_ = lobby_.error();
+        return;
+    }
+    status_ = "joining " + code;
+    setScreen(Screen::Joining);
+}
+
+void App::updateLobby() {
+    lobby_.update(now_);
+    if (screen_ == Screen::Joining) {
+        if (lobby_.state() == net::MasterClient::State::Ready) {
+            if (net_.connectVia(lobby_.agent(), data_->hash(), options_.name, now_)) {
+                status_ = "connecting (" + net_.path() + ")";
+                setScreen(Screen::Connecting);
+            } else {
+                status_ = net_.error();
+                lobby_.close();
+                setScreen(Screen::Menu);
+            }
+        } else if (lobby_.state() == net::MasterClient::State::Failed) {
+            status_ = lobby_.error();
+            setScreen(Screen::Menu);
+        }
+    }
+    if (screen_ == Screen::Online && lobby_.state() != net::MasterClient::State::Connecting && now_ - lobbyRefresh_ > 3.0) {
+        lobby_.browse(options_.master, now_);
+        lobbyRefresh_ = now_;
+    }
+    if (host_)
+        lobby_.setPlayers(host_->playerCount());
 }
 
 void App::startHost() {
@@ -147,6 +188,8 @@ void App::startHost() {
         status_ = "cannot host: port " + std::to_string(options_.port) + " is busy";
         return;
     }
+    lobby_.host(options_.master, net::RoomInfo{"", config.name, options_.map, 0, static_cast<std::uint8_t>(config.maxPlayers), true}, host_->iceHub(),
+                now_);
     startConnect(net::Address::loopback(host_->port()));
 }
 
@@ -177,6 +220,8 @@ bool App::onConnected() {
     cameraPlaced_ = false;
     camera_.target = glm::vec2(map_->width(), map_->height()) * 0.5f;
     status_.clear();
+    if (!host_)
+        lobby_.close();
     setScreen(Screen::Game);
     const std::string title = "Void Warzone - " + options_.name + " (P" + std::to_string(net_.player() + 1) + ")";
     SDL_SetWindowTitle(window_, title.c_str());
@@ -185,6 +230,7 @@ bool App::onConnected() {
 
 void App::leaveGame(std::string status) {
     net_.disconnect();
+    lobby_.close();
     if (host_)
         host_->stop();
     host_.reset();
@@ -213,6 +259,8 @@ void App::handleEvent(const SDL_Event& e) {
     case SDL_EVENT_TEXT_INPUT:
         if (screen_ == Screen::Address && addressInput_.size() < 64)
             addressInput_ += e.text.text;
+        if (screen_ == Screen::Code && codeInput_.size() < 16)
+            codeInput_ += e.text.text;
         return;
     case SDL_EVENT_KEY_DOWN:
         if (screen_ != Screen::Game) {
@@ -238,6 +286,12 @@ void App::handleMenuKey(SDL_Keycode key) {
         } else if (key == SDLK_3 || key == SDLK_C) {
             status_.clear();
             setScreen(Screen::Address);
+        } else if (key == SDLK_4 || key == SDLK_J) {
+            status_.clear();
+            setScreen(Screen::Code);
+        } else if (key == SDLK_5 || key == SDLK_O) {
+            status_.clear();
+            setScreen(Screen::Online);
         } else if (key == SDLK_D) {
             options_.difficulty = static_cast<Difficulty>((static_cast<int>(options_.difficulty) + 1) % 4);
         } else if (key == SDLK_ESCAPE) {
@@ -267,6 +321,25 @@ void App::handleMenuKey(SDL_Keycode key) {
                 status_ = "bad address";
         }
         break;
+    case Screen::Code:
+        if (key == SDLK_ESCAPE)
+            setScreen(Screen::Menu);
+        else if (key == SDLK_BACKSPACE && !codeInput_.empty())
+            codeInput_.pop_back();
+        else if (key == SDLK_RETURN || key == SDLK_KP_ENTER)
+            startJoin(codeInput_);
+        break;
+    case Screen::Online:
+        if (key == SDLK_ESCAPE) {
+            lobby_.close();
+            setScreen(Screen::Menu);
+        } else if (key >= SDLK_1 && key <= SDLK_9) {
+            const auto index = static_cast<std::size_t>(key - SDLK_1);
+            if (index < lobby_.rooms().size())
+                startJoin(lobby_.rooms()[index].code);
+        }
+        break;
+    case Screen::Joining:
     case Screen::Connecting:
         if (key == SDLK_ESCAPE)
             leaveGame("cancelled");
@@ -523,6 +596,7 @@ void App::frame(double dt) {
     if (host_)
         host_->update(now_);
     net_.update(now_);
+    updateLobby();
     if (screen_ == Screen::Lan)
         lan_.update(now_);
 
@@ -677,6 +751,16 @@ void App::renderHud() {
                         stats.rtt, stats.packetLoss, stats.receivedKbps, stats.sentKbps, net_.interpDelay() * 1000.0, net_.jitter() * 1000.0,
                         static_cast<int>(net_.lastSnapshotBytes()), static_cast<int>(prediction_.active()));
     text(1, 4, 0x08, "LMB select | RMB move/attack | A+LMB attack-move | S stop | Space focus | arrows/edges/wheel camera | F10 leave");
+    if (host_) {
+        if (lobby_.state() == net::MasterClient::State::Hosting)
+            text(1, 5, 0x0e, "Room code: %s  (players join with [4] in the menu)", lobby_.code().c_str());
+        else if (lobby_.state() == net::MasterClient::State::Failed)
+            text(1, 5, 0x08, "online unavailable: %s | LAN/IP still work", lobby_.error().c_str());
+        else
+            text(1, 5, 0x08, "registering room...");
+    } else {
+        text(1, 5, 0x08, "link: %s", net_.path().c_str());
+    }
 }
 
 void App::addEffect(Mesh mesh, glm::vec3 pos, glm::vec4 color, float from, float to, float life) {
@@ -1024,6 +1108,8 @@ void App::renderMenu() {
         text(2, row++, 0x0f, "[D] Difficulty: %s", difficultyName(options_.difficulty));
         text(2, row++, 0x0f, "[2] Find LAN games");
         text(2, row++, 0x0f, "[3] Connect to address");
+        text(2, row++, 0x0f, "[4] Join by room code");
+        text(2, row++, 0x0f, "[5] Online games");
         text(2, row++, 0x0f, "[Esc] Quit");
         break;
     case Screen::Lan: {
@@ -1043,6 +1129,25 @@ void App::renderMenu() {
         text(2, row++, 0x0f, "Address (host[:port]), Enter to connect, Esc to go back:");
         text(2, row++, 0x0e, "> %s_", addressInput_.c_str());
         break;
+    case Screen::Code:
+        text(2, row++, 0x0f, "Room code (VOID-XXXX), Enter to join, Esc to go back:");
+        text(2, row++, 0x0e, "> %s_", codeInput_.c_str());
+        break;
+    case Screen::Online: {
+        const bool loading = lobby_.state() == net::MasterClient::State::Connecting;
+        text(2, row++, 0x0f, "Online games%s", loading ? " (loading...)" : "");
+        ++row;
+        int i = 1;
+        for (const auto& room : lobby_.rooms())
+            text(2, row++, 0x0f, "[%d] %s | %s | %s | %d/%d", i++, room.code.c_str(), room.name.c_str(), room.map.c_str(), room.players,
+                 room.maxPlayers);
+        if (lobby_.rooms().empty())
+            text(2, row++, 0x08, lobby_.state() == net::MasterClient::State::Failed ? lobby_.error().c_str() : "no games found");
+        ++row;
+        text(2, row++, 0x08, "[Esc] Back");
+        break;
+    }
+    case Screen::Joining:
     case Screen::Connecting:
         text(2, row++, 0x0f, "%s ...", status_.c_str());
         text(2, row++, 0x08, "[Esc] Cancel");
@@ -1050,9 +1155,9 @@ void App::renderMenu() {
     case Screen::Game:
         break;
     }
-    if (!status_.empty() && screen_ != Screen::Connecting)
+    if (!status_.empty() && screen_ != Screen::Connecting && screen_ != Screen::Joining)
         text(2, row + 1, 0x0c, "%s", status_.c_str());
-    text(2, row + 3, 0x08, "player name: %s", options_.name.c_str());
+    text(2, row + 3, 0x08, "player name: %s | master server: %s", options_.name.c_str(), options_.master.c_str());
 }
 
 }

@@ -9,7 +9,7 @@
 
 #include "net/Address.h"
 #include "net/Serialize.h"
-#include "net/Socket.h"
+#include "net/PacketSink.h"
 
 struct reliable_endpoint_t;
 
@@ -28,7 +28,7 @@ class Connection {
 public:
     using UnreliableHandler = std::function<bool(Reader&)>;
 
-    Connection(UdpSocket& socket, Address remote, double now, std::uint64_t id);
+    Connection(PacketSink& sink, Address remote, double now, std::uint64_t id);
     ~Connection();
     Connection(const Connection&) = delete;
     Connection& operator=(const Connection&) = delete;
@@ -64,7 +64,7 @@ private:
     bool processPayload(const std::uint8_t* data, int size);
     void deliver(std::uint16_t id, Bytes data);
 
-    UdpSocket* socket_;
+    PacketSink* sink_;
     Address remote_;
     reliable_endpoint_t* endpoint_ = nullptr;
     double lastReceive_ = 0.0;

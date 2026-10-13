@@ -1,0 +1,18 @@
+[Unit]
+Description=Void Warzone master server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=voidwarzone
+EnvironmentFile=/etc/voidwarzone/master.env
+ExecStart=/opt/voidwarzone/vw_master --port 27400 --stun-port 3478 --relay-ports 49152-49352 --external-ip ${EXTERNAL_IP} --turn-user ${TURN_USER}
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

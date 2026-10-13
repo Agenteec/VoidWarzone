@@ -8,6 +8,7 @@
 
 #include "core/World.h"
 #include "net/Connection.h"
+#include "net/Ice.h"
 #include "net/Snapshot.h"
 #include "net/Socket.h"
 
@@ -35,6 +36,7 @@ public:
     std::uint16_t port() const { return socket_.port(); }
     int playerCount() const { return static_cast<int>(clients_.size()); }
     const World& world() const { return world_; }
+    net::IceHub& iceHub() { return ice_; }
 
 private:
     struct Client {
@@ -48,6 +50,8 @@ private:
     };
 
     void receive(double now);
+    void handlePacket(const net::Address& from, const std::uint8_t* buf, int n, double now);
+    net::PacketSink& sinkFor(const net::Address& address);
     void handleConnect(const net::Address& from, net::Reader& r, double now);
     void handleDiscovery(const net::Address& from, net::Reader& r);
     void handleMessages(Client& client);
@@ -65,6 +69,7 @@ private:
     ServerConfig config_;
     World world_;
     net::UdpSocket socket_;
+    net::IceHub ice_;
     std::vector<std::unique_ptr<Client>> clients_;
     std::array<net::Snapshot, 64> history_{};
     double nextTick_ = 0.0;

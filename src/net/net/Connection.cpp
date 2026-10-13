@@ -31,7 +31,7 @@ std::size_t varuSize(std::uint64_t v) {
 
 }
 
-Connection::Connection(UdpSocket& socket, Address remote, double now, std::uint64_t id) : socket_(&socket), remote_(remote), lastReceive_(now) {
+Connection::Connection(PacketSink& sink, Address remote, double now, std::uint64_t id) : sink_(&sink), remote_(remote), lastReceive_(now) {
     reliable_config_t config;
     reliable_default_config(&config);
     std::snprintf(config.name, sizeof(config.name), "%s", remote.toString().c_str());
@@ -59,7 +59,7 @@ void Connection::transmit(void* context, std::uint64_t, std::uint16_t, std::uint
         return;
     buf[0] = static_cast<std::uint8_t>(PacketType::Payload);
     std::memcpy(buf + 1, data, static_cast<std::size_t>(size));
-    self->socket_->send(self->remote_, buf, static_cast<std::size_t>(size) + 1);
+    self->sink_->send(self->remote_, buf, static_cast<std::size_t>(size) + 1);
 }
 
 int Connection::process(void* context, std::uint64_t, std::uint16_t, std::uint8_t* data, int size) {

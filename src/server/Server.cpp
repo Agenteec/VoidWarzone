@@ -49,8 +49,12 @@ Server::Client* Server::findClient(const Address& address) {
     return nullptr;
 }
 
+PacketSink& Server::sinkFor(const Address& address) {
+    return IceHub::isVirtual(address) ? static_cast<PacketSink&>(ice_) : socket_;
+}
+
 void Server::sendRaw(const Address& to, const Writer& w) {
-    socket_.send(to, w.data().data(), w.size());
+    sinkFor(to).send(to, w.data().data(), w.size());
 }
 
 void Server::sendAccept(const Client& client) {
@@ -98,7 +102,7 @@ void Server::handleConnect(const Address& from, Reader& r, double now) {
         ++player;
 
     auto client = std::make_unique<Client>();
-    client->conn = std::make_unique<Connection>(socket_, from, now, salt);
+    client->conn = std::make_unique<Connection>(sinkFor(from), from, now, salt);
     client->salt = salt;
     client->player = player;
     client->name = name.empty() ? "Player " + std::to_string(player + 1) : std::move(name);
@@ -136,6 +140,7 @@ void Server::drop(std::size_t index, bool notify) {
     }
     spdlog::info("player {} '{}' left", c.player, c.name);
     world_.releasePlayer(c.player);
+    ice_.remove(c.conn->address());
     clients_.erase(clients_.begin() + static_cast<std::ptrdiff_t>(index));
 }
 
@@ -171,40 +176,44 @@ void Server::receive(double now) {
     std::uint8_t buf[2048];
     Address from;
     int n = 0;
-    while ((n = socket_.receive(from, buf, sizeof(buf))) >= 0) {
-        if (n < 1)
-            continue;
-        Reader r(buf + 1, static_cast<std::size_t>(n - 1));
-        switch (static_cast<PacketType>(buf[0])) {
-        case PacketType::ConnectRequest:
-            handleConnect(from, r, now);
-            break;
-        case PacketType::DiscoveryRequest:
-            handleDiscovery(from, r);
-            break;
-        case PacketType::Payload:
-            if (Client* c = findClient(from)) {
-                c->conn->receive(buf + 1, n - 1, now);
-                for (const auto seq : c->conn->takeAckedPackets()) {
-                    const auto& [sentSeq, tick] = c->sentTicks[seq % c->sentTicks.size()];
-                    if (sentSeq == seq && tick > c->ackedTick)
-                        c->ackedTick = tick;
-                }
-                handleMessages(*c);
+    while ((n = socket_.receive(from, buf, sizeof(buf))) >= 0)
+        handlePacket(from, buf, n, now);
+    ice_.poll([&](const Address& peer, const Bytes& packet) { handlePacket(peer, packet.data(), static_cast<int>(packet.size()), now); });
+}
+
+void Server::handlePacket(const Address& from, const std::uint8_t* buf, int n, double now) {
+    if (n < 1)
+        return;
+    Reader r(buf + 1, static_cast<std::size_t>(n - 1));
+    switch (static_cast<PacketType>(buf[0])) {
+    case PacketType::ConnectRequest:
+        handleConnect(from, r, now);
+        break;
+    case PacketType::DiscoveryRequest:
+        handleDiscovery(from, r);
+        break;
+    case PacketType::Payload:
+        if (Client* c = findClient(from)) {
+            c->conn->receive(buf + 1, n - 1, now);
+            for (const auto seq : c->conn->takeAckedPackets()) {
+                const auto& [sentSeq, tick] = c->sentTicks[seq % c->sentTicks.size()];
+                if (sentSeq == seq && tick > c->ackedTick)
+                    c->ackedTick = tick;
             }
-            break;
-        case PacketType::Disconnect: {
-            const std::uint64_t salt = r.u64();
-            for (std::size_t i = 0; i < clients_.size(); ++i)
-                if (clients_[i]->conn->address() == from && clients_[i]->salt == salt) {
-                    drop(i, false);
-                    break;
-                }
-            break;
+            handleMessages(*c);
         }
-        default:
-            break;
-        }
+        break;
+    case PacketType::Disconnect: {
+        const std::uint64_t salt = r.u64();
+        for (std::size_t i = 0; i < clients_.size(); ++i)
+            if (clients_[i]->conn->address() == from && clients_[i]->salt == salt) {
+                drop(i, false);
+                break;
+            }
+        break;
+    }
+    default:
+        break;
     }
 }
 

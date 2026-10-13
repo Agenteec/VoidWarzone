@@ -4,13 +4,14 @@
 #include <cstdint>
 
 #include "net/Address.h"
+#include "net/PacketSink.h"
 
 namespace vw::net {
 
-class UdpSocket {
+class UdpSocket : public PacketSink {
 public:
     UdpSocket() = default;
-    ~UdpSocket();
+    ~UdpSocket() override;
     UdpSocket(const UdpSocket&) = delete;
     UdpSocket& operator=(const UdpSocket&) = delete;
 
@@ -19,7 +20,7 @@ public:
     bool isOpen() const;
     std::uint16_t port() const { return port_; }
 
-    bool send(const Address& to, const void* data, std::size_t size);
+    bool send(const Address& to, const void* data, std::size_t size) override;
     int receive(Address& from, void* data, std::size_t capacity);
 
 private:

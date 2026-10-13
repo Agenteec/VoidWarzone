@@ -65,6 +65,23 @@ bool NetClient::connect(const Address& server, std::uint64_t dataHash, std::stri
         return false;
     }
     server_ = server;
+    start(dataHash, std::move(name), now);
+    return true;
+}
+
+bool NetClient::connectVia(std::shared_ptr<IceAgent> agent, std::uint64_t dataHash, std::string name, double now) {
+    disconnect();
+    if (!agent || agent->state() != IceAgent::State::Connected) {
+        fail("ice link is not ready");
+        return false;
+    }
+    ice_ = std::move(agent);
+    server_ = IceHub::addressOf(0);
+    start(dataHash, std::move(name), now);
+    return true;
+}
+
+void NetClient::start(std::uint64_t dataHash, std::string name, double now) {
     dataHash_ = dataHash;
     name_ = std::move(name);
     salt_ = randomSalt();
@@ -73,11 +90,10 @@ bool NetClient::connect(const Address& server, std::uint64_t dataHash, std::stri
     connectStart_ = now;
     lastRequest_ = -1.0;
     now_ = now;
-    return true;
 }
 
 void NetClient::disconnect() {
-    if (state_ != ClientState::Disconnected && socket_.isOpen()) {
+    if (state_ != ClientState::Disconnected && (socket_.isOpen() || ice_)) {
         Writer w;
         w.u8(static_cast<std::uint8_t>(PacketType::Disconnect));
         w.u64(salt_);
@@ -86,6 +102,7 @@ void NetClient::disconnect() {
     }
     conn_.reset();
     socket_.close();
+    ice_.reset();
     state_ = ClientState::Disconnected;
     latestTick_ = 0;
     synced_ = false;
@@ -101,7 +118,7 @@ void NetClient::fail(std::string error) {
 }
 
 void NetClient::sendRaw(const Writer& w) {
-    socket_.send(server_, w.data().data(), w.size());
+    sink().send(server_, w.data().data(), w.size());
 }
 
 void NetClient::sendConnectRequest() {
@@ -123,7 +140,7 @@ void NetClient::handleAccept(Reader& r, double now) {
     mapHash_ = r.u64();
     if (!r.ok())
         return;
-    conn_ = std::make_unique<Connection>(socket_, server_, now, salt_);
+    conn_ = std::make_unique<Connection>(sink(), server_, now, salt_);
     conn_->setUnreliableHandler([this](Reader& ur) { return onSnapshot(ur); });
     state_ = ClientState::Connected;
     lastSend_ = now;
@@ -134,33 +151,24 @@ void NetClient::update(double now) {
     if (state_ == ClientState::Disconnected)
         return;
 
-    std::uint8_t buf[2048];
-    Address from;
-    int n = 0;
-    while (state_ != ClientState::Disconnected && (n = socket_.receive(from, buf, sizeof(buf))) >= 0) {
-        if (n < 1 || !(from == server_))
-            continue;
-        Reader r(buf + 1, static_cast<std::size_t>(n - 1));
-        switch (static_cast<PacketType>(buf[0])) {
-        case PacketType::ConnectAccept:
-            handleAccept(r, now);
-            break;
-        case PacketType::ConnectDeny:
-            if (r.u64() == salt_ && state_ == ClientState::Connecting)
-                fail(denyReasonText(static_cast<DenyReason>(r.u8())));
-            break;
-        case PacketType::Payload:
-            if (conn_)
-                conn_->receive(buf + 1, n - 1, now);
-            break;
-        case PacketType::Disconnect:
-            if (state_ == ClientState::Connected)
-                fail("server closed connection");
-            break;
-        default:
-            break;
+    if (ice_) {
+        if (ice_->state() == IceAgent::State::Failed) {
+            fail("connection lost (ice)");
+            return;
         }
+        Bytes packet;
+        while (state_ != ClientState::Disconnected && ice_ && ice_->receive(packet))
+            handlePacket(packet.data(), static_cast<int>(packet.size()), now);
+    } else {
+        std::uint8_t buf[2048];
+        Address from;
+        int n = 0;
+        while (state_ != ClientState::Disconnected && (n = socket_.receive(from, buf, sizeof(buf))) >= 0)
+            if (from == server_)
+                handlePacket(buf, n, now);
     }
+    if (state_ == ClientState::Disconnected)
+        return;
 
     if (state_ == ClientState::Connecting) {
         if (now - connectStart_ > kConnectTimeout) {
@@ -184,6 +192,31 @@ void NetClient::update(double now) {
             conn_->flush();
             lastSend_ = now;
         }
+    }
+}
+
+void NetClient::handlePacket(const std::uint8_t* buf, int n, double now) {
+    if (n < 1)
+        return;
+    Reader r(buf + 1, static_cast<std::size_t>(n - 1));
+    switch (static_cast<PacketType>(buf[0])) {
+    case PacketType::ConnectAccept:
+        handleAccept(r, now);
+        break;
+    case PacketType::ConnectDeny:
+        if (r.u64() == salt_ && state_ == ClientState::Connecting)
+            fail(denyReasonText(static_cast<DenyReason>(r.u8())));
+        break;
+    case PacketType::Payload:
+        if (conn_)
+            conn_->receive(buf + 1, n - 1, now);
+        break;
+    case PacketType::Disconnect:
+        if (state_ == ClientState::Connected)
+            fail("server closed connection");
+        break;
+    default:
+        break;
     }
 }
 
