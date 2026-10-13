@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <utility>
 
 #include <reliable.h>
 

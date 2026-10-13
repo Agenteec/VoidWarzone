@@ -1,6 +1,7 @@
 #include "net/Socket.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #if defined(_WIN32)

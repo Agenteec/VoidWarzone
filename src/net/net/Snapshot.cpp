@@ -1,5 +1,7 @@
 #include "net/Snapshot.h"
 
+#include <cstddef>
+
 namespace vw::net {
 
 namespace {
