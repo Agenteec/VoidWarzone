@@ -40,6 +40,30 @@ void writeCommand(Writer& w, std::uint32_t seq, const Command& command) {
             if constexpr (std::is_same_v<T, RecruitCommand>) {
                 w.u16(c.unit);
                 return;
+            } else if constexpr (std::is_same_v<T, PromoteCommand>) {
+                w.u32(entt::to_integral(c.unit));
+                return;
+            } else if constexpr (std::is_same_v<T, CastCommand>) {
+                w.u32(entt::to_integral(c.unit));
+                w.u8(c.slot);
+                w.f32(c.point.x);
+                w.f32(c.point.y);
+                return;
+            } else if constexpr (std::is_same_v<T, LearnCommand>) {
+                w.u32(entt::to_integral(c.unit));
+                w.u16(c.skill);
+                return;
+            } else if constexpr (std::is_same_v<T, BuyCommand>) {
+                w.u16(c.item);
+                return;
+            } else if constexpr (std::is_same_v<T, EquipCommand>) {
+                w.u32(entt::to_integral(c.unit));
+                w.u8(c.stashIndex);
+                return;
+            } else if constexpr (std::is_same_v<T, UnequipCommand>) {
+                w.u32(entt::to_integral(c.unit));
+                w.u8(c.slot);
+                return;
             } else {
                 writeUnits(w, c.units);
             }
@@ -87,6 +111,49 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
     case 3: {
         RecruitCommand c;
         c.unit = r.u16();
+        command = c;
+        break;
+    }
+    case 4: {
+        PromoteCommand c;
+        c.unit = static_cast<entt::entity>(r.u32());
+        command = c;
+        break;
+    }
+    case 5: {
+        CastCommand c;
+        c.unit = static_cast<entt::entity>(r.u32());
+        c.slot = r.u8();
+        c.point = {r.f32(), r.f32()};
+        if (!std::isfinite(c.point.x) || !std::isfinite(c.point.y))
+            return false;
+        command = c;
+        break;
+    }
+    case 6: {
+        LearnCommand c;
+        c.unit = static_cast<entt::entity>(r.u32());
+        c.skill = r.u16();
+        command = c;
+        break;
+    }
+    case 7: {
+        BuyCommand c;
+        c.item = r.u16();
+        command = c;
+        break;
+    }
+    case 8: {
+        EquipCommand c;
+        c.unit = static_cast<entt::entity>(r.u32());
+        c.stashIndex = r.u8();
+        command = c;
+        break;
+    }
+    case 9: {
+        UnequipCommand c;
+        c.unit = static_cast<entt::entity>(r.u32());
+        c.slot = r.u8();
         command = c;
         break;
     }

@@ -20,6 +20,19 @@ namespace vw {
 inline constexpr int kTickRate = 30;
 inline constexpr float kTickDt = 1.0f / kTickRate;
 inline constexpr int kMaxPlayers = 64;
+inline constexpr float kVeteranXp = 60.0f;
+inline constexpr float kEliteXp = 200.0f;
+inline constexpr float kEliteCost = 100.0f;
+inline constexpr float kHeroXp = 400.0f;
+inline constexpr int kHeroShards = 2;
+inline constexpr int kMaxHeroes = 3;
+inline constexpr int kMaxHeroLevel = 10;
+inline constexpr std::size_t kMaxSkills = 4;
+inline constexpr std::uint8_t kMaxSkillLevel = 3;
+inline constexpr std::size_t kStashSize = 12;
+
+int itemSlots(Rank rank);
+float xpForNextLevel(int level);
 
 enum class Difficulty : std::uint8_t { Easy, Normal, Hard, Nightmare };
 enum class MatchState : std::uint8_t { Playing, Victory, Defeat };
@@ -28,6 +41,8 @@ struct PlayerState {
     bool active = false;
     float energy = 0.0f;
     int kills = 0;
+    int shards = 0;
+    std::vector<ItemId> stash;
 };
 
 struct ResourcePointState {
@@ -57,6 +72,7 @@ public:
     std::vector<entt::entity> spawnOnLane(UnitDefId def, std::uint8_t team, int lane, int count, float offset);
     std::vector<entt::entity> spawnPlayer(std::uint8_t player, std::uint8_t team = 0);
     void releasePlayer(std::uint8_t player);
+    void devBoost(std::uint8_t player);
 
     bool alive(entt::entity e) const;
     entt::entity unitAt(glm::vec2 p, float pad = 0.3f) const;
@@ -71,6 +87,9 @@ public:
     Difficulty difficulty() const { return difficulty_; }
     const PlayerState& player(std::uint8_t p) const { return players_[p]; }
     int activePlayers() const;
+    int heroCount(std::uint8_t player) const;
+    void refreshStats(entt::entity e);
+    void grantXp(entt::entity e, float amount);
     const std::vector<ResourcePointState>& resourcePoints() const { return points_; }
     const DefenseStatus& defense() const { return defense_; }
 
@@ -87,7 +106,18 @@ private:
     void updateResourcePoints();
     void updateDefense();
     void spawnWave(const WaveDef& wave);
-    void recruit(const RecruitCommand& cmd);
+    void handle(const RecruitCommand& cmd);
+    void handle(const PromoteCommand& cmd);
+    void handle(const CastCommand& cmd);
+    void handle(const LearnCommand& cmd);
+    void handle(const BuyCommand& cmd);
+    void handle(const EquipCommand& cmd);
+    void handle(const UnequipCommand& cmd);
+    Progression* ownedProgression(std::uint8_t player, entt::entity e);
+    void updateHeroes();
+    void onEnemyKilled(const UnitDef& def, glm::vec2 pos, int lastHitBy);
+    void applySkillEffect(entt::entity caster, const SkillEffect& fx, std::uint8_t level, glm::vec2 center, SkillId skill);
+    std::vector<entt::entity> unitsInRadius(glm::vec2 center, float radius, std::uint8_t team, bool sameTeam) const;
     void grantTeamEnergy(float amount);
     glm::vec2 playerBase(std::uint8_t player) const;
     float enemyHpScale() const;
@@ -108,6 +138,7 @@ private:
     SpatialHash spatial_;
     float maxRadius_ = 1.0f;
     std::vector<SimEvent> events_;
+    std::size_t stepEvents_ = 0;
     std::unordered_map<int, FlowField> flowFields_;
 
     Difficulty difficulty_ = Difficulty::Normal;
@@ -117,6 +148,14 @@ private:
     entt::entity core_ = entt::null;
     entt::entity portal_ = entt::null;
     int recruitCount_ = 0;
+
+    struct PendingRespawn {
+        std::uint8_t player;
+        UnitDefId def;
+        Progression progression;
+        float timer;
+    };
+    std::vector<PendingRespawn> respawns_;
 };
 
 }

@@ -25,6 +25,8 @@ struct EntityState {
     std::int16_t vy = 0;
     std::uint8_t facing = 0;
     std::uint16_t hp = 0;
+    std::uint16_t maxHp = 0;
+    std::uint8_t rank = 0;
 };
 
 struct NetEvent {
@@ -51,15 +53,35 @@ struct GameInfo {
     std::vector<PointInfo> points;
 };
 
+struct OwnSkill {
+    std::uint16_t skill = 0;
+    std::uint8_t level = 0;
+    std::uint16_t cooldown = 0;
+};
+
+struct OwnUnit {
+    std::uint32_t id = 0;
+    std::uint8_t rank = 0;
+    std::uint8_t level = 0;
+    std::uint16_t xp = 0;
+    std::uint8_t skillPoints = 0;
+    std::vector<OwnSkill> skills;
+    std::vector<std::uint16_t> items;
+};
+
 struct ClientView {
     std::uint32_t commandSeq = 0;
     std::uint32_t energy = 0;
+    std::uint16_t shards = 0;
+    std::vector<std::uint16_t> stash;
+    std::vector<OwnUnit> units;
+
+    const OwnUnit* unit(std::uint32_t id) const;
 };
 
 struct Snapshot {
     std::uint32_t tick = 0;
-    std::uint32_t commandSeq = 0;
-    std::uint32_t energy = 0;
+    ClientView view;
     GameInfo game;
     std::vector<EntityState> entities;
     std::vector<NetEvent> events;

@@ -90,14 +90,14 @@ TEST_CASE("snapshot delta roundtrip") {
     Writer full;
     encodeSnapshot(full, cur, nullptr, {});
     Writer delta;
-    encodeSnapshot(delta, cur, &base, {5, 0});
+    encodeSnapshot(delta, cur, &base, ClientView{5});
     CHECK(delta.size() < full.size());
 
     Snapshot decoded;
     Reader r(delta.data().data(), delta.size());
     REQUIRE(decodeSnapshot(r, decoded, [&](std::uint32_t t) { return t == base.tick ? &base : nullptr; }));
     CHECK(decoded.tick == 11);
-    CHECK(decoded.commandSeq == 5);
+    CHECK(decoded.view.commandSeq == 5);
     CHECK(sameEntities(decoded, cur));
     CHECK(decoded.events.size() == 1);
 
@@ -125,7 +125,7 @@ TEST_CASE("command roundtrip") {
 
 TEST_CASE("server and client over loopback") {
     NetLibrary lib;
-    const auto data = GameData::parse(readData("units.json"));
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
     const auto map = Map::parse(readData("maps/siege_test.json"));
 
     server::ServerConfig config;
@@ -184,7 +184,7 @@ TEST_CASE("server and client over loopback") {
 
 TEST_CASE("server denies data mismatch") {
     NetLibrary lib;
-    const auto data = GameData::parse(readData("units.json"));
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
     const auto map = Map::parse(readData("maps/siege_test.json"));
     server::ServerConfig config;
     config.port = 0;
@@ -206,7 +206,7 @@ TEST_CASE("server denies data mismatch") {
 
 TEST_CASE("lan browser finds server") {
     NetLibrary lib;
-    const auto data = GameData::parse(readData("units.json"));
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
     const auto map = Map::parse(readData("maps/siege_test.json"));
     server::ServerConfig config;
     config.port = 0;

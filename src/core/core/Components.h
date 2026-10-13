@@ -102,6 +102,51 @@ struct Projectile {
     int owner = -1;
 };
 
+struct BaseStats {
+    float maxHp = 100.0f;
+    float armor = 0.0f;
+    float speed = 0.0f;
+    float damage = 0.0f;
+    float cooldown = 1.0f;
+    float range = 0.0f;
+};
+
+enum class Rank : std::uint8_t { Recruit, Veteran, Elite, Hero };
+
+struct SkillSlot {
+    SkillId skill = kInvalidId;
+    std::uint8_t level = 1;
+    float cooldown = 0.0f;
+};
+
+struct Progression {
+    Rank rank = Rank::Recruit;
+    int level = 0;
+    float xp = 0.0f;
+    int skillPoints = 0;
+    std::vector<SkillSlot> skills;
+    std::vector<ItemId> items;
+};
+
+struct ActiveBuff {
+    StatMods mods;
+    float remaining = 0.0f;
+    SkillId skill = kInvalidId;
+    entt::entity source = entt::null;
+};
+
+struct Buffs {
+    std::vector<ActiveBuff> list;
+};
+
+struct Regen {
+    float perSecond = 0.0f;
+};
+
+struct Summoned {
+    float remaining = 0.0f;
+};
+
 struct Boss {
     std::vector<float> cooldowns;
     bool enraged = false;

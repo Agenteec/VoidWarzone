@@ -103,6 +103,8 @@ void Server::handleConnect(const Address& from, Reader& r, double now) {
     client->player = player;
     client->name = name.empty() ? "Player " + std::to_string(player + 1) : std::move(name);
     world_.spawnPlayer(player);
+    if (config_.cheats)
+        world_.devBoost(player);
     sendAccept(*client);
     spdlog::info("player {} '{}' joined from {}", player, client->name, from.toString());
     clients_.push_back(std::move(client));
@@ -150,7 +152,7 @@ void Server::handleMessages(Client& client) {
         std::visit(
             [&](auto& c) {
                 using T = std::decay_t<decltype(c)>;
-                if constexpr (std::is_same_v<T, RecruitCommand>) {
+                if constexpr (!UnitCommand<T>) {
                     c.player = client.player;
                 } else {
                     std::erase_if(c.units, [&](entt::entity e) {
@@ -206,6 +208,30 @@ void Server::receive(double now) {
     }
 }
 
+ClientView Server::buildView(const Client& client) const {
+    const auto& player = world_.player(client.player);
+    ClientView v;
+    v.commandSeq = client.commandSeq;
+    v.energy = static_cast<std::uint32_t>(std::max(0.0f, player.energy));
+    v.shards = static_cast<std::uint16_t>(std::clamp(player.shards, 0, 65535));
+    v.stash.assign(player.stash.begin(), player.stash.end());
+    for (auto [e, owner, prog] : world_.registry().view<const Owner, const Progression>().each()) {
+        if (owner.player != client.player)
+            continue;
+        OwnUnit u;
+        u.id = entt::to_integral(e);
+        u.rank = static_cast<std::uint8_t>(prog.rank);
+        u.level = static_cast<std::uint8_t>(prog.level);
+        u.xp = static_cast<std::uint16_t>(std::clamp(prog.xp, 0.0f, 65535.0f));
+        u.skillPoints = static_cast<std::uint8_t>(std::clamp(prog.skillPoints, 0, 255));
+        for (const auto& s : prog.skills)
+            u.skills.push_back({s.skill, s.level, static_cast<std::uint16_t>(std::ceil(s.cooldown * 10.0f))});
+        u.items.assign(prog.items.begin(), prog.items.end());
+        v.units.push_back(std::move(u));
+    }
+    return v;
+}
+
 Snapshot Server::buildSnapshot() const {
     Snapshot s;
     s.tick = static_cast<std::uint32_t>(world_.tick());
@@ -219,6 +245,8 @@ Snapshot Server::buildSnapshot() const {
         st.team = team.id;
         const auto* owner = reg.try_get<Owner>(e);
         st.owner = owner ? owner->player : kNoOwner;
+        if (const auto* prog = reg.try_get<Progression>(e))
+            st.rank = static_cast<std::uint8_t>(static_cast<int>(prog->rank) + 1);
         st.x = quantizePos(pos.value.x);
         st.y = quantizePos(pos.value.y);
         if (const auto* vel = reg.try_get<Velocity>(e); vel && !reg.all_of<Structure>(e)) {
@@ -228,6 +256,7 @@ Snapshot Server::buildSnapshot() const {
         if (const auto* f = reg.try_get<Facing>(e))
             st.facing = quantizeAngle(f->angle);
         st.hp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.hp), 0.0f, 65535.0f));
+        st.maxHp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.max), 1.0f, 65535.0f));
         s.entities.push_back(st);
     }
 
@@ -291,6 +320,18 @@ Snapshot Server::buildSnapshot() const {
         case EventType::MatchEnd:
             push(NetEventType::MatchEnd);
             break;
+        case EventType::SkillCast:
+            push(NetEventType::SkillCast);
+            break;
+        case EventType::Promote:
+            push(NetEventType::Promote);
+            break;
+        case EventType::LevelUp:
+            push(NetEventType::LevelUp);
+            break;
+        case EventType::Loot:
+            push(NetEventType::Loot);
+            break;
         default:
             break;
         }
@@ -313,8 +354,7 @@ void Server::tick() {
                 base = &candidate;
         }
         Writer w;
-        const auto energy = static_cast<std::uint32_t>(std::max(0.0f, world_.player(c->player).energy));
-        encodeSnapshot(w, current, base, {c->commandSeq, energy});
+        encodeSnapshot(w, current, base, buildView(*c));
         c->conn->setUnreliable(std::move(w.data()));
         const std::uint16_t seq = c->conn->flush();
         c->sentTicks[seq % c->sentTicks.size()] = {seq, tick};

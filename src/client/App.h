@@ -29,6 +29,7 @@ struct LaunchOptions {
     std::string map = "siege_test";
     std::uint16_t port = net::kGamePort;
     Difficulty difficulty = Difficulty::Normal;
+    bool cheats = false;
 };
 
 struct UnitVisual {
@@ -84,6 +85,11 @@ private:
     void showBanner(std::string text, float seconds);
     void renderResourcePoints();
     void renderGameHud();
+    void renderUnitPanel(int row);
+    void renderSidePanel();
+    void handlePanelKey(SDL_Keycode key, bool shift);
+    const net::OwnUnit* focusedOwn() const;
+    std::string modsText(const StatMods& m) const;
 
     void render();
     void renderWorld();
@@ -124,6 +130,9 @@ private:
     glm::vec2 dragStart_{};
     bool dragging_ = false;
     bool attackMoveArmed_ = false;
+
+    enum class Panel { None, Shop, Stash, Learn };
+    Panel panel_ = Panel::None;
 };
 
 }

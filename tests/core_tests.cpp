@@ -53,7 +53,7 @@ TEST_CASE("game data parses") {
 }
 
 TEST_CASE("shipped data is valid") {
-    const auto data = vw::GameData::parse(readData("units.json"));
+    const auto data = vw::GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
     const auto map = vw::Map::parse(readData("maps/siege_test.json"));
     CHECK(map.lanes().size() == 4);
     vw::World world(data, map);

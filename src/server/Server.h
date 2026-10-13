@@ -19,6 +19,7 @@ struct ServerConfig {
     std::string mapName = "siege_test";
     int maxPlayers = 8;
     Difficulty difficulty = Difficulty::Normal;
+    bool cheats = false;
 };
 
 class Server {
@@ -56,6 +57,7 @@ private:
     void drop(std::size_t index, bool notify);
     void tick();
     net::Snapshot buildSnapshot() const;
+    net::ClientView buildView(const Client& client) const;
     Client* findClient(const net::Address& address);
 
     const GameData& data_;

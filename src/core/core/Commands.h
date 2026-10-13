@@ -29,9 +29,64 @@ struct RecruitCommand {
     std::uint16_t unit = 0;
 };
 
-using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand>;
+struct PromoteCommand {
+    std::uint8_t player = 0;
+    entt::entity unit = entt::null;
+};
 
-enum class EventType : std::uint8_t { Spawn, Shot, Hit, Death, SlamWarn, Slam, Summon, Enrage, WaveStart, PointCaptured, MatchEnd };
+struct CastCommand {
+    std::uint8_t player = 0;
+    entt::entity unit = entt::null;
+    std::uint8_t slot = 0;
+    glm::vec2 point{};
+};
+
+struct LearnCommand {
+    std::uint8_t player = 0;
+    entt::entity unit = entt::null;
+    std::uint16_t skill = 0;
+};
+
+struct BuyCommand {
+    std::uint8_t player = 0;
+    std::uint16_t item = 0;
+};
+
+struct EquipCommand {
+    std::uint8_t player = 0;
+    entt::entity unit = entt::null;
+    std::uint8_t stashIndex = 0;
+};
+
+struct UnequipCommand {
+    std::uint8_t player = 0;
+    entt::entity unit = entt::null;
+    std::uint8_t slot = 0;
+};
+
+using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand, PromoteCommand, CastCommand, LearnCommand, BuyCommand,
+                             EquipCommand, UnequipCommand>;
+
+template <class T>
+concept UnitCommand = requires(T t) { t.units; };
+
+enum class EventType : std::uint8_t {
+    Spawn,
+    Shot,
+    Hit,
+    Death,
+    SlamWarn,
+    Slam,
+    Summon,
+    Enrage,
+    WaveStart,
+    PointCaptured,
+    MatchEnd,
+    SkillCast,
+    Promote,
+    LevelUp,
+    Loot,
+};
 
 struct SimEvent {
     EventType type = EventType::Spawn;

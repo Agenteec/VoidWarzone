@@ -93,7 +93,7 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
 
 void App::loadContent() {
     const std::string unitsText = loadText("data/units.json");
-    data_ = std::make_unique<GameData>(GameData::parse(unitsText));
+    data_ = std::make_unique<GameData>(GameData::parse(unitsText, loadText("data/skills.json"), loadText("data/items.json")));
 
     visuals_.assign(data_->units().size(), {});
     const auto units = nlohmann::json::parse(unitsText);
@@ -140,6 +140,7 @@ void App::startHost() {
     config.mapName = options_.map;
     config.name = options_.name + "'s game";
     config.difficulty = options_.difficulty;
+    config.cheats = options_.cheats;
     host_ = std::make_unique<server::Server>(*data_, *hostMap_, config);
     if (!host_->start(now_)) {
         host_.reset();
@@ -317,6 +318,8 @@ void App::handleGameEvent(const SDL_Event& e) {
         } else if (e.key.key == SDLK_ESCAPE) {
             if (attackMoveArmed_)
                 attackMoveArmed_ = false;
+            else if (panel_ != Panel::None)
+                panel_ = Panel::None;
             else
                 selected_.clear();
         } else if (e.key.key == SDLK_SPACE) {
@@ -326,10 +329,32 @@ void App::handleGameEvent(const SDL_Event& e) {
                     camera_.target = u->pos;
         } else if (e.key.key == SDLK_F10) {
             leaveGame("left the game");
+        } else if (panel_ != Panel::None && ((e.key.key >= SDLK_1 && e.key.key <= SDLK_9) || e.key.key == SDLK_0)) {
+            handlePanelKey(e.key.key, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
         } else if (e.key.key >= SDLK_1 && e.key.key <= SDLK_9) {
             const auto index = static_cast<std::size_t>(e.key.key - SDLK_1);
             if (index < data_->recruitable().size())
                 net_.sendCommand(RecruitCommand{0, data_->recruitable()[index]});
+        } else if (e.key.key == SDLK_B || e.key.key == SDLK_I || e.key.key == SDLK_L) {
+            const Panel p = e.key.key == SDLK_B ? Panel::Shop : e.key.key == SDLK_I ? Panel::Stash : Panel::Learn;
+            panel_ = panel_ == p ? Panel::None : p;
+        } else if (e.key.key == SDLK_P) {
+            for (const auto id : selected_)
+                net_.sendCommand(PromoteCommand{0, static_cast<entt::entity>(id)});
+        } else if (e.key.key == SDLK_Q || e.key.key == SDLK_W || e.key.key == SDLK_E || e.key.key == SDLK_R) {
+            const std::uint8_t slot = e.key.key == SDLK_Q ? 0 : e.key.key == SDLK_W ? 1 : e.key.key == SDLK_E ? 2 : 3;
+            const auto ground = camera_.screenToGround(mouse_.x, mouse_.y);
+            const auto* latest = net_.latest();
+            if (ground && latest)
+                for (const auto id : selected_)
+                    if (const auto* own = latest->view.unit(id); own && own->rank == static_cast<std::uint8_t>(Rank::Hero) && slot < own->skills.size() &&
+                                                                 !data_->skill(own->skills[slot].skill).passive) {
+                        if (own->skills[slot].cooldown == 0) {
+                            prediction_.cancel({id});
+                            net_.sendCommand(CastCommand{0, static_cast<entt::entity>(id), slot, *ground});
+                        }
+                        break;
+                    }
         }
         break;
     default:
@@ -567,14 +592,31 @@ void App::renderWorld() {
         }
         const auto& def = data_->unit(e.def);
         const auto& vis = visuals_[e.def];
-        const float d = def.radius * 2.0f;
+        const auto rank = e.rank > 0 ? static_cast<Rank>(e.rank - 1) : Rank::Recruit;
+        const float grow = rank == Rank::Hero ? 1.25f : rank == Rank::Elite ? 1.1f : 1.0f;
+        const float d = def.radius * 2.0f * grow;
+        const float height = vis.height * grow;
         const glm::vec4 color = unitColor(e);
-        renderer_.draw(vis.shape, {e.pos.x, vis.height * 0.5f, e.pos.y}, {d, vis.height, d}, e.facing, color);
+        renderer_.draw(vis.shape, {e.pos.x, height * 0.5f, e.pos.y}, {d, height, d}, e.facing, color);
+        if (e.rank > 0 && rank != Rank::Recruit) {
+            const glm::vec4 gold{1.0f, 0.82f, 0.25f, 1.0f};
+            const glm::vec4 silver{0.8f, 0.85f, 0.95f, 1.0f};
+            if (rank == Rank::Veteran)
+                renderer_.draw(Mesh::Cube, {e.pos.x, height + 0.25f, e.pos.y}, {0.5f, 0.08f, 0.12f}, 0.0f, gold, Unlit);
+            if (rank == Rank::Elite)
+                renderer_.draw(Mesh::Cylinder, {e.pos.x, 0.05f, e.pos.y}, {d + 0.9f, 0.05f, d + 0.9f}, 0.0f, glm::vec4(glm::vec3(silver), 0.6f),
+                               Unlit | Alpha);
+            if (rank == Rank::Hero) {
+                renderer_.draw(Mesh::Cylinder, {e.pos.x, 0.05f, e.pos.y}, {d + 1.2f, 0.05f, d + 1.2f}, 0.0f, glm::vec4(glm::vec3(gold), 0.6f),
+                               Unlit | Alpha);
+                renderer_.draw(Mesh::Sphere, {e.pos.x, height + 0.9f, e.pos.y}, glm::vec3(0.35f), 0.0f, gold, Unlit);
+            }
+        }
 
         if (def.weapon && !def.structure) {
             const glm::vec2 f{std::cos(e.facing), std::sin(e.facing)};
-            const glm::vec2 nose = e.pos + f * def.radius * 0.9f;
-            renderer_.draw(Mesh::Cube, {nose.x, vis.height * 0.65f, nose.y}, {def.radius, 0.18f, 0.18f}, e.facing,
+            const glm::vec2 nose = e.pos + f * d * 0.45f;
+            renderer_.draw(Mesh::Cube, {nose.x, height * 0.65f, nose.y}, {d * 0.5f, 0.18f, 0.18f}, e.facing,
                            glm::vec4(glm::vec3(color) * 0.6f, 1.0f));
         }
 
@@ -582,11 +624,11 @@ void App::renderWorld() {
         if (selected)
             renderer_.draw(Mesh::Cylinder, {e.pos.x, 0.03f, e.pos.y}, {d + 0.6f, 0.04f, d + 0.6f}, 0.0f, kSelectColor, Unlit | Alpha);
 
-        const float maxHp = def.maxHp;
+        const float maxHp = static_cast<float>(e.maxHp);
         if (selected || static_cast<float>(e.hp) < maxHp) {
             const float frac = std::clamp(static_cast<float>(e.hp) / maxHp, 0.0f, 1.0f);
             const float barW = std::max(1.0f, d);
-            const float y = vis.height + 0.5f;
+            const float y = height + 0.5f;
             renderer_.draw(Mesh::Cube, {e.pos.x, y, e.pos.y}, {barW, 0.15f, 0.08f}, 0.0f, {0.05f, 0.05f, 0.05f, 1.0f}, Unlit);
             const glm::vec4 hpColor = glm::mix(glm::vec4{1.0f, 0.2f, 0.2f, 1.0f}, glm::vec4{0.3f, 1.0f, 0.4f, 1.0f}, frac);
             renderer_.draw(Mesh::Cube, {e.pos.x - barW * 0.5f + barW * frac * 0.5f, y, e.pos.y - 0.05f}, {barW * frac, 0.17f, 0.1f}, 0.0f,
@@ -683,6 +725,50 @@ void App::handleNetEvent(const net::NetEvent& ev) {
     }
     case net::NetEventType::MatchEnd:
         break;
+    case net::NetEventType::SkillCast: {
+        const auto id = static_cast<SkillId>(std::lround(value));
+        if (id >= data_->skills().size())
+            break;
+        for (const auto& fx : data_->skill(id).effects) {
+            const float r = std::max(fx.radius, 1.0f) * 2.0f;
+            switch (fx.type) {
+            case EffectType::Damage:
+                addEffect(Mesh::Sphere, pos, {1.0f, 0.5f, 0.1f, 0.8f}, 0.5f, r, 0.6f);
+                addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.z}, {1.0f, 0.35f, 0.1f, 0.6f}, r * 0.5f, r, 0.8f);
+                break;
+            case EffectType::Heal:
+                addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.z}, {0.3f, 1.0f, 0.4f, 0.6f}, 1.0f, r, 0.6f);
+                break;
+            case EffectType::Buff:
+                addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.z}, {1.0f, 0.9f, 0.3f, 0.5f}, 1.0f, r, 0.5f);
+                break;
+            case EffectType::Dash:
+                addEffect(Mesh::Sphere, pos, {0.5f, 0.9f, 1.0f, 0.8f}, 0.3f, 2.5f, 0.3f);
+                break;
+            case EffectType::Summon:
+                addEffect(Mesh::Sphere, pos, {0.6f, 0.4f, 1.0f, 0.6f}, 0.5f, 3.0f, 0.5f);
+                break;
+            case EffectType::Aura:
+                break;
+            }
+        }
+        break;
+    }
+    case net::NetEventType::Promote:
+        addEffect(Mesh::Sphere, pos, {1.0f, 0.85f, 0.3f, 0.7f}, 0.5f, 4.0f, 0.6f);
+        if (static_cast<Rank>(std::lround(value)) == Rank::Hero)
+            showBanner("A HERO RISES", 2.0f);
+        break;
+    case net::NetEventType::LevelUp:
+        addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.z}, {1.0f, 0.85f, 0.3f, 0.7f}, 0.5f, 4.0f, 0.6f);
+        break;
+    case net::NetEventType::Loot: {
+        const auto id = static_cast<ItemId>(std::lround(value));
+        if (id < data_->items().size())
+            showBanner("LOOT: " + data_->item(id).name, 3.0f);
+        addEffect(Mesh::Sphere, pos, {0.9f, 0.6f, 1.0f, 0.7f}, 0.5f, 3.0f, 0.8f);
+        break;
+    }
     }
 }
 
@@ -729,19 +815,21 @@ void App::renderGameHud() {
         if (game.points[i].owner == 0)
             income += def.income;
     }
-    text(1, 7, 0x0a, "Energy %u | team income %.0f/s | points %s", latest->energy, income, points.c_str());
+    text(1, 7, 0x0a, "Energy %u | Shards %u | team income %.0f/s | points %s", latest->view.energy, latest->view.shards, income, points.c_str());
 
     std::string recruit;
     for (std::size_t i = 0; i < data_->recruitable().size() && i < 9; ++i) {
         const auto& def = data_->unit(data_->recruitable()[i]);
         recruit += "[" + std::to_string(i + 1) + "] " + def.name + " " + std::to_string(static_cast<int>(def.cost)) + "  ";
     }
-    text(1, 8, 0x07, "Recruit: %s", recruit.c_str());
+    text(1, 8, 0x07, "Recruit: %s | [P] promote [B] shop [I] stash [L] learn [QWER] skills", recruit.c_str());
+    renderUnitPanel(rows - 12);
+    renderSidePanel();
 
     if (game.boss != net::kNoEntity)
         if (const auto* boss = findEntity(game.boss)) {
             const auto& def = data_->unit(boss->def);
-            const float frac = std::clamp(static_cast<float>(boss->hp) / def.maxHp, 0.0f, 1.0f);
+            const float frac = std::clamp(static_cast<float>(boss->hp) / static_cast<float>(boss->maxHp), 0.0f, 1.0f);
             constexpr int barWidth = 50;
             std::string bar(barWidth, '-');
             for (int i = 0; i < static_cast<int>(frac * barWidth); ++i)
@@ -760,6 +848,170 @@ void App::renderGameHud() {
         text(std::max(0, (cols - static_cast<int>(std::strlen(hint))) / 2), rows / 2 + 1, 0x07, "%s", hint);
     } else if (bannerTime_ > 0.0f && !banner_.empty()) {
         text(std::max(0, (cols - static_cast<int>(banner_.size())) / 2), rows / 3, 0x0e, "%s", banner_.c_str());
+    }
+}
+
+const net::OwnUnit* App::focusedOwn() const {
+    const auto* latest = net_.latest();
+    if (!latest || selected_.empty())
+        return nullptr;
+    return latest->view.unit(selected_.front());
+}
+
+std::string App::modsText(const StatMods& m) const {
+    std::string s;
+    char buf[48];
+    auto add = [&](const char* fmt, float v) {
+        std::snprintf(buf, sizeof(buf), fmt, v);
+        s += buf;
+    };
+    if (m.hp != 0.0f)
+        add("+%.0f hp ", m.hp);
+    if (m.hpMul != 1.0f)
+        add("+%.0f%% hp ", (m.hpMul - 1.0f) * 100.0f);
+    if (m.damageMul != 1.0f)
+        add("+%.0f%% dmg ", (m.damageMul - 1.0f) * 100.0f);
+    if (m.attackSpeedMul != 1.0f)
+        add("+%.0f%% atk spd ", (m.attackSpeedMul - 1.0f) * 100.0f);
+    if (m.speedMul != 1.0f)
+        add("%+.0f%% move ", (m.speedMul - 1.0f) * 100.0f);
+    if (m.armor != 0.0f)
+        add("+%.0f armor ", m.armor);
+    if (m.range != 0.0f)
+        add("+%.1f range ", m.range);
+    if (m.regen != 0.0f)
+        add("+%.0f regen ", m.regen);
+    return s;
+}
+
+void App::renderUnitPanel(int row) {
+    const auto* own = focusedOwn();
+    const auto* entity = selected_.empty() ? nullptr : findEntity(selected_.front());
+    if (!own || !entity)
+        return;
+    const auto& def = data_->unit(entity->def);
+    const auto rank = static_cast<Rank>(own->rank);
+    static constexpr const char* kRankNames[] = {"Recruit", "Veteran", "Elite", "Hero"};
+
+    if (rank == Rank::Hero)
+        text(1, row++, 0x0e, "%s | HERO lvl %d | xp %d/%.0f | skill points %d", def.name.c_str(), own->level, own->xp,
+             xpForNextLevel(own->level), own->skillPoints);
+    else
+        text(1, row++, 0x0f, "%s | %s | xp %d", def.name.c_str(), kRankNames[std::min<int>(own->rank, 3)], own->xp);
+    text(1, row++, 0x07, "HP %d/%d%s", entity->hp, entity->maxHp, selected_.size() > 1 ? " (+ more selected)" : "");
+
+    if (rank == Rank::Recruit || rank == Rank::Veteran)
+        text(1, row++, 0x08, "[P] Elite: %.0f xp + %.0f energy", kEliteXp, kEliteCost);
+    else if (rank == Rank::Elite && def.skills.empty())
+        text(1, row++, 0x08, "cannot become a hero");
+    else if (rank == Rank::Elite)
+        text(1, row++, 0x08, "[P] Hero: %.0f xp + %d shards (max %d heroes)", kHeroXp, kHeroShards, kMaxHeroes);
+
+    static constexpr const char* kKeys[] = {"Q", "W", "E", "R"};
+    for (std::size_t i = 0; i < own->skills.size() && i < 4; ++i) {
+        const auto& s = own->skills[i];
+        const auto& skill = data_->skill(s.skill);
+        if (skill.passive)
+            text(1, row++, 0x0b, "[%s] %s L%d (passive)", kKeys[i], skill.name.c_str(), s.level);
+        else if (s.cooldown > 0)
+            text(1, row++, 0x08, "[%s] %s L%d - %.1fs", kKeys[i], skill.name.c_str(), s.level, s.cooldown / 10.0);
+        else
+            text(1, row++, 0x0a, "[%s] %s L%d - ready", kKeys[i], skill.name.c_str(), s.level);
+    }
+
+    const int slots = itemSlots(rank);
+    if (slots > 0) {
+        std::string items;
+        for (const auto item : own->items)
+            items += data_->item(item).name + ", ";
+        text(1, row++, 0x07, "Items %d/%d: %s", static_cast<int>(own->items.size()), slots, items.c_str());
+    }
+}
+
+void App::renderSidePanel() {
+    if (panel_ == Panel::None)
+        return;
+    const auto* latest = net_.latest();
+    if (!latest)
+        return;
+    const int cols = renderer_.width() / 8;
+    const int x = std::max(0, cols - 62);
+    int row = 10;
+    static constexpr const char* kRarity[] = {"common", "rare", "epic", "legendary"};
+
+    if (panel_ == Panel::Shop) {
+        text(x, row++, 0x0e, "SHOP - digit buys into stash (%d/%d), Esc closes", static_cast<int>(latest->view.stash.size()),
+             static_cast<int>(kStashSize));
+        const auto& shop = data_->shop();
+        for (std::size_t i = 0; i < shop.size() && i < 10; ++i) {
+            const auto& item = data_->item(shop[i]);
+            std::string price = item.cost > 0.0f ? std::to_string(static_cast<int>(item.cost)) + "e" : "";
+            if (item.shards > 0)
+                price += (price.empty() ? "" : " ") + std::to_string(item.shards) + "s";
+            text(x, row++, 0x0f, "[%d] %s (%s) %s", static_cast<int>((i + 1) % 10), item.name.c_str(), price.c_str(),
+                 modsText(item.mods).c_str());
+        }
+    } else if (panel_ == Panel::Stash) {
+        text(x, row++, 0x0e, "STASH - digit equips on selected, Shift+digit unequips slot");
+        for (std::size_t i = 0; i < latest->view.stash.size() && i < 9; ++i) {
+            const auto& item = data_->item(latest->view.stash[i]);
+            text(x, row++, 0x0f, "[%d] %s (%s) %s", static_cast<int>(i + 1), item.name.c_str(), kRarity[static_cast<int>(item.rarity)],
+                 modsText(item.mods).c_str());
+        }
+        if (latest->view.stash.empty())
+            text(x, row++, 0x08, "empty - buy in the shop or kill bosses");
+    } else if (panel_ == Panel::Learn) {
+        const auto* own = focusedOwn();
+        const auto* entity = selected_.empty() ? nullptr : findEntity(selected_.front());
+        if (!own || !entity || own->rank != static_cast<std::uint8_t>(Rank::Hero)) {
+            text(x, row++, 0x0c, "select a hero to learn skills");
+            return;
+        }
+        text(x, row++, 0x0e, "LEARN - %d skill points, max %d skills, level %d", own->skillPoints, static_cast<int>(kMaxSkills),
+             static_cast<int>(kMaxSkillLevel));
+        const auto& pool = data_->unit(entity->def).skills;
+        for (std::size_t i = 0; i < pool.size() && i < 9; ++i) {
+            const auto& skill = data_->skill(pool[i]);
+            int level = 0;
+            for (const auto& s : own->skills)
+                if (s.skill == pool[i])
+                    level = s.level;
+            text(x, row++, level > 0 ? 0x0a : 0x0f, "[%d] %s%s L%d/%d", static_cast<int>(i + 1), skill.name.c_str(), skill.passive ? " (passive)" : "",
+                 level, static_cast<int>(kMaxSkillLevel));
+        }
+    }
+}
+
+void App::handlePanelKey(SDL_Keycode key, bool shift) {
+    const int digit = key == SDLK_0 ? 10 : static_cast<int>(key - SDLK_1) + 1;
+    const auto index = static_cast<std::size_t>(digit - 1);
+    const auto* latest = net_.latest();
+    if (!latest)
+        return;
+    const auto focused = selected_.empty() ? entt::null : static_cast<entt::entity>(selected_.front());
+
+    switch (panel_) {
+    case Panel::Shop:
+        if (index < data_->shop().size())
+            net_.sendCommand(BuyCommand{0, data_->shop()[index]});
+        break;
+    case Panel::Stash:
+        if (focused == entt::null)
+            break;
+        if (shift)
+            net_.sendCommand(UnequipCommand{0, focused, static_cast<std::uint8_t>(index)});
+        else if (index < latest->view.stash.size())
+            net_.sendCommand(EquipCommand{0, focused, static_cast<std::uint8_t>(index)});
+        break;
+    case Panel::Learn:
+        if (const auto* e = findEntity(selected_.empty() ? 0 : selected_.front())) {
+            const auto& pool = data_->unit(e->def).skills;
+            if (index < pool.size())
+                net_.sendCommand(LearnCommand{0, focused, pool[index]});
+        }
+        break;
+    case Panel::None:
+        break;
     }
 }
 

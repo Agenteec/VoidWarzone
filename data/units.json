@@ -40,12 +40,12 @@
       "visual": { "shape": "sphere", "height": 0.9 }
     },
     {
-      "id": "void_brute", "name": "Void Brute", "bounty": 12, "maxHp": 520, "armor": 4, "radius": 0.75, "speed": 2.4, "sight": 7,
+      "id": "void_brute", "name": "Void Brute", "bounty": 12, "shards": 1, "maxHp": 520, "armor": 4, "radius": 0.75, "speed": 2.4, "sight": 7,
       "weapon": { "damage": 34, "range": 0.5, "cooldown": 1.6 },
       "visual": { "shape": "cube", "height": 1.5 }
     },
     {
-      "id": "void_warden", "name": "Void Warden", "bounty": 120, "maxHp": 3200, "armor": 5, "radius": 1.3, "speed": 2.4, "sight": 9,
+      "id": "void_warden", "name": "Void Warden", "bounty": 120, "shards": 4, "loot": ["warden_eye", "aegis", "void_blade"], "maxHp": 3200, "armor": 5, "radius": 1.3, "speed": 2.4, "sight": 9,
       "weapon": { "damage": 45, "range": 1.0, "cooldown": 1.4 },
       "boss": {
         "title": "VOID WARDEN",
@@ -55,7 +55,7 @@
       "visual": { "shape": "sphere", "height": 2.6 }
     },
     {
-      "id": "void_titan", "name": "Void Titan", "bounty": 300, "maxHp": 7500, "armor": 7, "radius": 1.7, "speed": 2.1, "sight": 10,
+      "id": "void_titan", "name": "Void Titan", "bounty": 300, "shards": 8, "loot": ["titan_heart"], "maxHp": 7500, "armor": 7, "radius": 1.7, "speed": 2.1, "sight": 10,
       "weapon": { "damage": 70, "range": 1.2, "cooldown": 1.5 },
       "boss": {
         "title": "VOID TITAN",
@@ -69,13 +69,20 @@
     },
     {
       "id": "tank", "name": "Tank", "cost": 120, "maxHp": 500, "armor": 4, "radius": 0.7, "speed": 4.0, "sight": 9,
+      "skills": ["siege_shot", "fortify", "rally", "repair_field", "command_aura"],
       "weapon": { "damage": 35, "range": 6, "cooldown": 0.9, "projectileSpeed": 22 },
       "visual": { "shape": "cube", "height": 1.0 }
     },
     {
       "id": "scout", "name": "Scout", "cost": 60, "maxHp": 200, "armor": 1, "radius": 0.45, "speed": 6.5, "sight": 10,
+      "skills": ["blink", "rapid_fire", "shock_mine", "drones", "hunter_aura"],
       "weapon": { "damage": 9, "range": 4, "cooldown": 0.3, "projectileSpeed": 26 },
       "visual": { "shape": "sphere", "height": 0.8 }
+    },
+    {
+      "id": "drone", "name": "Drone", "maxHp": 120, "radius": 0.35, "speed": 6.0, "sight": 8,
+      "weapon": { "damage": 14, "range": 4, "cooldown": 0.6, "projectileSpeed": 24 },
+      "visual": { "shape": "sphere", "height": 0.5 }
     }
   ]
 }

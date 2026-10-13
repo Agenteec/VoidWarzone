@@ -75,12 +75,19 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     const float maxHp = def.maxHp * (enemy ? enemyHpScale() : 1.0f);
     registry_.emplace<Health>(e, maxHp, maxHp, def.armor);
     registry_.emplace<Target>(e);
+    BaseStats base{maxHp, def.armor, def.speed};
     if (def.weapon) {
         WeaponDef w = *def.weapon;
         if (enemy)
             w.damage *= enemyDamageScale();
         registry_.emplace<Weapon>(e, w, 0.0f);
+        base.damage = w.damage;
+        base.cooldown = w.cooldown;
+        base.range = w.range;
     }
+    registry_.emplace<BaseStats>(e, base);
+    if (owner >= 0 && !def.structure)
+        registry_.emplace<Progression>(e);
     if (def.boss) {
         Boss boss;
         for (const auto& a : def.boss->abilities)
@@ -156,8 +163,8 @@ void World::apply(const Command& command) {
     std::visit(
         [this](const auto& cmd) {
             using T = std::decay_t<decltype(cmd)>;
-            if constexpr (std::is_same_v<T, RecruitCommand>) {
-                recruit(cmd);
+            if constexpr (!UnitCommand<T>) {
+                handle(cmd);
             } else {
             std::vector<entt::entity> units;
             for (const auto e : cmd.units)
@@ -201,12 +208,13 @@ void World::apply(const Command& command) {
 }
 
 void World::step() {
-    events_.clear();
+    events_.erase(events_.begin(), events_.begin() + static_cast<std::ptrdiff_t>(std::min(stepEvents_, events_.size())));
     for (auto [e, p, prev] : registry_.view<const Position, PrevPosition>().each())
         prev.value = p.value;
 
     rebuildSpatial();
     updateSpawners();
+    updateHeroes();
     updateUnits();
     updateBosses();
     integrate();
@@ -216,6 +224,7 @@ void World::step() {
     removeDead();
     updateResourcePoints();
     updateDefense();
+    stepEvents_ = events_.size();
     ++tick_;
 }
 
@@ -483,22 +492,28 @@ void World::updateProjectiles() {
 
 void World::removeDead() {
     std::vector<entt::entity> dead;
+    struct Kill {
+        UnitDefId def;
+        glm::vec2 pos;
+        int lastHitBy;
+    };
+    std::vector<Kill> kills;
     for (auto [e, h, pos, unit, team] : registry_.view<const Health, const Position, const Unit, const Team>().each()) {
         if (h.hp > 0.0f)
             continue;
         dead.push_back(e);
         events_.push_back({EventType::Death, e, entt::null, pos.value, pos.value});
-        const float bounty = data_->unit(unit.def).bounty;
-        if (team.id == 0 || bounty <= 0.0f)
+        if (team.id != 0) {
+            kills.push_back({unit.def, pos.value, h.lastHitBy});
             continue;
-        if (h.lastHitBy >= 0 && players_[static_cast<std::size_t>(h.lastHitBy)].active) {
-            auto& p = players_[static_cast<std::size_t>(h.lastHitBy)];
-            p.energy += bounty;
-            ++p.kills;
-        } else {
-            grantTeamEnergy(bounty * 0.5f);
         }
+        const auto* prog = registry_.try_get<Progression>(e);
+        const auto* owner = registry_.try_get<Owner>(e);
+        if (prog && owner && prog->rank == Rank::Hero && players_[owner->player].active)
+            respawns_.push_back({owner->player, unit.def, *prog, 10.0f + 2.0f * static_cast<float>(prog->level)});
     }
+    for (const auto& k : kills)
+        onEnemyKilled(data_->unit(k.def), k.pos, k.lastHitBy);
     registry_.destroy(dead.begin(), dead.end());
 }
 

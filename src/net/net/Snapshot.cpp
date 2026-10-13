@@ -16,7 +16,7 @@ enum Field : std::uint8_t {
 
 std::uint8_t diff(const EntityState& a, const EntityState& b) {
     std::uint8_t m = 0;
-    if (a.kind != b.kind || a.def != b.def || a.team != b.team || a.owner != b.owner)
+    if (a.kind != b.kind || a.def != b.def || a.team != b.team || a.owner != b.owner || a.rank != b.rank)
         m |= kStatic;
     if (a.x != b.x || a.y != b.y)
         m |= kPos;
@@ -24,7 +24,7 @@ std::uint8_t diff(const EntityState& a, const EntityState& b) {
         m |= kVel;
     if (a.facing != b.facing)
         m |= kFacing;
-    if (a.hp != b.hp)
+    if (a.hp != b.hp || a.maxHp != b.maxHp)
         m |= kHp;
     return m;
 }
@@ -33,6 +33,71 @@ bool byId(const EntityState& a, const EntityState& b) {
     return a.id < b.id;
 }
 
+}
+
+void writeView(Writer& w, const ClientView& v) {
+    w.u32(v.commandSeq);
+    w.u32(v.energy);
+    w.u16(v.shards);
+    w.u8(static_cast<std::uint8_t>(v.stash.size()));
+    for (const auto item : v.stash)
+        w.u16(item);
+    w.varu(v.units.size());
+    for (const auto& u : v.units) {
+        w.u32(u.id);
+        w.u8(u.rank);
+        w.u8(u.level);
+        w.u16(u.xp);
+        w.u8(u.skillPoints);
+        w.u8(static_cast<std::uint8_t>(u.skills.size()));
+        for (const auto& s : u.skills) {
+            w.u16(s.skill);
+            w.u8(s.level);
+            w.u16(s.cooldown);
+        }
+        w.u8(static_cast<std::uint8_t>(u.items.size()));
+        for (const auto item : u.items)
+            w.u16(item);
+    }
+}
+
+bool readView(Reader& r, ClientView& v) {
+    v.commandSeq = r.u32();
+    v.energy = r.u32();
+    v.shards = r.u16();
+    v.stash.resize(r.u8());
+    for (auto& item : v.stash)
+        item = r.u16();
+    const auto count = r.varu();
+    if (count > 4096)
+        return false;
+    v.units.resize(static_cast<std::size_t>(count));
+    for (auto& u : v.units) {
+        u.id = r.u32();
+        u.rank = r.u8();
+        u.level = r.u8();
+        u.xp = r.u16();
+        u.skillPoints = r.u8();
+        u.skills.resize(r.u8());
+        for (auto& s : u.skills) {
+            s.skill = r.u16();
+            s.level = r.u8();
+            s.cooldown = r.u16();
+        }
+        u.items.resize(r.u8());
+        for (auto& item : u.items)
+            item = r.u16();
+        if (!r.ok())
+            return false;
+    }
+    return r.ok();
+}
+
+const OwnUnit* ClientView::unit(std::uint32_t id) const {
+    for (const auto& u : units)
+        if (u.id == id)
+            return &u;
+    return nullptr;
 }
 
 const EntityState* Snapshot::find(std::uint32_t id) const {
@@ -45,8 +110,7 @@ const EntityState* Snapshot::find(std::uint32_t id) const {
 void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const ClientView& view) {
     w.u32(cur.tick);
     w.u32(base ? base->tick : 0);
-    w.u32(view.commandSeq);
-    w.u32(view.energy);
+    writeView(w, view);
 
     w.u8(cur.game.state);
     w.u8(cur.game.wave);
@@ -81,6 +145,7 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const 
             changed.u16(e.def);
             changed.u8(e.team);
             changed.u8(e.owner);
+            changed.u8(e.rank);
         }
         if (mask & kPos) {
             changed.u16(e.x);
@@ -92,8 +157,10 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const 
         }
         if (mask & kFacing)
             changed.u8(e.facing);
-        if (mask & kHp)
+        if (mask & kHp) {
             changed.u16(e.hp);
+            changed.u16(e.maxHp);
+        }
     }
     while (bi < baseEntities.size())
         removed.push_back(baseEntities[bi++].id);
@@ -116,8 +183,8 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const 
 bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
     out.tick = r.u32();
     const std::uint32_t baseTick = r.u32();
-    out.commandSeq = r.u32();
-    out.energy = r.u32();
+    if (!readView(r, out.view))
+        return false;
     out.game.state = r.u8();
     out.game.wave = r.u8();
     out.game.totalWaves = r.u8();
@@ -175,6 +242,7 @@ bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
             e->def = r.u16();
             e->team = r.u8();
             e->owner = r.u8();
+            e->rank = r.u8();
         }
         if (mask & kPos) {
             e->x = r.u16();
@@ -186,8 +254,10 @@ bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
         }
         if (mask & kFacing)
             e->facing = r.u8();
-        if (mask & kHp)
+        if (mask & kHp) {
             e->hp = r.u16();
+            e->maxHp = r.u16();
+        }
     }
     std::sort(out.entities.begin(), out.entities.end(), byId);
 

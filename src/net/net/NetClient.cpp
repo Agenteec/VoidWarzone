@@ -41,6 +41,8 @@ InterpolatedEntity toEntity(const EntityState& s) {
     e.vel = {dequantizeVel(s.vx), dequantizeVel(s.vy)};
     e.facing = dequantizeAngle(s.facing);
     e.hp = s.hp;
+    e.maxHp = std::max<std::uint16_t>(s.maxHp, 1);
+    e.rank = s.rank;
     return e;
 }
 
@@ -198,7 +200,7 @@ std::uint32_t NetClient::sendCommand(const Command& command) {
 
 std::uint32_t NetClient::ackedCommandSeq() const {
     const Snapshot* s = latest();
-    return s ? s->commandSeq : 0;
+    return s ? s->view.commandSeq : 0;
 }
 
 const Snapshot* NetClient::snapshot(std::uint32_t tick) const {

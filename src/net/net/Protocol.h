@@ -45,6 +45,10 @@ enum class NetEventType : std::uint8_t {
     WaveStart,
     PointCaptured,
     MatchEnd,
+    SkillCast,
+    Promote,
+    LevelUp,
+    Loot,
 };
 
 const char* denyReasonText(DenyReason reason);

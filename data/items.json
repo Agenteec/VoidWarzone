@@ -1,0 +1,14 @@
+{
+  "items": [
+    { "id": "plating", "name": "Void Plating", "rarity": "common", "cost": 90, "mods": { "hp": 150, "armor": 2 } },
+    { "id": "servo", "name": "Servo Joints", "rarity": "common", "cost": 80, "mods": { "speedMul": 1.15 } },
+    { "id": "focus_lens", "name": "Focus Lens", "rarity": "common", "cost": 100, "mods": { "damageMul": 1.15 } },
+    { "id": "nanites", "name": "Nanite Swarm", "rarity": "common", "cost": 110, "mods": { "regen": 6 } },
+    { "id": "rangefinder", "name": "Rangefinder", "rarity": "rare", "cost": 160, "mods": { "range": 1.5 } },
+    { "id": "overclock", "name": "Overclock Core", "rarity": "rare", "cost": 180, "mods": { "attackSpeedMul": 1.3 } },
+    { "id": "void_blade", "name": "Void Blade", "rarity": "epic", "shards": 3, "mods": { "damageMul": 1.35, "attackSpeedMul": 1.1 } },
+    { "id": "aegis", "name": "Aegis Shell", "rarity": "epic", "shards": 3, "mods": { "hp": 400, "armor": 5 } },
+    { "id": "titan_heart", "name": "Titan Heart", "rarity": "legendary", "mods": { "hpMul": 1.5, "regen": 15, "damageMul": 1.2 } },
+    { "id": "warden_eye", "name": "Warden's Eye", "rarity": "legendary", "mods": { "range": 2.5, "damageMul": 1.25 } }
+  ]
+}

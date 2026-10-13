@@ -81,7 +81,7 @@ void World::grantTeamEnergy(float amount) {
             p.energy += share;
 }
 
-void World::recruit(const RecruitCommand& cmd) {
+void World::handle(const RecruitCommand& cmd) {
     if (!map_ || cmd.player >= kMaxPlayers || cmd.unit >= data_->units().size())
         return;
     auto& player = players_[cmd.player];
@@ -105,17 +105,14 @@ void World::updateBosses() {
         bool hasLane;
     };
     std::vector<Summon> summons;
+    std::vector<entt::entity> enraged;
 
-    for (auto [e, pos, boss, health, unit, team, vel] : registry_.view<const Position, Boss, const Health, Unit, const Team, Velocity>().each()) {
+    for (auto [e, pos, boss, health, unit, team, vel] : registry_.view<const Position, Boss, const Health, const Unit, const Team, Velocity>().each()) {
         const auto& def = *data_->unit(unit.def).boss;
 
         if (!boss.enraged && def.enrage && health.hp < health.max * def.enrage->hpBelow) {
             boss.enraged = true;
-            unit.speed *= def.enrage->speed;
-            if (auto* w = registry_.try_get<Weapon>(e)) {
-                w->def.damage *= def.enrage->damage;
-                w->def.cooldown *= def.enrage->cooldown;
-            }
+            enraged.push_back(e);
             events_.push_back({EventType::Enrage, e, entt::null, pos.value, pos.value});
         }
 
@@ -165,6 +162,9 @@ void World::updateBosses() {
             events_.push_back({EventType::Summon, e, entt::null, pos.value, pos.value});
         }
     }
+
+    for (const auto e : enraged)
+        refreshStats(e);
 
     for (const auto& s : summons)
         for (int i = 0; i < s.count; ++i) {
