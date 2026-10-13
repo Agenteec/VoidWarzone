@@ -1,0 +1,45 @@
+cmake_minimum_required(VERSION 3.25)
+
+project(VoidWarzone VERSION 0.0.1 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+if(ANDROID)
+    set(_vw_desktop OFF)
+else()
+    set(_vw_desktop ON)
+endif()
+
+option(VW_BUILD_CLIENT "Build client" ON)
+option(VW_BUILD_SERVER "Build dedicated server" ${_vw_desktop})
+option(VW_BUILD_MASTER "Build master server" ${_vw_desktop})
+option(VW_BUILD_TESTS "Build tests" ${_vw_desktop})
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+include(CompilerOptions)
+include(Dependencies)
+
+add_subdirectory(src/core)
+add_subdirectory(src/net)
+
+if(VW_BUILD_SERVER)
+    add_subdirectory(src/server)
+endif()
+if(VW_BUILD_CLIENT)
+    add_subdirectory(src/client)
+endif()
+if(VW_BUILD_MASTER)
+    add_subdirectory(src/master)
+endif()
+if(VW_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

@@ -1,0 +1,35 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .deps
+          key: deps-${{ hashFiles('cmake/Dependencies.cmake') }}
+      - uses: ilammy/msvc-dev-cmd@v1
+      - run: cmake --preset windows-ninja
+      - run: cmake --build build/windows-ninja
+      - run: ctest --test-dir build/windows-ninja --output-on-failure
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .deps
+          key: deps-${{ hashFiles('cmake/Dependencies.cmake') }}
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev wayland-protocols libegl1-mesa-dev libgl1-mesa-dev
+      - run: cmake --preset linux
+      - run: cmake --build --preset linux
+      - run: ctest --test-dir build/linux --output-on-failure

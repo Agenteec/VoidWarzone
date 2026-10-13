@@ -1,0 +1,74 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CPM_SOURCE_CACHE": "${sourceDir}/.deps"
+      }
+    },
+    {
+      "name": "windows-vs",
+      "displayName": "Windows (Visual Studio 2026)",
+      "inherits": "base",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "windows-ninja",
+      "displayName": "Windows (Ninja, MSVC)",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "CMAKE_C_COMPILER": "cl", "CMAKE_CXX_COMPILER": "cl" },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "linux",
+      "displayName": "Linux",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+    },
+    {
+      "name": "linux-server",
+      "displayName": "Linux server (headless, Release)",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VW_BUILD_CLIENT": "OFF",
+        "VW_BUILD_TESTS": "OFF"
+      },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+    },
+    {
+      "name": "android-arm64",
+      "displayName": "Android arm64",
+      "inherits": "base",
+      "generator": "Ninja",
+      "toolchainFile": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ANDROID_ABI": "arm64-v8a",
+        "ANDROID_PLATFORM": "android-26"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-vs-debug", "configurePreset": "windows-vs", "configuration": "Debug" },
+    { "name": "windows-vs-release", "configurePreset": "windows-vs", "configuration": "Release" },
+    { "name": "windows-ninja", "configurePreset": "windows-ninja" },
+    { "name": "linux", "configurePreset": "linux" },
+    { "name": "linux-server", "configurePreset": "linux-server" },
+    { "name": "android-arm64", "configurePreset": "android-arm64" }
+  ],
+  "testPresets": [
+    { "name": "windows-vs", "configurePreset": "windows-vs", "configuration": "Debug", "output": { "outputOnFailure": true } },
+    { "name": "linux", "configurePreset": "linux", "output": { "outputOnFailure": true } }
+  ]
+}
