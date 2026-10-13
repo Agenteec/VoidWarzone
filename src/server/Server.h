@@ -18,6 +18,7 @@ struct ServerConfig {
     std::string name = "Void Warzone";
     std::string mapName = "siege_test";
     int maxPlayers = 8;
+    Difficulty difficulty = Difficulty::Normal;
 };
 
 class Server {

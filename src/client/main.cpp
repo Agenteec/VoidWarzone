@@ -23,6 +23,8 @@ int main(int argc, char** argv) {
             options.map = argv[++i];
         else if (arg == "--port" && hasValue)
             options.port = static_cast<std::uint16_t>(std::atoi(argv[++i]));
+        else if (arg == "--difficulty" && hasValue)
+            vw::parseDifficulty(argv[++i], options.difficulty);
     }
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {

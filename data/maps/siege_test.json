@@ -20,18 +20,24 @@
     { "name": "mid_right", "points": [[9, 9], [64, 32], [87, 87]] }
   ],
   "units": [
-    { "unit": "core", "team": 0, "pos": [9, 9] },
+    { "unit": "core", "role": "core", "team": 0, "pos": [9, 9] },
     { "unit": "tower", "team": 0, "pos": [12, 26] },
     { "unit": "tower", "team": 0, "pos": [26, 12] },
     { "unit": "tower", "team": 0, "pos": [22, 30] },
     { "unit": "tower", "team": 0, "pos": [30, 22] },
-    { "unit": "portal", "team": 1, "pos": [87, 87] },
+    { "unit": "portal", "role": "portal", "team": 1, "pos": [87, 87] },
     { "unit": "void_tower", "team": 1, "pos": [84, 70] },
     { "unit": "void_tower", "team": 1, "pos": [70, 84] },
     { "unit": "void_tower", "team": 1, "pos": [70, 78] },
     { "unit": "void_tower", "team": 1, "pos": [78, 70] }
   ],
   "playerStart": { "pos": [18, 18], "units": ["tank", "tank", "scout", "scout"] },
+  "resourcePoints": [
+    { "name": "A", "pos": [34, 34], "radius": 3.5, "income": 2 },
+    { "name": "B", "pos": [17, 42], "radius": 3.5, "income": 3 },
+    { "name": "C", "pos": [42, 17], "radius": 3.5, "income": 3 },
+    { "name": "D", "pos": [62, 62], "radius": 4.0, "income": 5 }
+  ],
   "spawners": [
     { "unit": "creep_melee", "team": 0, "lane": "top", "interval": 25, "delay": 3, "count": 3, "offset": 5 },
     { "unit": "creep_ranged", "team": 0, "lane": "top", "interval": 25, "delay": 4, "count": 2, "offset": 5 },
@@ -40,14 +46,45 @@
     { "unit": "creep_melee", "team": 0, "lane": "mid_left", "interval": 25, "delay": 3, "count": 3, "offset": 5 },
     { "unit": "creep_ranged", "team": 0, "lane": "mid_left", "interval": 25, "delay": 4, "count": 2, "offset": 5 },
     { "unit": "creep_melee", "team": 0, "lane": "mid_right", "interval": 25, "delay": 3, "count": 3, "offset": 5 },
-    { "unit": "creep_ranged", "team": 0, "lane": "mid_right", "interval": 25, "delay": 4, "count": 2, "offset": 5 },
-    { "unit": "void_melee", "team": 1, "lane": "top", "interval": 25, "delay": 3, "count": 4, "offset": 5 },
-    { "unit": "void_ranged", "team": 1, "lane": "top", "interval": 25, "delay": 4, "count": 2, "offset": 5 },
-    { "unit": "void_melee", "team": 1, "lane": "bottom", "interval": 25, "delay": 3, "count": 4, "offset": 5 },
-    { "unit": "void_ranged", "team": 1, "lane": "bottom", "interval": 25, "delay": 4, "count": 2, "offset": 5 },
-    { "unit": "void_melee", "team": 1, "lane": "mid_left", "interval": 25, "delay": 3, "count": 4, "offset": 5 },
-    { "unit": "void_ranged", "team": 1, "lane": "mid_left", "interval": 25, "delay": 4, "count": 2, "offset": 5 },
-    { "unit": "void_melee", "team": 1, "lane": "mid_right", "interval": 25, "delay": 3, "count": 4, "offset": 5 },
-    { "unit": "void_ranged", "team": 1, "lane": "mid_right", "interval": 25, "delay": 4, "count": 2, "offset": 5 }
-  ]
+    { "unit": "creep_ranged", "team": 0, "lane": "mid_right", "interval": 25, "delay": 4, "count": 2, "offset": 5 }
+  ],
+  "defense": {
+    "firstWaveDelay": 25,
+    "waveInterval": 40,
+    "baseIncome": 2,
+    "startEnergy": 150,
+    "waves": [
+      { "groups": [ { "unit": "void_melee", "count": 3, "lanes": "all" } ] },
+      { "groups": [ { "unit": "void_melee", "count": 3, "lanes": "all" }, { "unit": "void_ranged", "count": 1, "lanes": "all" } ] },
+      { "groups": [ { "unit": "void_melee", "count": 4, "lanes": "all" }, { "unit": "void_ranged", "count": 2, "lanes": "all" } ] },
+      { "groups": [
+        { "unit": "void_melee", "count": 3, "lanes": "all" }, { "unit": "void_ranged", "count": 2, "lanes": "all" },
+        { "unit": "void_brute", "count": 1, "lanes": "all" }, { "unit": "void_melee", "count": 4, "lanes": "raid" }
+      ] },
+      { "groups": [ { "unit": "void_melee", "count": 3, "lanes": "all" }, { "unit": "void_ranged", "count": 2, "lanes": "all" } ],
+        "boss": { "unit": "void_warden", "lane": "mid_left" } },
+      { "groups": [
+        { "unit": "void_melee", "count": 4, "lanes": "all" }, { "unit": "void_ranged", "count": 3, "lanes": "all" },
+        { "unit": "void_brute", "count": 1, "lanes": "all" }
+      ] },
+      { "groups": [
+        { "unit": "void_melee", "count": 4, "lanes": "all" }, { "unit": "void_ranged", "count": 3, "lanes": "all" },
+        { "unit": "void_brute", "count": 2, "lanes": "all" }, { "unit": "void_melee", "count": 4, "lanes": "raid" },
+        { "unit": "void_ranged", "count": 2, "lanes": "raid" }
+      ] },
+      { "groups": [
+        { "unit": "void_melee", "count": 5, "lanes": "all" }, { "unit": "void_ranged", "count": 3, "lanes": "all" },
+        { "unit": "void_brute", "count": 2, "lanes": "all" }
+      ] },
+      { "groups": [
+        { "unit": "void_melee", "count": 5, "lanes": "all" }, { "unit": "void_ranged", "count": 4, "lanes": "all" },
+        { "unit": "void_brute", "count": 3, "lanes": "all" }, { "unit": "void_brute", "count": 2, "lanes": "raid" },
+        { "unit": "void_ranged", "count": 3, "lanes": "raid" }
+      ] },
+      { "delay": 50,
+        "groups": [ { "unit": "void_melee", "count": 4, "lanes": "all" }, { "unit": "void_ranged", "count": 3, "lanes": "all" },
+                    { "unit": "void_brute", "count": 2, "lanes": "all" } ],
+        "boss": { "unit": "void_titan", "lane": "mid_right" } }
+    ]
+  }
 }

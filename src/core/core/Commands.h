@@ -24,9 +24,14 @@ struct StopCommand {
     std::vector<entt::entity> units;
 };
 
-using Command = std::variant<MoveCommand, AttackCommand, StopCommand>;
+struct RecruitCommand {
+    std::uint8_t player = 0;
+    std::uint16_t unit = 0;
+};
 
-enum class EventType : std::uint8_t { Spawn, Shot, Hit, Death };
+using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand>;
+
+enum class EventType : std::uint8_t { Spawn, Shot, Hit, Death, SlamWarn, Slam, Summon, Enrage, WaveStart, PointCaptured, MatchEnd };
 
 struct SimEvent {
     EventType type = EventType::Spawn;
@@ -34,6 +39,7 @@ struct SimEvent {
     entt::entity other = entt::null;
     glm::vec2 from{};
     glm::vec2 to{};
+    float value = 0.0f;
 };
 
 }

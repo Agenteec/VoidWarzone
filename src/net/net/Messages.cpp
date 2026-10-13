@@ -37,7 +37,12 @@ void writeCommand(Writer& w, std::uint32_t seq, const Command& command) {
     std::visit(
         [&](const auto& c) {
             using T = std::decay_t<decltype(c)>;
-            writeUnits(w, c.units);
+            if constexpr (std::is_same_v<T, RecruitCommand>) {
+                w.u16(c.unit);
+                return;
+            } else {
+                writeUnits(w, c.units);
+            }
             if constexpr (std::is_same_v<T, MoveCommand>) {
                 w.f32(c.point.x);
                 w.f32(c.point.y);
@@ -77,6 +82,12 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
         if (!readUnits(r, c.units))
             return false;
         command = std::move(c);
+        break;
+    }
+    case 3: {
+        RecruitCommand c;
+        c.unit = r.u16();
+        command = c;
         break;
     }
     default:

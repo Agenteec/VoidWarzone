@@ -31,11 +31,36 @@ struct NetEvent {
     std::uint8_t type = 0;
     std::uint16_t x = 0;
     std::uint16_t y = 0;
+    std::uint16_t value = 0;
+};
+
+inline constexpr std::uint32_t kNoEntity = 0xffffffffu;
+
+struct PointInfo {
+    std::int8_t control = 0;
+    std::uint8_t owner = 0xff;
+};
+
+struct GameInfo {
+    std::uint8_t state = 0;
+    std::uint8_t wave = 0;
+    std::uint8_t totalWaves = 0;
+    std::uint8_t difficulty = 1;
+    std::uint16_t nextWaveIn = 0;
+    std::uint32_t boss = kNoEntity;
+    std::vector<PointInfo> points;
+};
+
+struct ClientView {
+    std::uint32_t commandSeq = 0;
+    std::uint32_t energy = 0;
 };
 
 struct Snapshot {
     std::uint32_t tick = 0;
     std::uint32_t commandSeq = 0;
+    std::uint32_t energy = 0;
+    GameInfo game;
     std::vector<EntityState> entities;
     std::vector<NetEvent> events;
 
@@ -44,7 +69,7 @@ struct Snapshot {
 
 using BaselineLookup = std::function<const Snapshot*(std::uint32_t tick)>;
 
-void encodeSnapshot(Writer& w, const Snapshot& current, const Snapshot* baseline, std::uint32_t commandSeq);
+void encodeSnapshot(Writer& w, const Snapshot& current, const Snapshot* baseline, const ClientView& view);
 bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline);
 
 inline std::uint16_t quantizePos(float v) {

@@ -24,6 +24,7 @@ struct Lane {
 
 struct PlacedUnit {
     std::string unit;
+    std::string role;
     std::uint8_t team = 0;
     int owner = -1;
     glm::vec2 pos{};
@@ -42,6 +43,36 @@ struct SpawnerDef {
 struct PlayerStart {
     glm::vec2 pos{};
     std::vector<std::string> units;
+};
+
+struct ResourcePointDef {
+    std::string name;
+    glm::vec2 pos{};
+    float radius = 4.0f;
+    float income = 2.0f;
+};
+
+struct WaveGroup {
+    std::string unit;
+    int count = 1;
+    std::vector<int> lanes;
+    bool raid = false;
+};
+
+struct WaveDef {
+    std::vector<WaveGroup> groups;
+    std::string boss;
+    int bossLane = 0;
+    float delay = -1.0f;
+};
+
+struct DefenseDef {
+    bool enabled = false;
+    float firstWaveDelay = 20.0f;
+    float waveInterval = 40.0f;
+    float baseIncome = 1.0f;
+    float startEnergy = 100.0f;
+    std::vector<WaveDef> waves;
 };
 
 class Map {
@@ -71,8 +102,13 @@ public:
     const std::vector<PlacedUnit>& units() const { return units_; }
     const std::vector<SpawnerDef>& spawners() const { return spawners_; }
     const PlayerStart& playerStart() const { return playerStart_; }
+    const std::vector<ResourcePointDef>& resourcePoints() const { return resourcePoints_; }
+    const DefenseDef& defense() const { return defense_; }
+    int laneIndex(std::string_view name) const;
 
 private:
+    int requireLane(std::string_view name) const;
+
     int width_ = 0;
     int height_ = 0;
     std::string name_;
@@ -82,6 +118,8 @@ private:
     std::vector<PlacedUnit> units_;
     std::vector<SpawnerDef> spawners_;
     PlayerStart playerStart_;
+    std::vector<ResourcePointDef> resourcePoints_;
+    DefenseDef defense_;
     std::uint64_t hash_ = 0;
 };
 

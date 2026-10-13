@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <stdexcept>
 
 #include <SDL3/SDL.h>
@@ -138,6 +139,7 @@ void App::startHost() {
     config.port = options_.port;
     config.mapName = options_.map;
     config.name = options_.name + "'s game";
+    config.difficulty = options_.difficulty;
     host_ = std::make_unique<server::Server>(*data_, *hostMap_, config);
     if (!host_->start(now_)) {
         host_.reset();
@@ -235,6 +237,8 @@ void App::handleMenuKey(SDL_Keycode key) {
         } else if (key == SDLK_3 || key == SDLK_C) {
             status_.clear();
             setScreen(Screen::Address);
+        } else if (key == SDLK_D) {
+            options_.difficulty = static_cast<Difficulty>((static_cast<int>(options_.difficulty) + 1) % 4);
         } else if (key == SDLK_ESCAPE) {
             running_ = false;
         }
@@ -322,6 +326,10 @@ void App::handleGameEvent(const SDL_Event& e) {
                     camera_.target = u->pos;
         } else if (e.key.key == SDLK_F10) {
             leaveGame("left the game");
+        } else if (e.key.key >= SDLK_1 && e.key.key <= SDLK_9) {
+            const auto index = static_cast<std::size_t>(e.key.key - SDLK_1);
+            if (index < data_->recruitable().size())
+                net_.sendCommand(RecruitCommand{0, data_->recruitable()[index]});
         }
         break;
     default:
@@ -405,7 +413,7 @@ void App::issueCommand(glm::vec2 screen, bool attackMove) {
     if (target && target->team != ownTeam) {
         prediction_.cancel(selected_);
         net_.sendCommand(AttackCommand{selectedEntities(), static_cast<entt::entity>(target->id)});
-        effects_.push_back({{ground->x, 0.1f, ground->y}, {1.0f, 0.3f, 0.3f, 0.8f}, 1.0f, 0.0f, 0.35f});
+        addEffect(Mesh::Cylinder, {ground->x, 0.1f, ground->y}, {1.0f, 0.3f, 0.3f, 0.8f}, 0.4f, 1.4f, 0.35f);
         return;
     }
 
@@ -420,7 +428,7 @@ void App::issueCommand(glm::vec2 screen, bool attackMove) {
         prediction_.onMove(units, *ground, seq, *data_, *map_);
     }
     const glm::vec4 color = attackMove ? glm::vec4{1.0f, 0.6f, 0.2f, 0.8f} : glm::vec4{0.35f, 1.0f, 0.55f, 0.8f};
-    effects_.push_back({{ground->x, 0.1f, ground->y}, color, 1.0f, 0.0f, 0.35f});
+    addEffect(Mesh::Cylinder, {ground->x, 0.1f, ground->y}, color, 0.4f, 1.4f, 0.35f);
 }
 
 void App::updateCamera(float dt) {
@@ -470,10 +478,10 @@ void App::updateGame(float dt) {
     }
 
     for (const auto& ev : net_.takeEvents())
-        if (ev.type == static_cast<std::uint8_t>(net::NetEventType::Hit))
-            effects_.push_back({{net::dequantizePos(ev.x), 0.6f, net::dequantizePos(ev.y)}, {1.0f, 1.0f, 1.0f, 0.8f}, 0.5f, 0.0f, 0.12f});
+        handleNetEvent(ev);
     for (const auto& d : net_.takeDeaths())
-        effects_.push_back({{d.pos.x, 0.6f, d.pos.y}, {1.0f, 0.8f, 0.4f, 0.7f}, 2.5f, 0.0f, 0.45f});
+        addEffect(Mesh::Sphere, {d.pos.x, 0.6f, d.pos.y}, {1.0f, 0.8f, 0.4f, 0.7f}, 1.0f, 3.5f, 0.45f);
+    bannerTime_ = std::max(0.0f, bannerTime_ - dt);
 
     for (auto& fx : effects_)
         fx.t += dt;
@@ -525,6 +533,7 @@ void App::render() {
     if (screen_ == Screen::Game && map_) {
         renderWorld();
         renderHud();
+        renderGameHud();
     } else {
         renderMenu();
     }
@@ -585,15 +594,17 @@ void App::renderWorld() {
         }
     }
 
+    renderResourcePoints();
+
     for (const auto& fx : effects_) {
         const float k = fx.t / fx.life;
         glm::vec4 c = fx.color;
-        c.a *= 1.0f - k;
-        const float s = fx.size * (0.4f + k);
-        if (fx.pos.y < 0.2f)
+        c.a *= 1.0f - k * k;
+        const float s = fx.from + (fx.to - fx.from) * k;
+        if (fx.mesh == Mesh::Cylinder)
             renderer_.draw(Mesh::Cylinder, fx.pos, {s, 0.03f, s}, 0.0f, c, Unlit | Alpha);
         else
-            renderer_.draw(Mesh::Sphere, fx.pos, glm::vec3(s), 0.0f, c, Unlit | Alpha);
+            renderer_.draw(fx.mesh, fx.pos, glm::vec3(s), 0.0f, c, Unlit | Alpha);
     }
 
     if (dragging_ && glm::distance(mouse_, dragStart_) >= kDragThreshold) {
@@ -626,12 +637,139 @@ void App::renderHud() {
     text(1, 4, 0x08, "LMB select | RMB move/attack | A+LMB attack-move | S stop | Space focus | arrows/edges/wheel camera | F10 leave");
 }
 
+void App::addEffect(Mesh mesh, glm::vec3 pos, glm::vec4 color, float from, float to, float life) {
+    effects_.push_back({mesh, pos, color, from, to, life});
+}
+
+void App::showBanner(std::string text, float seconds) {
+    banner_ = std::move(text);
+    bannerTime_ = seconds;
+}
+
+void App::handleNetEvent(const net::NetEvent& ev) {
+    const glm::vec3 pos{net::dequantizePos(ev.x), 0.6f, net::dequantizePos(ev.y)};
+    const float value = (static_cast<float>(ev.value) - 64.0f) / 64.0f;
+    switch (static_cast<net::NetEventType>(ev.type)) {
+    case net::NetEventType::Hit:
+        addEffect(Mesh::Sphere, pos, {1.0f, 1.0f, 1.0f, 0.8f}, 0.2f, 0.7f, 0.12f);
+        break;
+    case net::NetEventType::SlamWarn:
+        addEffect(Mesh::Cylinder, {pos.x, 0.08f, pos.z}, {1.0f, 0.15f, 0.1f, 0.35f}, 0.5f, value * 2.0f, 1.0f);
+        addEffect(Mesh::Cylinder, {pos.x, 0.07f, pos.z}, {1.0f, 0.15f, 0.1f, 0.25f}, value * 2.0f, value * 2.0f, 1.0f);
+        break;
+    case net::NetEventType::Slam:
+        addEffect(Mesh::Cylinder, {pos.x, 0.12f, pos.z}, {1.0f, 0.55f, 0.15f, 0.9f}, value * 1.2f, value * 2.2f, 0.4f);
+        addEffect(Mesh::Sphere, pos, {1.0f, 0.6f, 0.2f, 0.6f}, 1.0f, value * 1.2f, 0.3f);
+        break;
+    case net::NetEventType::Summon:
+        addEffect(Mesh::Sphere, pos, {0.7f, 0.2f, 1.0f, 0.6f}, 1.0f, 6.0f, 0.6f);
+        break;
+    case net::NetEventType::Enrage:
+        addEffect(Mesh::Sphere, pos, {1.0f, 0.1f, 0.1f, 0.7f}, 2.0f, 8.0f, 0.8f);
+        showBanner("THE BOSS IS ENRAGED", 2.5f);
+        break;
+    case net::NetEventType::WaveStart: {
+        const auto* latest = net_.latest();
+        const int total = latest ? latest->game.totalWaves : 0;
+        const int wave = static_cast<int>(std::lround(value));
+        showBanner(wave == total ? "FINAL WAVE" : "WAVE " + std::to_string(wave), 3.0f);
+        break;
+    }
+    case net::NetEventType::PointCaptured: {
+        const int owner = static_cast<int>(std::lround(value));
+        const glm::vec4 c = owner == 0 ? kTeamColors[0] : owner == 1 ? kTeamColors[1] : glm::vec4{0.7f, 0.7f, 0.7f, 1.0f};
+        addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.z}, {c.r, c.g, c.b, 0.8f}, 2.0f, 12.0f, 0.7f);
+        break;
+    }
+    case net::NetEventType::MatchEnd:
+        break;
+    }
+}
+
+void App::renderResourcePoints() {
+    const auto* latest = net_.latest();
+    const auto& defs = map_->resourcePoints();
+    for (std::size_t i = 0; i < defs.size(); ++i) {
+        const auto& def = defs[i];
+        const net::PointInfo info = latest && i < latest->game.points.size() ? latest->game.points[i] : net::PointInfo{};
+        const float control = static_cast<float>(info.control) / 127.0f;
+        const glm::vec4 neutral{0.55f, 0.55f, 0.6f, 1.0f};
+        const glm::vec4 ownerColor = info.owner == 0 ? kTeamColors[0] : info.owner == 1 ? kTeamColors[1] : neutral;
+        const float d = def.radius * 2.0f;
+        renderer_.draw(Mesh::Cylinder, {def.pos.x, 0.02f, def.pos.y}, {d, 0.03f, d}, 0.0f, glm::vec4(glm::vec3(ownerColor) * 0.35f, 1.0f));
+        const glm::vec4 progressColor = control >= 0.0f ? kTeamColors[0] : kTeamColors[1];
+        const float p = std::abs(control) * d;
+        if (p > 0.05f)
+            renderer_.draw(Mesh::Cylinder, {def.pos.x, 0.04f, def.pos.y}, {p, 0.03f, p}, 0.0f, glm::vec4(glm::vec3(progressColor), 0.55f), Unlit | Alpha);
+        renderer_.draw(Mesh::Cylinder, {def.pos.x, 1.2f, def.pos.y}, {0.35f, 2.4f, 0.35f}, 0.0f, ownerColor);
+        renderer_.draw(Mesh::Sphere, {def.pos.x, 2.6f, def.pos.y}, glm::vec3(0.7f), 0.0f, ownerColor, Unlit);
+    }
+}
+
+void App::renderGameHud() {
+    const auto* latest = net_.latest();
+    if (!latest)
+        return;
+    const auto& game = latest->game;
+    const int cols = renderer_.width() / 8;
+    const int rows = renderer_.height() / 16;
+
+    const char* difficulty = difficultyName(static_cast<Difficulty>(std::min<int>(game.difficulty, 3)));
+    if (game.wave < game.totalWaves)
+        text(1, 6, 0x0e, "Wave %d/%d | next in %.0fs | %s", game.wave, game.totalWaves, game.nextWaveIn / 10.0, difficulty);
+    else
+        text(1, 6, 0x0c, "Wave %d/%d | final wave - destroy the portal or clear the void | %s", game.wave, game.totalWaves, difficulty);
+
+    float income = map_->defense().baseIncome;
+    std::string points;
+    for (std::size_t i = 0; i < game.points.size() && i < map_->resourcePoints().size(); ++i) {
+        const auto& def = map_->resourcePoints()[i];
+        const char mark = game.points[i].owner == 0 ? '+' : game.points[i].owner == 1 ? 'x' : '-';
+        points += def.name + mark + " ";
+        if (game.points[i].owner == 0)
+            income += def.income;
+    }
+    text(1, 7, 0x0a, "Energy %u | team income %.0f/s | points %s", latest->energy, income, points.c_str());
+
+    std::string recruit;
+    for (std::size_t i = 0; i < data_->recruitable().size() && i < 9; ++i) {
+        const auto& def = data_->unit(data_->recruitable()[i]);
+        recruit += "[" + std::to_string(i + 1) + "] " + def.name + " " + std::to_string(static_cast<int>(def.cost)) + "  ";
+    }
+    text(1, 8, 0x07, "Recruit: %s", recruit.c_str());
+
+    if (game.boss != net::kNoEntity)
+        if (const auto* boss = findEntity(game.boss)) {
+            const auto& def = data_->unit(boss->def);
+            const float frac = std::clamp(static_cast<float>(boss->hp) / def.maxHp, 0.0f, 1.0f);
+            constexpr int barWidth = 50;
+            std::string bar(barWidth, '-');
+            for (int i = 0; i < static_cast<int>(frac * barWidth); ++i)
+                bar[static_cast<std::size_t>(i)] = '#';
+            const std::string title = def.boss ? def.boss->title : def.name;
+            const int x = std::max(0, (cols - barWidth - 2) / 2);
+            text(std::max(0, (cols - static_cast<int>(title.size())) / 2), 2, 0x0c, "%s", title.c_str());
+            text(x, 3, 0x0c, "[%s]", bar.c_str());
+        }
+
+    const auto state = static_cast<MatchState>(game.state);
+    if (state != MatchState::Playing) {
+        const char* msg = state == MatchState::Victory ? "VICTORY - THE VOID IS SEALED" : "DEFEAT - THE CORE HAS FALLEN";
+        text(std::max(0, (cols - static_cast<int>(std::strlen(msg))) / 2), rows / 2 - 1, state == MatchState::Victory ? 0x0a : 0x0c, "%s", msg);
+        const char* hint = "F10 - back to menu";
+        text(std::max(0, (cols - static_cast<int>(std::strlen(hint))) / 2), rows / 2 + 1, 0x07, "%s", hint);
+    } else if (bannerTime_ > 0.0f && !banner_.empty()) {
+        text(std::max(0, (cols - static_cast<int>(banner_.size())) / 2), rows / 3, 0x0e, "%s", banner_.c_str());
+    }
+}
+
 void App::renderMenu() {
     text(2, 2, 0x0b, "VOID WARZONE %.*s", static_cast<int>(kVersion.size()), kVersion.data());
     int row = 5;
     switch (screen_) {
     case Screen::Menu:
         text(2, row++, 0x0f, "[1] Host game (map %s, port %u)", options_.map.c_str(), static_cast<unsigned>(options_.port));
+        text(2, row++, 0x0f, "[D] Difficulty: %s", difficultyName(options_.difficulty));
         text(2, row++, 0x0f, "[2] Find LAN games");
         text(2, row++, 0x0f, "[3] Connect to address");
         text(2, row++, 0x0f, "[Esc] Quit");

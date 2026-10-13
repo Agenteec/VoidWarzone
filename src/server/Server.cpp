@@ -16,7 +16,7 @@ namespace vw::server {
 using namespace vw::net;
 
 Server::Server(const GameData& data, const Map& map, ServerConfig config)
-    : data_(data), map_(map), config_(std::move(config)), world_(data, map) {
+    : data_(data), map_(map), config_(std::move(config)), world_(data, map, config_.difficulty) {
     config_.maxPlayers = std::clamp(config_.maxPlayers, 1, 64);
 }
 
@@ -31,7 +31,8 @@ bool Server::start(double now) {
     }
     nextTick_ = now;
     now_ = now;
-    spdlog::info("server '{}' on port {} | map {} | max players {}", config_.name, socket_.port(), config_.mapName, config_.maxPlayers);
+    spdlog::info("server '{}' on port {} | map {} | {} | max players {}", config_.name, socket_.port(), config_.mapName,
+                 difficultyName(config_.difficulty), config_.maxPlayers);
     return true;
 }
 
@@ -148,10 +149,15 @@ void Server::handleMessages(Client& client) {
             continue;
         std::visit(
             [&](auto& c) {
-                std::erase_if(c.units, [&](entt::entity e) {
-                    const auto* owner = world_.registry().valid(e) ? world_.registry().try_get<Owner>(e) : nullptr;
-                    return !owner || owner->player != client.player;
-                });
+                using T = std::decay_t<decltype(c)>;
+                if constexpr (std::is_same_v<T, RecruitCommand>) {
+                    c.player = client.player;
+                } else {
+                    std::erase_if(c.units, [&](entt::entity e) {
+                        const auto* owner = world_.registry().valid(e) ? world_.registry().try_get<Owner>(e) : nullptr;
+                        return !owner || owner->player != client.player;
+                    });
+                }
             },
             command);
         world_.apply(command);
@@ -242,12 +248,52 @@ Snapshot Server::buildSnapshot() const {
     }
     std::sort(s.entities.begin(), s.entities.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
 
+    const auto& defense = world_.defense();
+    s.game.state = static_cast<std::uint8_t>(defense.state);
+    s.game.wave = static_cast<std::uint8_t>(defense.wave);
+    s.game.totalWaves = static_cast<std::uint8_t>(defense.totalWaves);
+    s.game.difficulty = static_cast<std::uint8_t>(world_.difficulty());
+    s.game.nextWaveIn = static_cast<std::uint16_t>(std::clamp(defense.nextWaveIn * 10.0f, 0.0f, 65535.0f));
+    s.game.boss = defense.boss == entt::null ? kNoEntity : entt::to_integral(defense.boss);
+    for (const auto& p : world_.resourcePoints())
+        s.game.points.push_back({static_cast<std::int8_t>(std::lround(p.control * 127.0f)),
+                                 p.owner < 0 ? std::uint8_t{0xff} : static_cast<std::uint8_t>(p.owner)});
+
     for (const auto& ev : world_.events()) {
-        if (ev.type != EventType::Shot || !reg.valid(ev.entity))
-            continue;
-        const auto* w = reg.try_get<Weapon>(ev.entity);
-        if (w && w->def.projectileSpeed <= 0.0f)
-            s.events.push_back({static_cast<std::uint8_t>(NetEventType::Hit), quantizePos(ev.to.x), quantizePos(ev.to.y)});
+        const auto value = static_cast<std::uint16_t>(std::clamp(ev.value * 64.0f + 64.0f, 0.0f, 65535.0f));
+        auto push = [&](NetEventType type) {
+            s.events.push_back({static_cast<std::uint8_t>(type), quantizePos(ev.to.x), quantizePos(ev.to.y), value});
+        };
+        switch (ev.type) {
+        case EventType::Shot:
+            if (reg.valid(ev.entity))
+                if (const auto* w = reg.try_get<Weapon>(ev.entity); w && w->def.projectileSpeed <= 0.0f)
+                    push(NetEventType::Hit);
+            break;
+        case EventType::SlamWarn:
+            push(NetEventType::SlamWarn);
+            break;
+        case EventType::Slam:
+            push(NetEventType::Slam);
+            break;
+        case EventType::Summon:
+            push(NetEventType::Summon);
+            break;
+        case EventType::Enrage:
+            push(NetEventType::Enrage);
+            break;
+        case EventType::WaveStart:
+            push(NetEventType::WaveStart);
+            break;
+        case EventType::PointCaptured:
+            push(NetEventType::PointCaptured);
+            break;
+        case EventType::MatchEnd:
+            push(NetEventType::MatchEnd);
+            break;
+        default:
+            break;
+        }
     }
     return s;
 }
@@ -267,7 +313,8 @@ void Server::tick() {
                 base = &candidate;
         }
         Writer w;
-        encodeSnapshot(w, current, base, c->commandSeq);
+        const auto energy = static_cast<std::uint32_t>(std::max(0.0f, world_.player(c->player).energy));
+        encodeSnapshot(w, current, base, {c->commandSeq, energy});
         c->conn->setUnreliable(std::move(w.data()));
         const std::uint16_t seq = c->conn->flush();
         c->sentTicks[seq % c->sentTicks.size()] = {seq, tick};

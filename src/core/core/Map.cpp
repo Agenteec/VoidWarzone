@@ -23,6 +23,20 @@ Map::Map(int width, int height) : width_(width), height_(height), cells_(static_
         throw std::runtime_error("invalid map size");
 }
 
+int Map::laneIndex(std::string_view name) const {
+    for (std::size_t i = 0; i < lanes_.size(); ++i)
+        if (lanes_[i].name == name)
+            return static_cast<int>(i);
+    return -1;
+}
+
+int Map::requireLane(std::string_view name) const {
+    const int i = laneIndex(name);
+    if (i < 0)
+        throw std::runtime_error("unknown lane: " + std::string(name));
+    return i;
+}
+
 void Map::addWall(const Rect& r) {
     walls_.push_back(r);
     for (int y = r.y; y < r.y + r.h; ++y)
@@ -52,6 +66,7 @@ Map Map::parse(std::string_view text) {
     for (const auto& u : j.value("units", json::array())) {
         PlacedUnit pu;
         pu.unit = u.at("unit").get<std::string>();
+        pu.role = u.value("role", "");
         pu.team = u.value("team", std::uint8_t{0});
         pu.owner = u.value("owner", -1);
         pu.pos = toVec2(u.at("pos"));
@@ -62,13 +77,7 @@ Map Map::parse(std::string_view text) {
         SpawnerDef sd;
         sd.unit = s.at("unit").get<std::string>();
         sd.team = s.value("team", std::uint8_t{0});
-        const auto laneName = s.at("lane").get<std::string>();
-        sd.lane = -1;
-        for (std::size_t i = 0; i < m.lanes_.size(); ++i)
-            if (m.lanes_[i].name == laneName)
-                sd.lane = static_cast<int>(i);
-        if (sd.lane < 0)
-            throw std::runtime_error("unknown lane: " + laneName);
+        sd.lane = m.requireLane(s.at("lane").get<std::string>());
         sd.interval = s.value("interval", sd.interval);
         sd.delay = s.value("delay", sd.delay);
         sd.count = s.value("count", sd.count);
@@ -80,6 +89,49 @@ Map Map::parse(std::string_view text) {
         m.playerStart_.pos = toVec2(ps->at("pos"));
         for (const auto& u : ps->at("units"))
             m.playerStart_.units.push_back(u.get<std::string>());
+    }
+
+    for (const auto& r : j.value("resourcePoints", json::array())) {
+        ResourcePointDef rp;
+        rp.name = r.value("name", "");
+        rp.pos = toVec2(r.at("pos"));
+        rp.radius = r.value("radius", rp.radius);
+        rp.income = r.value("income", rp.income);
+        m.resourcePoints_.push_back(std::move(rp));
+    }
+
+    if (const auto d = j.find("defense"); d != j.end()) {
+        auto& def = m.defense_;
+        def.enabled = true;
+        def.firstWaveDelay = d->value("firstWaveDelay", def.firstWaveDelay);
+        def.waveInterval = d->value("waveInterval", def.waveInterval);
+        def.baseIncome = d->value("baseIncome", def.baseIncome);
+        def.startEnergy = d->value("startEnergy", def.startEnergy);
+        for (const auto& w : d->at("waves")) {
+            WaveDef wave;
+            wave.delay = w.value("delay", wave.delay);
+            for (const auto& g : w.value("groups", json::array())) {
+                WaveGroup group;
+                group.unit = g.at("unit").get<std::string>();
+                group.count = g.value("count", group.count);
+                const auto& lanes = g.at("lanes");
+                if (lanes.is_string() && lanes.get<std::string>() == "raid") {
+                    group.raid = true;
+                } else if (lanes.is_string() && lanes.get<std::string>() == "all") {
+                    for (std::size_t i = 0; i < m.lanes_.size(); ++i)
+                        group.lanes.push_back(static_cast<int>(i));
+                } else {
+                    for (const auto& l : lanes)
+                        group.lanes.push_back(m.requireLane(l.get<std::string>()));
+                }
+                wave.groups.push_back(std::move(group));
+            }
+            if (const auto b = w.find("boss"); b != w.end()) {
+                wave.boss = b->at("unit").get<std::string>();
+                wave.bossLane = m.requireLane(b->at("lane").get<std::string>());
+            }
+            def.waves.push_back(std::move(wave));
+        }
     }
 
     m.hash_ = fnv1a(text);

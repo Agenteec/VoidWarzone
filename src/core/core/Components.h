@@ -45,6 +45,7 @@ struct Health {
     float hp = 100.0f;
     float max = 100.0f;
     float armor = 0.0f;
+    int lastHitBy = -1;
 };
 
 struct Weapon {
@@ -53,6 +54,8 @@ struct Weapon {
 };
 
 struct Structure {};
+
+struct Invulnerable {};
 
 struct Target {
     entt::entity value = entt::null;
@@ -96,6 +99,15 @@ struct Projectile {
     float speed = 10.0f;
     float damage = 0.0f;
     std::uint8_t team = 0;
+    int owner = -1;
+};
+
+struct Boss {
+    std::vector<float> cooldowns;
+    bool enraged = false;
+    int casting = -1;
+    float castTimer = 0.0f;
+    glm::vec2 castPos{};
 };
 
 }

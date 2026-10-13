@@ -28,6 +28,7 @@ struct LaunchOptions {
     std::string name = "Player";
     std::string map = "siege_test";
     std::uint16_t port = net::kGamePort;
+    Difficulty difficulty = Difficulty::Normal;
 };
 
 struct UnitVisual {
@@ -47,11 +48,13 @@ private:
     enum class Screen { Menu, Lan, Address, Connecting, Game };
 
     struct Effect {
+        Mesh mesh;
         glm::vec3 pos;
         glm::vec4 color;
-        float size;
-        float t;
+        float from;
+        float to;
         float life;
+        float t = 0.0f;
     };
 
     void loadContent();
@@ -76,6 +79,12 @@ private:
     bool isOwn(const net::InterpolatedEntity& e) const { return e.owner == net_.player(); }
     glm::vec4 unitColor(const net::InterpolatedEntity& e) const;
 
+    void addEffect(Mesh mesh, glm::vec3 pos, glm::vec4 color, float from, float to, float life);
+    void handleNetEvent(const net::NetEvent& ev);
+    void showBanner(std::string text, float seconds);
+    void renderResourcePoints();
+    void renderGameHud();
+
     void render();
     void renderWorld();
     void renderHud();
@@ -99,6 +108,8 @@ private:
     std::vector<net::InterpolatedEntity> entities_;
     std::vector<std::uint32_t> selected_;
     std::vector<Effect> effects_;
+    std::string banner_;
+    float bannerTime_ = 0.0f;
 
     Screen screen_ = Screen::Menu;
     std::string status_;

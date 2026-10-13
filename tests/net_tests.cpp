@@ -88,9 +88,9 @@ TEST_CASE("snapshot delta roundtrip") {
     cur.events.push_back({1, quantizePos(2), quantizePos(3)});
 
     Writer full;
-    encodeSnapshot(full, cur, nullptr, 0);
+    encodeSnapshot(full, cur, nullptr, {});
     Writer delta;
-    encodeSnapshot(delta, cur, &base, 5);
+    encodeSnapshot(delta, cur, &base, {5, 0});
     CHECK(delta.size() < full.size());
 
     Snapshot decoded;

@@ -40,10 +40,23 @@ const EntityState* Snapshot::find(std::uint32_t id) const {
     return it != entities.end() && it->id == id ? &*it : nullptr;
 }
 
-void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, std::uint32_t commandSeq) {
+void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const ClientView& view) {
     w.u32(cur.tick);
     w.u32(base ? base->tick : 0);
-    w.u32(commandSeq);
+    w.u32(view.commandSeq);
+    w.u32(view.energy);
+
+    w.u8(cur.game.state);
+    w.u8(cur.game.wave);
+    w.u8(cur.game.totalWaves);
+    w.u8(cur.game.difficulty);
+    w.u16(cur.game.nextWaveIn);
+    w.u32(cur.game.boss);
+    w.u8(static_cast<std::uint8_t>(cur.game.points.size()));
+    for (const auto& p : cur.game.points) {
+        w.u8(static_cast<std::uint8_t>(p.control));
+        w.u8(p.owner);
+    }
 
     std::vector<std::uint32_t> removed;
     Writer changed;
@@ -94,6 +107,7 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, std::u
         w.u8(ev.type);
         w.u16(ev.x);
         w.u16(ev.y);
+        w.u16(ev.value);
     }
 }
 
@@ -101,6 +115,18 @@ bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
     out.tick = r.u32();
     const std::uint32_t baseTick = r.u32();
     out.commandSeq = r.u32();
+    out.energy = r.u32();
+    out.game.state = r.u8();
+    out.game.wave = r.u8();
+    out.game.totalWaves = r.u8();
+    out.game.difficulty = r.u8();
+    out.game.nextWaveIn = r.u16();
+    out.game.boss = r.u32();
+    out.game.points.resize(r.u8());
+    for (auto& p : out.game.points) {
+        p.control = static_cast<std::int8_t>(r.u8());
+        p.owner = r.u8();
+    }
     if (!r.ok())
         return false;
 
@@ -172,6 +198,7 @@ bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
         ev.type = r.u8();
         ev.x = r.u16();
         ev.y = r.u16();
+        ev.value = r.u16();
         out.events.push_back(ev);
     }
     return r.ok();

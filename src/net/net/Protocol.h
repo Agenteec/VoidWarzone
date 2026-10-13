@@ -38,6 +38,13 @@ enum class MessageType : std::uint8_t {
 
 enum class NetEventType : std::uint8_t {
     Hit = 1,
+    SlamWarn,
+    Slam,
+    Summon,
+    Enrage,
+    WaveStart,
+    PointCaptured,
+    MatchEnd,
 };
 
 const char* denyReasonText(DenyReason reason);

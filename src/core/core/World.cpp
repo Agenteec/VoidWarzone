@@ -31,7 +31,7 @@ World::World() {
     spatial_.reset(128.0f, 128.0f, 4.0f);
 }
 
-World::World(const GameData& data, const Map& map) : data_(&data), map_(&map) {
+World::World(const GameData& data, const Map& map, Difficulty difficulty) : data_(&data), map_(&map), difficulty_(difficulty) {
     spatial_.reset(static_cast<float>(map.width()), static_cast<float>(map.height()), 4.0f);
     maxRadius_ = std::max(data.maxRadius(), 0.5f);
 
@@ -39,8 +39,19 @@ World::World(const GameData& data, const Map& map) : data_(&data), map_(&map) {
         const UnitDefId id = data.find(u.unit);
         if (id == kInvalidUnitDef)
             throw std::runtime_error("unknown unit: " + u.unit);
-        spawn(id, u.team, u.pos, u.owner);
+        const auto e = spawn(id, u.team, u.pos, u.owner);
+        if (u.role == "core")
+            core_ = e;
+        else if (u.role == "portal")
+            portal_ = e;
+        if (u.role == "portal" && map.defense().enabled)
+            registry_.emplace<Invulnerable>(e);
     }
+
+    points_.assign(map.resourcePoints().size(), {});
+    const auto& def = map.defense();
+    defense_.totalWaves = static_cast<int>(def.waves.size());
+    defense_.nextWaveIn = def.firstWaveDelay;
 
     for (const auto& s : map.spawners()) {
         const UnitDefId id = data.find(s.unit);
@@ -60,10 +71,22 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     registry_.emplace<Facing>(e, team == 0 ? 0.0f : std::numbers::pi_v<float>);
     registry_.emplace<Unit>(e, Unit{defId, def.radius, def.speed, def.sight});
     registry_.emplace<Team>(e, team);
-    registry_.emplace<Health>(e, def.maxHp, def.maxHp, def.armor);
+    const bool enemy = team != 0;
+    const float maxHp = def.maxHp * (enemy ? enemyHpScale() : 1.0f);
+    registry_.emplace<Health>(e, maxHp, maxHp, def.armor);
     registry_.emplace<Target>(e);
-    if (def.weapon)
-        registry_.emplace<Weapon>(e, *def.weapon, 0.0f);
+    if (def.weapon) {
+        WeaponDef w = *def.weapon;
+        if (enemy)
+            w.damage *= enemyDamageScale();
+        registry_.emplace<Weapon>(e, w, 0.0f);
+    }
+    if (def.boss) {
+        Boss boss;
+        for (const auto& a : def.boss->abilities)
+            boss.cooldowns.push_back(a.cooldown * 0.5f);
+        registry_.emplace<Boss>(e, std::move(boss));
+    }
     if (def.structure)
         registry_.emplace<Structure>(e);
     else
@@ -74,14 +97,19 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     return e;
 }
 
-std::vector<entt::entity> World::spawnPlayer(std::uint8_t player, std::uint8_t team) {
-    std::vector<entt::entity> spawned;
-    if (!map_)
-        return spawned;
-    const auto& start = map_->playerStart();
+glm::vec2 World::playerBase(std::uint8_t player) const {
     const float angle = static_cast<float>(player) * 2.39996f;
     const float radius = player == 0 ? 0.0f : 3.0f + 1.5f * std::sqrt(static_cast<float>(player));
-    const glm::vec2 base = start.pos + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
+    return map_->playerStart().pos + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
+}
+
+std::vector<entt::entity> World::spawnPlayer(std::uint8_t player, std::uint8_t team) {
+    std::vector<entt::entity> spawned;
+    if (!map_ || player >= kMaxPlayers)
+        return spawned;
+    players_[player] = {true, map_->defense().startEnergy, 0};
+    const auto& start = map_->playerStart();
+    const glm::vec2 base = playerBase(player);
     for (std::size_t i = 0; i < start.units.size(); ++i) {
         const UnitDefId id = data_->find(start.units[i]);
         if (id == kInvalidUnitDef)
@@ -94,6 +122,8 @@ std::vector<entt::entity> World::spawnPlayer(std::uint8_t player, std::uint8_t t
 }
 
 void World::releasePlayer(std::uint8_t player) {
+    if (player < kMaxPlayers)
+        players_[player].active = false;
     std::vector<entt::entity> owned;
     for (auto [e, owner] : registry_.view<const Owner>().each())
         if (owner.player == player)
@@ -126,6 +156,9 @@ void World::apply(const Command& command) {
     std::visit(
         [this](const auto& cmd) {
             using T = std::decay_t<decltype(cmd)>;
+            if constexpr (std::is_same_v<T, RecruitCommand>) {
+                recruit(cmd);
+            } else {
             std::vector<entt::entity> units;
             for (const auto e : cmd.units)
                 if (alive(e) && registry_.all_of<Order>(e))
@@ -162,6 +195,7 @@ void World::apply(const Command& command) {
                     registry_.remove<Navigator>(e);
                 }
             }
+            }
         },
         command);
 }
@@ -174,11 +208,14 @@ void World::step() {
     rebuildSpatial();
     updateSpawners();
     updateUnits();
+    updateBosses();
     integrate();
     resolveCollisions();
     updateWeapons();
     updateProjectiles();
     removeDead();
+    updateResourcePoints();
+    updateDefense();
     ++tick_;
 }
 
@@ -189,35 +226,55 @@ void World::rebuildSpatial() {
         spatial_.insert(e, view.get<const Position>(e).value);
 }
 
+std::vector<entt::entity> World::spawnOnLane(UnitDefId def, std::uint8_t team, int lane, int count, float offset) {
+    std::vector<entt::entity> spawned;
+    const auto& points = map_->lanes()[static_cast<std::size_t>(lane)].points;
+    const bool reverse = team != 0;
+    const glm::vec2 a = reverse ? points.back() : points.front();
+    const glm::vec2 b = reverse ? points[points.size() - 2] : points[1];
+    const glm::vec2 dir = glm::normalize(b - a);
+    const glm::vec2 side(-dir.y, dir.x);
+    const float spacing = data_->unit(def).radius * 2.0f + 0.4f;
+    constexpr int perRow = 5;
+    for (int i = 0; i < count; ++i) {
+        const int row = i / perRow;
+        const int inRow = std::min(perRow, count - row * perRow);
+        const float across = (static_cast<float>(i % perRow) - static_cast<float>(inRow - 1) * 0.5f) * spacing;
+        const glm::vec2 pos = a + dir * (offset + static_cast<float>(row) * spacing) + side * across;
+        const auto u = spawn(def, team, pos);
+        registry_.emplace<LaneFollower>(u, LaneFollower{lane, 1, reverse});
+        spawned.push_back(u);
+    }
+    return spawned;
+}
+
 void World::updateSpawners() {
     if (!map_)
         return;
+    struct Pending {
+        UnitDefId unit;
+        std::uint8_t team;
+        int lane;
+        int count;
+        float offset;
+    };
+    std::vector<Pending> pending;
     for (auto [e, s] : registry_.view<Spawner>().each()) {
         s.timer -= kTickDt;
         if (s.timer > 0.0f)
             continue;
         s.timer += s.interval;
-
-        const auto& points = map_->lanes()[static_cast<std::size_t>(s.lane)].points;
-        const bool reverse = s.team != 0;
-        const glm::vec2 a = reverse ? points.back() : points.front();
-        const glm::vec2 b = reverse ? points[points.size() - 2] : points[1];
-        const glm::vec2 dir = glm::normalize(b - a);
-        const glm::vec2 side(-dir.y, dir.x);
-        const float spacing = data_->unit(s.unit).radius * 2.0f + 0.4f;
-        for (int i = 0; i < s.count; ++i) {
-            const float offset = (static_cast<float>(i) - static_cast<float>(s.count - 1) * 0.5f) * spacing;
-            const auto u = spawn(s.unit, s.team, a + dir * s.offset + side * offset);
-            registry_.emplace<LaneFollower>(u, LaneFollower{s.lane, 1, reverse});
-        }
+        pending.push_back({s.unit, s.team, s.lane, s.count, s.offset});
     }
+    for (const auto& p : pending)
+        spawnOnLane(p.unit, p.team, p.lane, p.count, p.offset);
 }
 
 entt::entity World::findEnemy(glm::vec2 pos, std::uint8_t team, float radius) const {
     entt::entity best = entt::null;
     float bestDist = std::numeric_limits<float>::max();
     spatial_.query(pos, radius + maxRadius_, [&](const SpatialHash::Item& item) {
-        if (registry_.get<Team>(item.entity).id == team || !alive(item.entity))
+        if (registry_.get<Team>(item.entity).id == team || !alive(item.entity) || registry_.all_of<Invulnerable>(item.entity))
             return;
         const float d = glm::distance(item.pos, pos) - registry_.get<Unit>(item.entity).radius;
         if (d <= radius && d < bestDist) {
@@ -355,9 +412,13 @@ void World::resolveCollisions() {
     }
 }
 
-void World::damage(entt::entity target, float amount, entt::entity source) {
+void World::damage(entt::entity target, float amount, int sourceOwner, entt::entity source) {
+    if (registry_.all_of<Invulnerable>(target))
+        return;
     auto& h = registry_.get<Health>(target);
     h.hp -= std::max(1.0f, amount - h.armor);
+    if (sourceOwner >= 0)
+        h.lastHitBy = sourceOwner;
     events_.push_back({EventType::Hit, target, source, registry_.get<Position>(target).value, registry_.get<Position>(target).value});
 }
 
@@ -369,6 +430,7 @@ void World::updateWeapons() {
         glm::vec2 to;
         WeaponDef def;
         std::uint8_t team;
+        int owner;
     };
     std::vector<PendingShot> shots;
 
@@ -381,7 +443,8 @@ void World::updateWeapons() {
         if (glm::distance(tp, pos.value) > reach)
             continue;
         weapon.cooldown = weapon.def.cooldown;
-        shots.push_back({e, target.value, pos.value, tp, weapon.def, team.id});
+        const auto* owner = registry_.try_get<Owner>(e);
+        shots.push_back({e, target.value, pos.value, tp, weapon.def, team.id, owner ? static_cast<int>(owner->player) : -1});
     }
 
     for (const auto& s : shots) {
@@ -390,9 +453,9 @@ void World::updateWeapons() {
             const auto p = registry_.create();
             registry_.emplace<Position>(p, s.from);
             registry_.emplace<PrevPosition>(p, s.from);
-            registry_.emplace<Projectile>(p, Projectile{s.source, s.target, s.to, s.def.projectileSpeed, s.def.damage, s.team});
+            registry_.emplace<Projectile>(p, Projectile{s.source, s.target, s.to, s.def.projectileSpeed, s.def.damage, s.team, s.owner});
         } else {
-            damage(s.target, s.def.damage, s.source);
+            damage(s.target, s.def.damage, s.owner, s.source);
         }
     }
 }
@@ -409,7 +472,7 @@ void World::updateProjectiles() {
         if (dist <= step) {
             pos.value = proj.targetPos;
             if (targetAlive)
-                damage(proj.target, proj.damage, proj.source);
+                damage(proj.target, proj.damage, proj.owner, proj.source);
             done.push_back(e);
         } else {
             pos.value += d / dist * step;
@@ -420,11 +483,22 @@ void World::updateProjectiles() {
 
 void World::removeDead() {
     std::vector<entt::entity> dead;
-    for (auto [e, h, pos] : registry_.view<const Health, const Position>().each())
-        if (h.hp <= 0.0f) {
-            dead.push_back(e);
-            events_.push_back({EventType::Death, e, entt::null, pos.value, pos.value});
+    for (auto [e, h, pos, unit, team] : registry_.view<const Health, const Position, const Unit, const Team>().each()) {
+        if (h.hp > 0.0f)
+            continue;
+        dead.push_back(e);
+        events_.push_back({EventType::Death, e, entt::null, pos.value, pos.value});
+        const float bounty = data_->unit(unit.def).bounty;
+        if (team.id == 0 || bounty <= 0.0f)
+            continue;
+        if (h.lastHitBy >= 0 && players_[static_cast<std::size_t>(h.lastHitBy)].active) {
+            auto& p = players_[static_cast<std::size_t>(h.lastHitBy)];
+            p.energy += bounty;
+            ++p.kills;
+        } else {
+            grantTeamEnergy(bounty * 0.5f);
         }
+    }
     registry_.destroy(dead.begin(), dead.end());
 }
 
