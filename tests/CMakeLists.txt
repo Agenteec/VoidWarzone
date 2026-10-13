@@ -1,5 +1,5 @@
-add_executable(vw_tests main.cpp core_tests.cpp)
-target_link_libraries(vw_tests PRIVATE vw_core vw_net doctest::doctest)
+add_executable(vw_tests main.cpp core_tests.cpp net_tests.cpp)
+target_link_libraries(vw_tests PRIVATE vw_core vw_net vw_host doctest::doctest)
 target_compile_definitions(vw_tests PRIVATE VW_DATA_DIR="${PROJECT_SOURCE_DIR}/data")
 vw_target_defaults(vw_tests)
 add_test(NAME vw_tests COMMAND vw_tests)

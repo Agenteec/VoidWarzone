@@ -27,6 +27,8 @@ public:
     void step();
     void apply(const Command& command);
     entt::entity spawn(UnitDefId def, std::uint8_t team, glm::vec2 pos, int owner = -1);
+    std::vector<entt::entity> spawnPlayer(std::uint8_t player, std::uint8_t team = 0);
+    void releasePlayer(std::uint8_t player);
 
     bool alive(entt::entity e) const;
     entt::entity unitAt(glm::vec2 p, float pad = 0.3f) const;

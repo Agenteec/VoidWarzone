@@ -12,9 +12,8 @@
 #include <spdlog/spdlog.h>
 
 #include "core/Version.h"
-#include "core/World.h"
 #include "net/NetLibrary.h"
-#include "net/Protocol.h"
+#include "server/Server.h"
 
 namespace {
 
@@ -29,23 +28,32 @@ std::string readFile(const std::filesystem::path& path) {
     return ss.str();
 }
 
+double nowSeconds() {
+    using namespace std::chrono;
+    return duration<double>(steady_clock::now().time_since_epoch()).count();
+}
+
 }
 
 int main(int argc, char** argv) {
-    std::uint64_t maxTicks = 0;
-    bool fast = false;
     std::filesystem::path dataDir = std::filesystem::path(argv[0]).parent_path() / "data";
-    std::string mapName = "siege_test";
+    vw::server::ServerConfig config;
+    double runFor = 0.0;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
-        if (arg == "--ticks" && i + 1 < argc)
-            maxTicks = std::strtoull(argv[++i], nullptr, 10);
-        else if (arg == "--data" && i + 1 < argc)
+        const bool hasValue = i + 1 < argc;
+        if (arg == "--data" && hasValue)
             dataDir = argv[++i];
-        else if (arg == "--map" && i + 1 < argc)
-            mapName = argv[++i];
-        else if (arg == "--fast")
-            fast = true;
+        else if (arg == "--map" && hasValue)
+            config.mapName = argv[++i];
+        else if (arg == "--port" && hasValue)
+            config.port = static_cast<std::uint16_t>(std::atoi(argv[++i]));
+        else if (arg == "--name" && hasValue)
+            config.name = argv[++i];
+        else if (arg == "--max-players" && hasValue)
+            config.maxPlayers = std::atoi(argv[++i]);
+        else if (arg == "--seconds" && hasValue)
+            runFor = std::atof(argv[++i]);
     }
 
     std::signal(SIGINT, [](int) { g_running = false; });
@@ -57,29 +65,20 @@ int main(int argc, char** argv) {
 
     try {
         const auto data = vw::GameData::parse(readFile(dataDir / "units.json"));
-        const auto map = vw::Map::parse(readFile(dataDir / "maps" / (mapName + ".json")));
-        vw::World world(data, map);
+        const auto map = vw::Map::parse(readFile(dataDir / "maps" / (config.mapName + ".json")));
+        vw::server::Server server(data, map, config);
+        const double start = nowSeconds();
+        if (!server.start(start))
+            return 1;
+        spdlog::info("Void Warzone dedicated server {}", vw::kVersion);
 
-        spdlog::info("Void Warzone server {} | port {} | {} Hz | map {}", vw::kVersion, vw::net::kGamePort, vw::kTickRate, map.name());
-
-        using Clock = std::chrono::steady_clock;
-        constexpr auto tickDuration = std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(vw::kTickDt));
-        auto next = Clock::now();
-        while (g_running && (maxTicks == 0 || world.tick() < maxTicks)) {
-            world.step();
-            if (world.tick() % (vw::kTickRate * 10) == 0) {
-                int teams[2] = {0, 0};
-                for (auto [e, team] : world.registry().view<const vw::Team>().each())
-                    ++teams[team.id & 1];
-                spdlog::info("tick {} | units {}/{} | projectiles {}", world.tick(), teams[0], teams[1],
-                             world.registry().view<vw::Projectile>().size());
-            }
-            if (!fast) {
-                next += tickDuration;
-                std::this_thread::sleep_until(next);
-            }
+        while (g_running && (runFor <= 0.0 || nowSeconds() - start < runFor)) {
+            server.update(nowSeconds());
+            const double wait = server.nextTickTime() - nowSeconds();
+            if (wait > 0.0)
+                std::this_thread::sleep_for(std::chrono::duration<double>(std::min(wait, 0.005)));
         }
-        spdlog::info("stopped at tick {}", world.tick());
+        server.stop();
     } catch (const std::exception& e) {
         spdlog::error("{}", e.what());
         return 1;

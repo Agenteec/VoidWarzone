@@ -11,6 +11,7 @@
 #include <spdlog/spdlog.h>
 
 #include "core/Version.h"
+#include "core/World.h"
 
 namespace vw::client {
 
@@ -21,6 +22,7 @@ constexpr glm::vec4 kLane{0.10f, 0.10f, 0.17f, 1.0f};
 constexpr glm::vec4 kWall{0.22f, 0.20f, 0.32f, 1.0f};
 constexpr glm::vec4 kTeamColors[] = {{0.25f, 0.75f, 1.0f, 1.0f}, {1.0f, 0.25f, 0.55f, 1.0f}};
 constexpr glm::vec4 kOwnColor{0.35f, 1.0f, 0.55f, 1.0f};
+constexpr glm::vec4 kAllyColor{0.95f, 0.85f, 0.3f, 1.0f};
 constexpr glm::vec4 kSelectColor{0.35f, 1.0f, 0.55f, 0.55f};
 constexpr float kMinZoom = 12.0f;
 constexpr float kMaxZoom = 90.0f;
@@ -49,12 +51,23 @@ Mesh parseShape(const std::string& s) {
     return Mesh::Cube;
 }
 
+template <class... Args>
+void text(int x, int y, std::uint8_t attr, const char* format, Args... args) {
+    bgfx::dbgTextPrintf(static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y), attr, format, args...);
 }
 
-bool App::init(SDL_Window* window) {
+double nowSeconds() {
+    return static_cast<double>(SDL_GetTicksNS()) * 1e-9;
+}
+
+}
+
+bool App::init(SDL_Window* window, LaunchOptions options) {
     window_ = window;
+    options_ = std::move(options);
+    now_ = nowSeconds();
     pixelDensity_ = SDL_GetWindowPixelDensity(window);
-    if (!renderer_.init(window))
+    if (!netLibrary_.ok() || !renderer_.init(window))
         return false;
     initialized_ = true;
 
@@ -64,25 +77,22 @@ bool App::init(SDL_Window* window) {
         spdlog::error("{}", e.what());
         return false;
     }
+    spdlog::info("Void Warzone {} | {}", kVersion, renderer_.name());
 
-    glm::vec2 center{};
-    int own = 0;
-    for (auto [e, pos, owner] : world_->registry().view<const Position, const Owner>().each())
-        if (owner.player == localPlayer_) {
-            center += pos.value;
-            ++own;
-        }
-    camera_.target = own ? center / static_cast<float>(own) : glm::vec2(map_->width(), map_->height()) * 0.5f;
-
-    spdlog::info("Void Warzone {} | {} | map {}", kVersion, renderer_.name(), map_->name());
+    if (options_.host) {
+        startHost();
+    } else if (!options_.connect.empty()) {
+        if (const auto addr = net::Address::parse(options_.connect, net::kGamePort))
+            startConnect(*addr);
+        else
+            status_ = "bad address: " + options_.connect;
+    }
     return true;
 }
 
 void App::loadContent() {
     const std::string unitsText = loadText("data/units.json");
     data_ = std::make_unique<GameData>(GameData::parse(unitsText));
-    map_ = std::make_unique<Map>(Map::parse(loadText("data/maps/siege_test.json")));
-    world_ = std::make_unique<World>(*data_, *map_);
 
     visuals_.assign(data_->units().size(), {});
     const auto units = nlohmann::json::parse(unitsText);
@@ -97,32 +107,172 @@ void App::loadContent() {
 }
 
 void App::shutdown() {
-    world_.reset();
+    net_.disconnect();
+    if (host_)
+        host_->stop();
+    host_.reset();
     if (initialized_)
         renderer_.shutdown();
 }
 
-bool App::isOwn(entt::entity e) const {
-    const auto* owner = world_->registry().try_get<Owner>(e);
-    return owner && owner->player == localPlayer_;
+void App::setScreen(Screen screen) {
+    if (screen_ == Screen::Lan && screen != Screen::Lan)
+        lan_.stop();
+    if (screen_ == Screen::Address && screen != Screen::Address)
+        SDL_StopTextInput(window_);
+    if (screen == Screen::Lan)
+        lan_.start();
+    if (screen == Screen::Address)
+        SDL_StartTextInput(window_);
+    screen_ = screen;
 }
 
-void App::pruneSelection() {
-    std::erase_if(selected_, [this](entt::entity e) { return !world_->alive(e); });
+void App::startHost() {
+    try {
+        hostMap_ = std::make_unique<Map>(Map::parse(loadText("data/maps/" + options_.map + ".json")));
+    } catch (const std::exception& e) {
+        status_ = e.what();
+        return;
+    }
+    server::ServerConfig config;
+    config.port = options_.port;
+    config.mapName = options_.map;
+    config.name = options_.name + "'s game";
+    host_ = std::make_unique<server::Server>(*data_, *hostMap_, config);
+    if (!host_->start(now_)) {
+        host_.reset();
+        status_ = "cannot host: port " + std::to_string(options_.port) + " is busy";
+        return;
+    }
+    startConnect(net::Address::loopback(host_->port()));
+}
+
+void App::startConnect(const net::Address& address) {
+    status_.clear();
+    if (!net_.connect(address, data_->hash(), options_.name, now_)) {
+        status_ = net_.error();
+        return;
+    }
+    status_ = "connecting to " + address.toString();
+    setScreen(Screen::Connecting);
+}
+
+bool App::onConnected() {
+    try {
+        map_ = std::make_unique<Map>(Map::parse(loadText("data/maps/" + net_.mapName() + ".json")));
+    } catch (const std::exception& e) {
+        leaveGame(e.what());
+        return false;
+    }
+    if (map_->hash() != net_.mapHash()) {
+        leaveGame("map '" + net_.mapName() + "' differs from server");
+        return false;
+    }
+    selected_.clear();
+    effects_.clear();
+    prediction_.clear();
+    cameraPlaced_ = false;
+    camera_.target = glm::vec2(map_->width(), map_->height()) * 0.5f;
+    status_.clear();
+    setScreen(Screen::Game);
+    const std::string title = "Void Warzone - " + options_.name + " (P" + std::to_string(net_.player() + 1) + ")";
+    SDL_SetWindowTitle(window_, title.c_str());
+    return true;
+}
+
+void App::leaveGame(std::string status) {
+    net_.disconnect();
+    if (host_)
+        host_->stop();
+    host_.reset();
+    hostMap_.reset();
+    map_.reset();
+    entities_.clear();
+    selected_.clear();
+    prediction_.clear();
+    status_ = std::move(status);
+    SDL_SetWindowTitle(window_, "Void Warzone");
+    setScreen(Screen::Menu);
 }
 
 void App::handleEvent(const SDL_Event& e) {
     switch (e.type) {
     case SDL_EVENT_QUIT:
         running_ = false;
-        break;
+        return;
     case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
         renderer_.resize(e.window.data1, e.window.data2);
         pixelDensity_ = SDL_GetWindowPixelDensity(window_);
-        break;
+        return;
     case SDL_EVENT_MOUSE_MOTION:
         mouse_ = glm::vec2(e.motion.x, e.motion.y) * pixelDensity_;
         break;
+    case SDL_EVENT_TEXT_INPUT:
+        if (screen_ == Screen::Address && addressInput_.size() < 64)
+            addressInput_ += e.text.text;
+        return;
+    case SDL_EVENT_KEY_DOWN:
+        if (screen_ != Screen::Game) {
+            handleMenuKey(e.key.key);
+            return;
+        }
+        break;
+    default:
+        break;
+    }
+    if (screen_ == Screen::Game)
+        handleGameEvent(e);
+}
+
+void App::handleMenuKey(SDL_Keycode key) {
+    switch (screen_) {
+    case Screen::Menu:
+        if (key == SDLK_1 || key == SDLK_H) {
+            startHost();
+        } else if (key == SDLK_2 || key == SDLK_L) {
+            status_.clear();
+            setScreen(Screen::Lan);
+        } else if (key == SDLK_3 || key == SDLK_C) {
+            status_.clear();
+            setScreen(Screen::Address);
+        } else if (key == SDLK_ESCAPE) {
+            running_ = false;
+        }
+        break;
+    case Screen::Lan:
+        if (key == SDLK_ESCAPE) {
+            setScreen(Screen::Menu);
+        } else if (key >= SDLK_1 && key <= SDLK_9) {
+            const auto index = static_cast<std::size_t>(key - SDLK_1);
+            if (index < lan_.servers().size()) {
+                const auto address = lan_.servers()[index].address;
+                startConnect(address);
+            }
+        }
+        break;
+    case Screen::Address:
+        if (key == SDLK_ESCAPE) {
+            setScreen(Screen::Menu);
+        } else if (key == SDLK_BACKSPACE && !addressInput_.empty()) {
+            addressInput_.pop_back();
+        } else if (key == SDLK_RETURN || key == SDLK_KP_ENTER) {
+            if (const auto addr = net::Address::parse(addressInput_, net::kGamePort))
+                startConnect(*addr);
+            else
+                status_ = "bad address";
+        }
+        break;
+    case Screen::Connecting:
+        if (key == SDLK_ESCAPE)
+            leaveGame("cancelled");
+        break;
+    case Screen::Game:
+        break;
+    }
+}
+
+void App::handleGameEvent(const SDL_Event& e) {
+    switch (e.type) {
     case SDL_EVENT_MOUSE_WHEEL:
         camera_.distance = std::clamp(camera_.distance * (1.0f - e.wheel.y * 0.1f), kMinZoom, kMaxZoom);
         break;
@@ -157,22 +307,60 @@ void App::handleEvent(const SDL_Event& e) {
     case SDL_EVENT_KEY_DOWN:
         if (e.key.key == SDLK_A && !selected_.empty()) {
             attackMoveArmed_ = true;
-        } else if (e.key.key == SDLK_S) {
-            world_->apply(StopCommand{selected_});
+        } else if (e.key.key == SDLK_S && !selected_.empty()) {
+            prediction_.cancel(selected_);
+            net_.sendCommand(StopCommand{selectedEntities()});
         } else if (e.key.key == SDLK_ESCAPE) {
             if (attackMoveArmed_)
                 attackMoveArmed_ = false;
             else
                 selected_.clear();
-        } else if (e.key.key == SDLK_SPACE && !selected_.empty()) {
+        } else if (e.key.key == SDLK_SPACE) {
             pruneSelection();
             if (!selected_.empty())
-                camera_.target = world_->registry().get<Position>(selected_.front()).value;
+                if (const auto* u = findEntity(selected_.front()))
+                    camera_.target = u->pos;
+        } else if (e.key.key == SDLK_F10) {
+            leaveGame("left the game");
         }
         break;
     default:
         break;
     }
+}
+
+const net::InterpolatedEntity* App::findEntity(std::uint32_t id) const {
+    const auto it = std::find_if(entities_.begin(), entities_.end(), [id](const auto& e) { return e.id == id; });
+    return it != entities_.end() ? &*it : nullptr;
+}
+
+const net::InterpolatedEntity* App::entityAt(glm::vec2 p, float pad) const {
+    const net::InterpolatedEntity* best = nullptr;
+    float bestDist = pad;
+    for (const auto& e : entities_) {
+        if (e.kind != net::EntityKind::Unit)
+            continue;
+        const float d = glm::distance(e.pos, p) - data_->unit(e.def).radius;
+        if (d <= bestDist) {
+            best = &e;
+            bestDist = d;
+        }
+    }
+    return best;
+}
+
+std::vector<entt::entity> App::selectedEntities() const {
+    std::vector<entt::entity> out;
+    for (const auto id : selected_)
+        out.push_back(static_cast<entt::entity>(id));
+    return out;
+}
+
+void App::pruneSelection() {
+    std::erase_if(selected_, [this](std::uint32_t id) {
+        const auto* e = findEntity(id);
+        return !e || !isOwn(*e);
+    });
 }
 
 void App::clickSelect(glm::vec2 screen, bool add) {
@@ -181,13 +369,13 @@ void App::clickSelect(glm::vec2 screen, bool add) {
     const auto ground = camera_.screenToGround(screen.x, screen.y);
     if (!ground)
         return;
-    const auto e = world_->unitAt(*ground, 0.4f);
-    if (e == entt::null || !isOwn(e))
+    const auto* e = entityAt(*ground, 0.4f);
+    if (!e || !isOwn(*e))
         return;
-    if (const auto it = std::find(selected_.begin(), selected_.end(), e); it != selected_.end())
+    if (const auto it = std::find(selected_.begin(), selected_.end(), e->id); it != selected_.end())
         selected_.erase(it);
     else
-        selected_.push_back(e);
+        selected_.push_back(e->id);
 }
 
 void App::boxSelect(glm::vec2 a, glm::vec2 b, bool add) {
@@ -195,12 +383,12 @@ void App::boxSelect(glm::vec2 a, glm::vec2 b, bool add) {
         selected_.clear();
     const glm::vec2 lo = glm::min(a, b);
     const glm::vec2 hi = glm::max(a, b);
-    for (auto [e, pos, owner] : world_->registry().view<const Position, const Owner>().each()) {
-        if (owner.player != localPlayer_)
+    for (const auto& e : entities_) {
+        if (e.kind != net::EntityKind::Unit || !isOwn(e))
             continue;
-        const glm::vec2 s = camera_.worldToScreen({pos.value.x, 0.5f, pos.value.y});
-        if (s.x >= lo.x && s.x <= hi.x && s.y >= lo.y && s.y <= hi.y && std::find(selected_.begin(), selected_.end(), e) == selected_.end())
-            selected_.push_back(e);
+        const glm::vec2 s = camera_.worldToScreen({e.pos.x, 0.5f, e.pos.y});
+        if (s.x >= lo.x && s.x <= hi.x && s.y >= lo.y && s.y <= hi.y && std::find(selected_.begin(), selected_.end(), e.id) == selected_.end())
+            selected_.push_back(e.id);
     }
 }
 
@@ -209,30 +397,30 @@ void App::issueCommand(glm::vec2 screen, bool attackMove) {
     const auto ground = camera_.screenToGround(screen.x, screen.y);
     if (selected_.empty() || !ground)
         return;
-    const auto target = world_->unitAt(*ground, 0.4f);
-    const bool enemy = target != entt::null && world_->registry().get<Team>(target).id != localTeam_;
-    if (enemy) {
-        world_->apply(AttackCommand{selected_, target});
-        effects_.push_back({{ground->x, 0.1f, ground->y}, {1.0f, 0.3f, 0.3f, 0.8f}, 1.0f, 0.0f, 0.35f});
-    } else {
-        world_->apply(MoveCommand{selected_, *ground, attackMove});
-        const glm::vec4 color = attackMove ? glm::vec4{1.0f, 0.6f, 0.2f, 0.8f} : glm::vec4{0.35f, 1.0f, 0.55f, 0.8f};
-        effects_.push_back({{ground->x, 0.1f, ground->y}, color, 1.0f, 0.0f, 0.35f});
-    }
-}
+    std::uint8_t ownTeam = 0;
+    if (const auto* first = findEntity(selected_.front()))
+        ownTeam = first->team;
 
-void App::step() {
-    world_->step();
-    const auto& reg = world_->registry();
-    for (const auto& ev : world_->events()) {
-        if (ev.type == EventType::Death) {
-            effects_.push_back({{ev.from.x, 0.6f, ev.from.y}, {1.0f, 0.8f, 0.4f, 0.7f}, 2.5f, 0.0f, 0.45f});
-        } else if (ev.type == EventType::Shot && reg.valid(ev.entity)) {
-            const auto* w = reg.try_get<Weapon>(ev.entity);
-            if (w && w->def.projectileSpeed <= 0.0f)
-                effects_.push_back({{ev.to.x, 0.6f, ev.to.y}, {1.0f, 1.0f, 1.0f, 0.8f}, 0.5f, 0.0f, 0.12f});
-        }
+    const auto* target = entityAt(*ground, 0.4f);
+    if (target && target->team != ownTeam) {
+        prediction_.cancel(selected_);
+        net_.sendCommand(AttackCommand{selectedEntities(), static_cast<entt::entity>(target->id)});
+        effects_.push_back({{ground->x, 0.1f, ground->y}, {1.0f, 0.3f, 0.3f, 0.8f}, 1.0f, 0.0f, 0.35f});
+        return;
     }
+
+    const auto seq = net_.sendCommand(MoveCommand{selectedEntities(), *ground, attackMove});
+    if (attackMove) {
+        prediction_.cancel(selected_);
+    } else {
+        std::vector<net::InterpolatedEntity> units;
+        for (const auto id : selected_)
+            if (const auto* e = findEntity(id))
+                units.push_back(*e);
+        prediction_.onMove(units, *ground, seq, *data_, *map_);
+    }
+    const glm::vec4 color = attackMove ? glm::vec4{1.0f, 0.6f, 0.2f, 0.8f} : glm::vec4{0.35f, 1.0f, 0.55f, 0.8f};
+    effects_.push_back({{ground->x, 0.1f, ground->y}, color, 1.0f, 0.0f, 0.35f});
 }
 
 void App::updateCamera(float dt) {
@@ -263,37 +451,87 @@ void App::updateCamera(float dt) {
     camera_.target = glm::clamp(camera_.target, glm::vec2(0.0f), glm::vec2(map_->width(), map_->height()));
 }
 
-void App::frame(double dt) {
-    fps_ = fps_ * 0.95f + (dt > 0.0 ? static_cast<float>(1.0 / dt) : 0.0f) * 0.05f;
-    accumulator_ = std::min(accumulator_ + dt, 0.25);
-    while (accumulator_ >= kTickDt) {
-        step();
-        accumulator_ -= kTickDt;
+void App::updateGame(float dt) {
+    net_.interpolate(now_, entities_);
+    prediction_.update(dt, now_, net_, *data_, *map_, entities_);
+
+    if (!cameraPlaced_ && net_.hasSnapshot()) {
+        glm::vec2 center{};
+        int own = 0;
+        for (const auto& e : entities_)
+            if (e.kind == net::EntityKind::Unit && isOwn(e)) {
+                center += e.pos;
+                ++own;
+            }
+        if (own > 0) {
+            camera_.target = center / static_cast<float>(own);
+            cameraPlaced_ = true;
+        }
     }
 
-    const auto fdt = static_cast<float>(dt);
+    for (const auto& ev : net_.takeEvents())
+        if (ev.type == static_cast<std::uint8_t>(net::NetEventType::Hit))
+            effects_.push_back({{net::dequantizePos(ev.x), 0.6f, net::dequantizePos(ev.y)}, {1.0f, 1.0f, 1.0f, 0.8f}, 0.5f, 0.0f, 0.12f});
+    for (const auto& d : net_.takeDeaths())
+        effects_.push_back({{d.pos.x, 0.6f, d.pos.y}, {1.0f, 0.8f, 0.4f, 0.7f}, 2.5f, 0.0f, 0.45f});
+
     for (auto& fx : effects_)
-        fx.t += fdt;
+        fx.t += dt;
     std::erase_if(effects_, [](const Effect& fx) { return fx.t >= fx.life; });
 
-    updateCamera(fdt);
-    render(static_cast<float>(accumulator_ / kTickDt));
+    pruneSelection();
+    updateCamera(dt);
 }
 
-glm::vec4 App::unitColor(entt::entity e) const {
+void App::frame(double dt) {
+    now_ = nowSeconds();
+    fps_ = fps_ * 0.95f + (dt > 0.0 ? static_cast<float>(1.0 / dt) : 0.0f) * 0.05f;
+
+    if (host_)
+        host_->update(now_);
+    net_.update(now_);
+    if (screen_ == Screen::Lan)
+        lan_.update(now_);
+
+    if (screen_ == Screen::Connecting) {
+        if (net_.state() == net::ClientState::Connected)
+            onConnected();
+        else if (net_.state() == net::ClientState::Disconnected)
+            leaveGame(net_.error().empty() ? "connection failed" : net_.error());
+    } else if (screen_ == Screen::Game && net_.state() != net::ClientState::Connected) {
+        leaveGame(net_.error().empty() ? "disconnected" : net_.error());
+    }
+
+    if (screen_ == Screen::Game)
+        updateGame(static_cast<float>(dt));
+    render();
+}
+
+glm::vec4 App::unitColor(const net::InterpolatedEntity& e) const {
     if (isOwn(e))
         return kOwnColor;
-    const auto team = world_->registry().get<Team>(e).id;
-    glm::vec4 c = kTeamColors[team & 1];
-    if (world_->registry().all_of<Structure>(e))
+    if (e.owner != net::kNoOwner)
+        return kAllyColor;
+    glm::vec4 c = kTeamColors[e.team & 1];
+    if (data_->unit(e.def).structure)
         c = glm::vec4(glm::vec3(c) * 0.7f, 1.0f);
     return c;
 }
 
-void App::render(float alpha) {
+void App::render() {
     camera_.update(renderer_.width(), renderer_.height(), renderer_.homogeneousDepth());
     renderer_.begin(camera_);
+    bgfx::dbgTextClear();
+    if (screen_ == Screen::Game && map_) {
+        renderWorld();
+        renderHud();
+    } else {
+        renderMenu();
+    }
+    renderer_.end();
+}
 
+void App::renderWorld() {
     const auto w = static_cast<float>(map_->width());
     const auto h = static_cast<float>(map_->height());
     renderer_.draw(Mesh::Cube, {w * 0.5f, -0.05f, h * 0.5f}, {w, 0.1f, h}, 0.0f, kGround);
@@ -312,42 +550,39 @@ void App::render(float alpha) {
         renderer_.draw(Mesh::Cube, {static_cast<float>(r.x) + size.x * 0.5f, 1.0f, static_cast<float>(r.y) + size.z * 0.5f}, size, 0.0f, kWall);
     }
 
-    pruneSelection();
-    const auto& reg = world_->registry();
-    for (auto [e, pos, prev, unit, facing, health] :
-         reg.view<const Position, const PrevPosition, const Unit, const Facing, const Health>().each()) {
-        const glm::vec2 p = glm::mix(prev.value, pos.value, alpha);
-        const auto& vis = visuals_[unit.def];
-        const float d = unit.radius * 2.0f;
+    for (const auto& e : entities_) {
+        if (e.kind == net::EntityKind::Projectile) {
+            const glm::vec4 c = glm::mix(kTeamColors[e.team & 1], glm::vec4(1.0f), 0.4f);
+            renderer_.draw(Mesh::Sphere, {e.pos.x, 0.8f, e.pos.y}, glm::vec3(0.3f), 0.0f, c, Unlit);
+            continue;
+        }
+        const auto& def = data_->unit(e.def);
+        const auto& vis = visuals_[e.def];
+        const float d = def.radius * 2.0f;
         const glm::vec4 color = unitColor(e);
-        renderer_.draw(vis.shape, {p.x, vis.height * 0.5f, p.y}, {d, vis.height, d}, facing.angle, color);
+        renderer_.draw(vis.shape, {e.pos.x, vis.height * 0.5f, e.pos.y}, {d, vis.height, d}, e.facing, color);
 
-        if (reg.all_of<Weapon>(e) && !reg.all_of<Structure>(e)) {
-            const glm::vec2 f{std::cos(facing.angle), std::sin(facing.angle)};
-            const glm::vec2 nose = p + f * unit.radius * 0.9f;
-            renderer_.draw(Mesh::Cube, {nose.x, vis.height * 0.65f, nose.y}, {unit.radius, 0.18f, 0.18f}, facing.angle,
+        if (def.weapon && !def.structure) {
+            const glm::vec2 f{std::cos(e.facing), std::sin(e.facing)};
+            const glm::vec2 nose = e.pos + f * def.radius * 0.9f;
+            renderer_.draw(Mesh::Cube, {nose.x, vis.height * 0.65f, nose.y}, {def.radius, 0.18f, 0.18f}, e.facing,
                            glm::vec4(glm::vec3(color) * 0.6f, 1.0f));
         }
 
-        const bool selected = std::find(selected_.begin(), selected_.end(), e) != selected_.end();
+        const bool selected = std::find(selected_.begin(), selected_.end(), e.id) != selected_.end();
         if (selected)
-            renderer_.draw(Mesh::Cylinder, {p.x, 0.03f, p.y}, {d + 0.6f, 0.04f, d + 0.6f}, 0.0f, kSelectColor, Unlit | Alpha);
+            renderer_.draw(Mesh::Cylinder, {e.pos.x, 0.03f, e.pos.y}, {d + 0.6f, 0.04f, d + 0.6f}, 0.0f, kSelectColor, Unlit | Alpha);
 
-        if (selected || health.hp < health.max) {
-            const float frac = std::clamp(health.hp / health.max, 0.0f, 1.0f);
+        const float maxHp = def.maxHp;
+        if (selected || static_cast<float>(e.hp) < maxHp) {
+            const float frac = std::clamp(static_cast<float>(e.hp) / maxHp, 0.0f, 1.0f);
             const float barW = std::max(1.0f, d);
             const float y = vis.height + 0.5f;
-            renderer_.draw(Mesh::Cube, {p.x, y, p.y}, {barW, 0.15f, 0.08f}, 0.0f, {0.05f, 0.05f, 0.05f, 1.0f}, Unlit);
+            renderer_.draw(Mesh::Cube, {e.pos.x, y, e.pos.y}, {barW, 0.15f, 0.08f}, 0.0f, {0.05f, 0.05f, 0.05f, 1.0f}, Unlit);
             const glm::vec4 hpColor = glm::mix(glm::vec4{1.0f, 0.2f, 0.2f, 1.0f}, glm::vec4{0.3f, 1.0f, 0.4f, 1.0f}, frac);
-            renderer_.draw(Mesh::Cube, {p.x - barW * 0.5f + barW * frac * 0.5f, y, p.y - 0.05f}, {barW * frac, 0.17f, 0.1f}, 0.0f, hpColor, Unlit);
+            renderer_.draw(Mesh::Cube, {e.pos.x - barW * 0.5f + barW * frac * 0.5f, y, e.pos.y - 0.05f}, {barW * frac, 0.17f, 0.1f}, 0.0f,
+                           hpColor, Unlit);
         }
-    }
-
-    for (auto [e, pos, prev, proj] : reg.view<const Position, const PrevPosition, const Projectile>().each()) {
-        const glm::vec2 p = glm::mix(prev.value, pos.value, alpha);
-        glm::vec4 c = kTeamColors[proj.team & 1];
-        c = glm::mix(c, glm::vec4(1.0f), 0.4f);
-        renderer_.draw(Mesh::Sphere, {p.x, 0.8f, p.y}, glm::vec3(0.3f), 0.0f, c, Unlit);
     }
 
     for (const auto& fx : effects_) {
@@ -371,20 +606,63 @@ void App::render(float alpha) {
         renderer_.drawScreenRect(lo, {lo.x + 1.0f, hi.y}, border);
         renderer_.drawScreenRect({hi.x - 1.0f, lo.y}, hi, border);
     }
-
-    renderHud();
-    renderer_.end();
 }
 
 void App::renderHud() {
-    bgfx::dbgTextClear();
     int teams[2] = {0, 0};
-    for (auto [e, team] : world_->registry().view<const Team>().each())
-        ++teams[team.id & 1];
-    bgfx::dbgTextPrintf(1, 1, 0x0b, "Void Warzone %.*s | %s | %.0f fps", static_cast<int>(kVersion.size()), kVersion.data(), renderer_.name(), fps_);
-    bgfx::dbgTextPrintf(1, 2, 0x07, "tick %llu | units %d vs %d | selected %d%s", static_cast<unsigned long long>(world_->tick()), teams[0],
-                        teams[1], static_cast<int>(selected_.size()), attackMoveArmed_ ? " | ATTACK-MOVE" : "");
-    bgfx::dbgTextPrintf(1, 3, 0x08, "LMB select | RMB move/attack | A+LMB attack-move | S stop | Space focus | arrows/edges/wheel camera");
+    for (const auto& e : entities_)
+        if (e.kind == net::EntityKind::Unit)
+            ++teams[e.team & 1];
+    const auto stats = net_.stats();
+    const auto* latest = net_.latest();
+
+    text(1, 1, 0x0b, "Void Warzone %.*s | %s | %.0f fps", static_cast<int>(kVersion.size()), kVersion.data(), renderer_.name(), fps_);
+    text(1, 2, 0x07, "%s P%d | tick %u | units %d vs %d | selected %d%s", host_ ? "host" : "client", net_.player() + 1,
+                        latest ? latest->tick : 0u, teams[0], teams[1], static_cast<int>(selected_.size()),
+                        attackMoveArmed_ ? " | ATTACK-MOVE" : "");
+    text(1, 3, 0x07, "rtt %.0f ms | loss %.1f%% | in %.1f out %.1f kbps | interp %.0f ms jitter %.1f ms | snap %d B | predicted %d",
+                        stats.rtt, stats.packetLoss, stats.receivedKbps, stats.sentKbps, net_.interpDelay() * 1000.0, net_.jitter() * 1000.0,
+                        static_cast<int>(net_.lastSnapshotBytes()), static_cast<int>(prediction_.active()));
+    text(1, 4, 0x08, "LMB select | RMB move/attack | A+LMB attack-move | S stop | Space focus | arrows/edges/wheel camera | F10 leave");
+}
+
+void App::renderMenu() {
+    text(2, 2, 0x0b, "VOID WARZONE %.*s", static_cast<int>(kVersion.size()), kVersion.data());
+    int row = 5;
+    switch (screen_) {
+    case Screen::Menu:
+        text(2, row++, 0x0f, "[1] Host game (map %s, port %u)", options_.map.c_str(), static_cast<unsigned>(options_.port));
+        text(2, row++, 0x0f, "[2] Find LAN games");
+        text(2, row++, 0x0f, "[3] Connect to address");
+        text(2, row++, 0x0f, "[Esc] Quit");
+        break;
+    case Screen::Lan: {
+        text(2, row++, 0x0f, "LAN games (searching...)");
+        ++row;
+        int i = 1;
+        for (const auto& s : lan_.servers())
+            text(2, row++, 0x0f, "[%d] %s | %s | %d/%d | %s", i++, s.name.c_str(), s.map.c_str(), s.players, s.maxPlayers,
+                                s.address.toString().c_str());
+        if (lan_.servers().empty())
+            text(2, row++, 0x08, "no games found");
+        ++row;
+        text(2, row++, 0x08, "[Esc] Back");
+        break;
+    }
+    case Screen::Address:
+        text(2, row++, 0x0f, "Address (host[:port]), Enter to connect, Esc to go back:");
+        text(2, row++, 0x0e, "> %s_", addressInput_.c_str());
+        break;
+    case Screen::Connecting:
+        text(2, row++, 0x0f, "%s ...", status_.c_str());
+        text(2, row++, 0x08, "[Esc] Cancel");
+        break;
+    case Screen::Game:
+        break;
+    }
+    if (!status_.empty() && screen_ != Screen::Connecting)
+        text(2, row + 1, 0x0c, "%s", status_.c_str());
+    text(2, row + 3, 0x08, "player name: %s", options_.name.c_str());
 }
 
 }

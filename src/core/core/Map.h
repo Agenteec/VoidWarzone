@@ -39,6 +39,11 @@ struct SpawnerDef {
     float offset = 4.0f;
 };
 
+struct PlayerStart {
+    glm::vec2 pos{};
+    std::vector<std::string> units;
+};
+
 class Map {
 public:
     Map(int width, int height);
@@ -65,6 +70,7 @@ public:
     const std::vector<Lane>& lanes() const { return lanes_; }
     const std::vector<PlacedUnit>& units() const { return units_; }
     const std::vector<SpawnerDef>& spawners() const { return spawners_; }
+    const PlayerStart& playerStart() const { return playerStart_; }
 
 private:
     int width_ = 0;
@@ -75,6 +81,7 @@ private:
     std::vector<Lane> lanes_;
     std::vector<PlacedUnit> units_;
     std::vector<SpawnerDef> spawners_;
+    PlayerStart playerStart_;
     std::uint64_t hash_ = 0;
 };
 

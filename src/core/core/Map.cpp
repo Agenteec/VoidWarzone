@@ -76,6 +76,12 @@ Map Map::parse(std::string_view text) {
         m.spawners_.push_back(std::move(sd));
     }
 
+    if (const auto ps = j.find("playerStart"); ps != j.end()) {
+        m.playerStart_.pos = toVec2(ps->at("pos"));
+        for (const auto& u : ps->at("units"))
+            m.playerStart_.units.push_back(u.get<std::string>());
+    }
+
     m.hash_ = fnv1a(text);
     return m;
 }

@@ -1,5 +1,7 @@
 #include "core/World.h"
 
+#include "core/Movement.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -20,70 +22,7 @@ constexpr float kRangeSlack = 0.1f;
 constexpr int kRepathTicks = 15;
 
 glm::vec2 seek(glm::vec2 pos, glm::vec2 goal, float speed) {
-    const glm::vec2 d = goal - pos;
-    const float len = glm::length(d);
-    if (len < 1e-4f)
-        return {};
-    return d / len * std::min(speed, len / kTickDt);
-}
-
-void pushOutOfWalls(const Map& map, glm::vec2& p, float r) {
-    const int x0 = static_cast<int>(std::floor(p.x - r));
-    const int x1 = static_cast<int>(std::floor(p.x + r));
-    const int y0 = static_cast<int>(std::floor(p.y - r));
-    const int y1 = static_cast<int>(std::floor(p.y + r));
-    for (int y = y0; y <= y1; ++y)
-        for (int x = x0; x <= x1; ++x) {
-            if (!map.blocked(x, y))
-                continue;
-            const glm::vec2 lo(static_cast<float>(x), static_cast<float>(y));
-            const glm::vec2 closest = glm::clamp(p, lo, lo + 1.0f);
-            const glm::vec2 d = p - closest;
-            const float d2 = glm::dot(d, d);
-            if (d2 >= r * r)
-                continue;
-            if (d2 > 1e-8f) {
-                const float dist = std::sqrt(d2);
-                p += d / dist * (r - dist);
-                continue;
-            }
-            const float left = p.x - lo.x;
-            const float right = lo.x + 1.0f - p.x;
-            const float down = p.y - lo.y;
-            const float up = lo.y + 1.0f - p.y;
-            const float m = std::min({left, right, down, up});
-            if (m == left)
-                p.x = lo.x - r;
-            else if (m == right)
-                p.x = lo.x + 1.0f + r;
-            else if (m == down)
-                p.y = lo.y - r;
-            else
-                p.y = lo.y + 1.0f + r;
-        }
-}
-
-std::vector<glm::vec2> formation(const Map* map, glm::vec2 center, std::size_t count, float spacing) {
-    std::vector<glm::vec2> slots;
-    for (int ring = 0; slots.size() < count && ring < 64; ++ring) {
-        std::vector<glm::vec2> ringSlots;
-        for (int y = -ring; y <= ring; ++y)
-            for (int x = -ring; x <= ring; ++x) {
-                if (std::max(std::abs(x), std::abs(y)) != ring)
-                    continue;
-                const glm::vec2 p = center + glm::vec2(static_cast<float>(x), static_cast<float>(y)) * spacing;
-                if (!map || !map->blocked(Map::cellOf(p)))
-                    ringSlots.push_back(p);
-            }
-        std::sort(ringSlots.begin(), ringSlots.end(),
-                  [&](glm::vec2 a, glm::vec2 b) { return glm::distance(a, center) < glm::distance(b, center); });
-        for (const auto& p : ringSlots)
-            if (slots.size() < count)
-                slots.push_back(p);
-    }
-    while (slots.size() < count)
-        slots.push_back(center);
-    return slots;
+    return vw::seek(pos, goal, speed, kTickDt);
 }
 
 }
@@ -135,6 +74,34 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     return e;
 }
 
+std::vector<entt::entity> World::spawnPlayer(std::uint8_t player, std::uint8_t team) {
+    std::vector<entt::entity> spawned;
+    if (!map_)
+        return spawned;
+    const auto& start = map_->playerStart();
+    const float angle = static_cast<float>(player) * 2.39996f;
+    const float radius = player == 0 ? 0.0f : 3.0f + 1.5f * std::sqrt(static_cast<float>(player));
+    const glm::vec2 base = start.pos + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
+    for (std::size_t i = 0; i < start.units.size(); ++i) {
+        const UnitDefId id = data_->find(start.units[i]);
+        if (id == kInvalidUnitDef)
+            throw std::runtime_error("unknown unit: " + start.units[i]);
+        const glm::vec2 offset{static_cast<float>(i % 2) * 1.6f, static_cast<float>(i / 2) * 1.6f};
+        const glm::vec2 pos = Map::center(nearestFree(*map_, Map::cellOf(base + offset)));
+        spawned.push_back(spawn(id, team, pos, player));
+    }
+    return spawned;
+}
+
+void World::releasePlayer(std::uint8_t player) {
+    std::vector<entt::entity> owned;
+    for (auto [e, owner] : registry_.view<const Owner>().each())
+        if (owner.player == player)
+            owned.push_back(e);
+    for (const auto e : owned)
+        registry_.remove<Owner>(e);
+}
+
 bool World::alive(entt::entity e) const {
     if (e == entt::null || !registry_.valid(e))
         return false;
@@ -168,16 +135,15 @@ void World::apply(const Command& command) {
 
             if constexpr (std::is_same_v<T, MoveCommand>) {
                 float spacing = 0.0f;
-                for (const auto e : units)
+                std::vector<glm::vec2> positions;
+                for (const auto e : units) {
                     spacing = std::max(spacing, registry_.get<Unit>(e).radius * 2.0f + 0.3f);
-                std::sort(units.begin(), units.end(), [&](auto a, auto b) {
-                    return glm::distance(registry_.get<Position>(a).value, cmd.point) <
-                           glm::distance(registry_.get<Position>(b).value, cmd.point);
-                });
-                const auto slots = formation(map_, cmd.point, units.size(), spacing);
+                    positions.push_back(registry_.get<Position>(e).value);
+                }
+                const auto goals = assignFormation(map_, positions, spacing, cmd.point);
                 for (std::size_t i = 0; i < units.size(); ++i) {
                     auto& order = registry_.get<Order>(units[i]);
-                    order = {cmd.attack ? OrderType::AttackMove : OrderType::Move, slots[i], entt::null};
+                    order = {cmd.attack ? OrderType::AttackMove : OrderType::Move, goals[i], entt::null};
                     registry_.get<Target>(units[i]).value = entt::null;
                     registry_.remove<Navigator>(units[i]);
                     registry_.remove<LaneFollower>(units[i]);

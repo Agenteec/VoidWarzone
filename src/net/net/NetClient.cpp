@@ -1,0 +1,348 @@
+#include "net/NetClient.h"
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <numbers>
+#include <random>
+
+#include <glm/common.hpp>
+
+#include "core/Version.h"
+#include "core/World.h"
+#include "net/Messages.h"
+#include "net/Protocol.h"
+
+namespace vw::net {
+
+namespace {
+
+constexpr double kSendInterval = 1.0 / kTickRate;
+constexpr double kDt = 1.0 / kTickRate;
+
+float lerpAngle(float a, float b, float t) {
+    constexpr float pi = std::numbers::pi_v<float>;
+    float d = std::fmod(b - a, 2.0f * pi);
+    if (d > pi)
+        d -= 2.0f * pi;
+    else if (d < -pi)
+        d += 2.0f * pi;
+    return a + d * t;
+}
+
+InterpolatedEntity toEntity(const EntityState& s) {
+    InterpolatedEntity e;
+    e.id = s.id;
+    e.kind = s.kind;
+    e.def = s.def;
+    e.team = s.team;
+    e.owner = s.owner;
+    e.pos = {dequantizePos(s.x), dequantizePos(s.y)};
+    e.vel = {dequantizeVel(s.vx), dequantizeVel(s.vy)};
+    e.facing = dequantizeAngle(s.facing);
+    e.hp = s.hp;
+    return e;
+}
+
+std::uint64_t randomSalt() {
+    std::random_device rd;
+    return (static_cast<std::uint64_t>(rd()) << 32) ^ rd() ^
+           static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+}
+
+}
+
+NetClient::~NetClient() {
+    disconnect();
+}
+
+bool NetClient::connect(const Address& server, std::uint64_t dataHash, std::string name, double now) {
+    disconnect();
+    if (!socket_.open(0)) {
+        fail("cannot open socket");
+        return false;
+    }
+    server_ = server;
+    dataHash_ = dataHash;
+    name_ = std::move(name);
+    salt_ = randomSalt();
+    state_ = ClientState::Connecting;
+    error_.clear();
+    connectStart_ = now;
+    lastRequest_ = -1.0;
+    now_ = now;
+    return true;
+}
+
+void NetClient::disconnect() {
+    if (state_ != ClientState::Disconnected && socket_.isOpen()) {
+        Writer w;
+        w.u8(static_cast<std::uint8_t>(PacketType::Disconnect));
+        w.u64(salt_);
+        for (int i = 0; i < 3; ++i)
+            sendRaw(w);
+    }
+    conn_.reset();
+    socket_.close();
+    state_ = ClientState::Disconnected;
+    latestTick_ = 0;
+    synced_ = false;
+    snapshots_ = {};
+    commandSeq_ = 0;
+    events_.clear();
+    deaths_.clear();
+}
+
+void NetClient::fail(std::string error) {
+    disconnect();
+    error_ = std::move(error);
+}
+
+void NetClient::sendRaw(const Writer& w) {
+    socket_.send(server_, w.data().data(), w.size());
+}
+
+void NetClient::sendConnectRequest() {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(PacketType::ConnectRequest));
+    w.u32(kMagic);
+    w.u32(kProtocolVersion);
+    w.u64(dataHash_);
+    w.u64(salt_);
+    w.str(name_);
+    sendRaw(w);
+}
+
+void NetClient::handleAccept(Reader& r, double now) {
+    if (r.u64() != salt_ || state_ != ClientState::Connecting)
+        return;
+    player_ = r.u8();
+    mapName_ = r.str();
+    mapHash_ = r.u64();
+    if (!r.ok())
+        return;
+    conn_ = std::make_unique<Connection>(socket_, server_, now, salt_);
+    conn_->setUnreliableHandler([this](Reader& ur) { return onSnapshot(ur); });
+    state_ = ClientState::Connected;
+    lastSend_ = now;
+}
+
+void NetClient::update(double now) {
+    now_ = now;
+    if (state_ == ClientState::Disconnected)
+        return;
+
+    std::uint8_t buf[2048];
+    Address from;
+    int n = 0;
+    while (state_ != ClientState::Disconnected && (n = socket_.receive(from, buf, sizeof(buf))) >= 0) {
+        if (n < 1 || !(from == server_))
+            continue;
+        Reader r(buf + 1, static_cast<std::size_t>(n - 1));
+        switch (static_cast<PacketType>(buf[0])) {
+        case PacketType::ConnectAccept:
+            handleAccept(r, now);
+            break;
+        case PacketType::ConnectDeny:
+            if (r.u64() == salt_ && state_ == ClientState::Connecting)
+                fail(denyReasonText(static_cast<DenyReason>(r.u8())));
+            break;
+        case PacketType::Payload:
+            if (conn_)
+                conn_->receive(buf + 1, n - 1, now);
+            break;
+        case PacketType::Disconnect:
+            if (state_ == ClientState::Connected)
+                fail("server closed connection");
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (state_ == ClientState::Connecting) {
+        if (now - connectStart_ > kConnectTimeout) {
+            fail("connection timed out");
+            return;
+        }
+        if (lastRequest_ < 0.0 || now - lastRequest_ >= kConnectRetry) {
+            sendConnectRequest();
+            lastRequest_ = now;
+        }
+        return;
+    }
+
+    if (state_ == ClientState::Connected) {
+        if (now - conn_->lastReceiveTime() > kTimeout) {
+            fail("connection lost");
+            return;
+        }
+        conn_->update(now);
+        if (now - lastSend_ >= kSendInterval) {
+            conn_->flush();
+            lastSend_ = now;
+        }
+    }
+}
+
+std::uint32_t NetClient::sendCommand(const Command& command) {
+    if (!conn_)
+        return 0;
+    Writer w;
+    writeCommand(w, ++commandSeq_, command);
+    conn_->sendReliable(std::move(w.data()));
+    conn_->flush();
+    lastSend_ = now_;
+    return commandSeq_;
+}
+
+std::uint32_t NetClient::ackedCommandSeq() const {
+    const Snapshot* s = latest();
+    return s ? s->commandSeq : 0;
+}
+
+const Snapshot* NetClient::snapshot(std::uint32_t tick) const {
+    if (tick == 0)
+        return nullptr;
+    const Snapshot& s = snapshots_[tick % snapshots_.size()];
+    return s.tick == tick ? &s : nullptr;
+}
+
+bool NetClient::onSnapshot(Reader& r) {
+    const std::size_t bytes = r.remaining();
+    Snapshot snap;
+    if (!decodeSnapshot(r, snap, [this](std::uint32_t t) { return snapshot(t); }))
+        return false;
+    if (latestTick_ != 0 && snap.tick + snapshots_.size() <= latestTick_)
+        return true;
+    lastSnapshotBytes_ = bytes;
+
+    if (snap.tick > latestTick_) {
+        const double sample = static_cast<double>(snap.tick) * kDt - now_;
+        if (!synced_ || std::abs(sample - offset_) > 0.5) {
+            offset_ = sample;
+            jitter_ = 0.0;
+            synced_ = true;
+        } else {
+            jitter_ += (std::abs(sample - offset_) - jitter_) * 0.1;
+            offset_ += (sample - offset_) * 0.05;
+        }
+        const double target = std::clamp(kDt + 2.5 * jitter_ + 0.004, kDt * 0.8, 0.3);
+        delay_ += (target - delay_) * 0.05;
+
+        if (const Snapshot* prev = latest())
+            for (const auto& e : prev->entities)
+                if (e.kind == EntityKind::Unit && !snap.find(e.id))
+                    deaths_.push_back({{dequantizePos(e.x), dequantizePos(e.y)}, e.team});
+        events_.insert(events_.end(), snap.events.begin(), snap.events.end());
+        latestTick_ = snap.tick;
+    }
+    snapshots_[snap.tick % snapshots_.size()] = std::move(snap);
+    return true;
+}
+
+void NetClient::interpolate(double now, std::vector<InterpolatedEntity>& out) const {
+    out.clear();
+    const Snapshot* newest = latest();
+    if (!newest)
+        return;
+
+    const double renderTick = (now + offset_ - delay_) / kDt;
+    const Snapshot* a = nullptr;
+    const Snapshot* b = nullptr;
+    for (std::uint32_t t = latestTick_; t > 0 && t + snapshots_.size() > latestTick_; --t) {
+        const Snapshot* s = snapshot(t);
+        if (!s)
+            continue;
+        if (static_cast<double>(t) <= renderTick) {
+            a = s;
+            break;
+        }
+        b = s;
+    }
+
+    if (!a) {
+        for (const auto& s : b ? b->entities : newest->entities)
+            out.push_back(toEntity(s));
+        return;
+    }
+    if (!b) {
+        const float ahead = static_cast<float>(std::min((renderTick - a->tick) * kDt, 0.1));
+        for (const auto& s : a->entities) {
+            auto e = toEntity(s);
+            e.pos += e.vel * ahead;
+            out.push_back(e);
+        }
+        return;
+    }
+
+    const float t = static_cast<float>((renderTick - a->tick) / static_cast<double>(b->tick - a->tick));
+    for (const auto& sb : b->entities) {
+        auto e = toEntity(sb);
+        if (const EntityState* sa = a->find(sb.id)) {
+            const auto ea = toEntity(*sa);
+            e.pos = glm::mix(ea.pos, e.pos, t);
+            e.facing = lerpAngle(ea.facing, e.facing, t);
+        }
+        out.push_back(e);
+    }
+}
+
+bool LanBrowser::start(std::uint16_t port) {
+    port_ = port;
+    servers_.clear();
+    lastQuery_ = -1.0;
+    return socket_.open(0, true);
+}
+
+void LanBrowser::stop() {
+    socket_.close();
+}
+
+void LanBrowser::update(double now) {
+    if (!socket_.isOpen())
+        return;
+    if (lastQuery_ < 0.0 || now - lastQuery_ > 1.0) {
+        Writer w;
+        w.u8(static_cast<std::uint8_t>(PacketType::DiscoveryRequest));
+        w.u32(kMagic);
+        socket_.send(Address::broadcast(port_), w.data().data(), w.size());
+        socket_.send(Address::loopback(port_), w.data().data(), w.size());
+        lastQuery_ = now;
+    }
+
+    std::uint8_t buf[1024];
+    Address from;
+    int n = 0;
+    while ((n = socket_.receive(from, buf, sizeof(buf))) > 0) {
+        if (static_cast<PacketType>(buf[0]) != PacketType::DiscoveryResponse)
+            continue;
+        Reader r(buf + 1, static_cast<std::size_t>(n - 1));
+        if (r.u32() != kMagic || r.u32() != kProtocolVersion)
+            continue;
+        ServerInfo info;
+        info.name = r.str(64);
+        info.map = r.str(64);
+        info.players = r.u8();
+        info.maxPlayers = r.u8();
+        info.address = {from.ip, r.u16()};
+        info.seen = now;
+        if (!r.ok())
+            continue;
+        constexpr std::uint32_t loopback = 0x7f000001u;
+        const auto it = std::find_if(servers_.begin(), servers_.end(), [&](const ServerInfo& s) {
+            const bool sameHost = s.address.ip == info.address.ip || s.address.ip == loopback || info.address.ip == loopback;
+            return sameHost && s.address.port == info.address.port && s.name == info.name && s.map == info.map;
+        });
+        if (it == servers_.end()) {
+            servers_.push_back(info);
+            continue;
+        }
+        if (it->address.ip == loopback)
+            info.address.ip = loopback;
+        *it = info;
+    }
+    std::erase_if(servers_, [now](const ServerInfo& s) { return now - s.seen > 3.5; });
+}
+
+}

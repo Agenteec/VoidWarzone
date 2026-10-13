@@ -1,6 +1,7 @@
 set(VW_CLIENT_SOURCES
     main.cpp
     App.cpp
+    Prediction.cpp
     render/Camera.cpp
     render/Mesh.cpp
     render/Renderer.cpp
@@ -28,6 +29,6 @@ if(TARGET bgfx::shaderc)
 endif()
 
 target_include_directories(vw_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${VW_SHADER_DIR})
-target_link_libraries(vw_client PRIVATE vw_core vw_net SDL3::SDL3 bgfx bx nlohmann_json::nlohmann_json spdlog::spdlog)
+target_link_libraries(vw_client PRIVATE vw_core vw_net vw_host SDL3::SDL3 bgfx bx nlohmann_json::nlohmann_json spdlog::spdlog)
 vw_target_defaults(vw_client)
 vw_copy_data(vw_client)

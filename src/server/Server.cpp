@@ -1,0 +1,297 @@
+#include "server/Server.h"
+
+#include <algorithm>
+#include <cmath>
+#include <variant>
+
+#include <glm/geometric.hpp>
+#include <spdlog/spdlog.h>
+
+#include "core/Version.h"
+#include "net/Messages.h"
+#include "net/Protocol.h"
+
+namespace vw::server {
+
+using namespace vw::net;
+
+Server::Server(const GameData& data, const Map& map, ServerConfig config)
+    : data_(data), map_(map), config_(std::move(config)), world_(data, map) {
+    config_.maxPlayers = std::clamp(config_.maxPlayers, 1, 64);
+}
+
+Server::~Server() {
+    stop();
+}
+
+bool Server::start(double now) {
+    if (!socket_.open(config_.port)) {
+        spdlog::error("cannot bind udp port {}", config_.port);
+        return false;
+    }
+    nextTick_ = now;
+    now_ = now;
+    spdlog::info("server '{}' on port {} | map {} | max players {}", config_.name, socket_.port(), config_.mapName, config_.maxPlayers);
+    return true;
+}
+
+void Server::stop() {
+    for (std::size_t i = clients_.size(); i-- > 0;)
+        drop(i, true);
+    socket_.close();
+}
+
+Server::Client* Server::findClient(const Address& address) {
+    for (auto& c : clients_)
+        if (c->conn->address() == address)
+            return c.get();
+    return nullptr;
+}
+
+void Server::sendRaw(const Address& to, const Writer& w) {
+    socket_.send(to, w.data().data(), w.size());
+}
+
+void Server::sendAccept(const Client& client) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(PacketType::ConnectAccept));
+    w.u64(client.salt);
+    w.u8(client.player);
+    w.str(config_.mapName);
+    w.u64(map_.hash());
+    sendRaw(client.conn->address(), w);
+}
+
+void Server::sendDeny(const Address& to, std::uint64_t salt, std::uint8_t reason) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(PacketType::ConnectDeny));
+    w.u64(salt);
+    w.u8(reason);
+    sendRaw(to, w);
+}
+
+void Server::handleConnect(const Address& from, Reader& r, double now) {
+    if (r.u32() != kMagic)
+        return;
+    const std::uint32_t protocol = r.u32();
+    const std::uint64_t dataHash = r.u64();
+    const std::uint64_t salt = r.u64();
+    std::string name = r.str(32);
+    if (!r.ok())
+        return;
+
+    if (Client* existing = findClient(from)) {
+        if (existing->salt == salt)
+            sendAccept(*existing);
+        return;
+    }
+    if (protocol != kProtocolVersion)
+        return sendDeny(from, salt, static_cast<std::uint8_t>(DenyReason::Version));
+    if (dataHash != data_.hash())
+        return sendDeny(from, salt, static_cast<std::uint8_t>(DenyReason::Data));
+    if (playerCount() >= config_.maxPlayers)
+        return sendDeny(from, salt, static_cast<std::uint8_t>(DenyReason::Full));
+
+    std::uint8_t player = 0;
+    while (std::any_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c->player == player; }))
+        ++player;
+
+    auto client = std::make_unique<Client>();
+    client->conn = std::make_unique<Connection>(socket_, from, now, salt);
+    client->salt = salt;
+    client->player = player;
+    client->name = name.empty() ? "Player " + std::to_string(player + 1) : std::move(name);
+    world_.spawnPlayer(player);
+    sendAccept(*client);
+    spdlog::info("player {} '{}' joined from {}", player, client->name, from.toString());
+    clients_.push_back(std::move(client));
+}
+
+void Server::handleDiscovery(const Address& from, Reader& r) {
+    if (r.u32() != kMagic)
+        return;
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(PacketType::DiscoveryResponse));
+    w.u32(kMagic);
+    w.u32(kProtocolVersion);
+    w.str(config_.name);
+    w.str(config_.mapName);
+    w.u8(static_cast<std::uint8_t>(playerCount()));
+    w.u8(static_cast<std::uint8_t>(config_.maxPlayers));
+    w.u16(socket_.port());
+    sendRaw(from, w);
+}
+
+void Server::drop(std::size_t index, bool notify) {
+    auto& c = *clients_[index];
+    if (notify) {
+        Writer w;
+        w.u8(static_cast<std::uint8_t>(PacketType::Disconnect));
+        w.u64(c.salt);
+        for (int i = 0; i < 3; ++i)
+            sendRaw(c.conn->address(), w);
+    }
+    spdlog::info("player {} '{}' left", c.player, c.name);
+    world_.releasePlayer(c.player);
+    clients_.erase(clients_.begin() + static_cast<std::ptrdiff_t>(index));
+}
+
+void Server::handleMessages(Client& client) {
+    Bytes msg;
+    while (client.conn->popMessage(msg)) {
+        Reader r(msg.data(), msg.size());
+        if (static_cast<MessageType>(r.u8()) != MessageType::Command)
+            continue;
+        std::uint32_t seq = 0;
+        Command command;
+        if (!readCommand(r, seq, command))
+            continue;
+        std::visit(
+            [&](auto& c) {
+                std::erase_if(c.units, [&](entt::entity e) {
+                    const auto* owner = world_.registry().valid(e) ? world_.registry().try_get<Owner>(e) : nullptr;
+                    return !owner || owner->player != client.player;
+                });
+            },
+            command);
+        world_.apply(command);
+        client.commandSeq = std::max(client.commandSeq, seq);
+    }
+}
+
+void Server::receive(double now) {
+    std::uint8_t buf[2048];
+    Address from;
+    int n = 0;
+    while ((n = socket_.receive(from, buf, sizeof(buf))) >= 0) {
+        if (n < 1)
+            continue;
+        Reader r(buf + 1, static_cast<std::size_t>(n - 1));
+        switch (static_cast<PacketType>(buf[0])) {
+        case PacketType::ConnectRequest:
+            handleConnect(from, r, now);
+            break;
+        case PacketType::DiscoveryRequest:
+            handleDiscovery(from, r);
+            break;
+        case PacketType::Payload:
+            if (Client* c = findClient(from)) {
+                c->conn->receive(buf + 1, n - 1, now);
+                for (const auto seq : c->conn->takeAckedPackets()) {
+                    const auto& [sentSeq, tick] = c->sentTicks[seq % c->sentTicks.size()];
+                    if (sentSeq == seq && tick > c->ackedTick)
+                        c->ackedTick = tick;
+                }
+                handleMessages(*c);
+            }
+            break;
+        case PacketType::Disconnect: {
+            const std::uint64_t salt = r.u64();
+            for (std::size_t i = 0; i < clients_.size(); ++i)
+                if (clients_[i]->conn->address() == from && clients_[i]->salt == salt) {
+                    drop(i, false);
+                    break;
+                }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
+Snapshot Server::buildSnapshot() const {
+    Snapshot s;
+    s.tick = static_cast<std::uint32_t>(world_.tick());
+    const auto& reg = world_.registry();
+
+    for (auto [e, pos, unit, team, health] : reg.view<const Position, const Unit, const Team, const Health>().each()) {
+        EntityState st;
+        st.id = entt::to_integral(e);
+        st.kind = EntityKind::Unit;
+        st.def = unit.def;
+        st.team = team.id;
+        const auto* owner = reg.try_get<Owner>(e);
+        st.owner = owner ? owner->player : kNoOwner;
+        st.x = quantizePos(pos.value.x);
+        st.y = quantizePos(pos.value.y);
+        if (const auto* vel = reg.try_get<Velocity>(e); vel && !reg.all_of<Structure>(e)) {
+            st.vx = quantizeVel(vel->value.x);
+            st.vy = quantizeVel(vel->value.y);
+        }
+        if (const auto* f = reg.try_get<Facing>(e))
+            st.facing = quantizeAngle(f->angle);
+        st.hp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.hp), 0.0f, 65535.0f));
+        s.entities.push_back(st);
+    }
+
+    for (auto [e, pos, proj] : reg.view<const Position, const Projectile>().each()) {
+        EntityState st;
+        st.id = entt::to_integral(e);
+        st.kind = EntityKind::Projectile;
+        st.team = proj.team;
+        st.x = quantizePos(pos.value.x);
+        st.y = quantizePos(pos.value.y);
+        const glm::vec2 d = proj.targetPos - pos.value;
+        const float len = glm::length(d);
+        if (len > 1e-4f) {
+            st.vx = quantizeVel(d.x / len * proj.speed);
+            st.vy = quantizeVel(d.y / len * proj.speed);
+        }
+        s.entities.push_back(st);
+    }
+    std::sort(s.entities.begin(), s.entities.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+
+    for (const auto& ev : world_.events()) {
+        if (ev.type != EventType::Shot || !reg.valid(ev.entity))
+            continue;
+        const auto* w = reg.try_get<Weapon>(ev.entity);
+        if (w && w->def.projectileSpeed <= 0.0f)
+            s.events.push_back({static_cast<std::uint8_t>(NetEventType::Hit), quantizePos(ev.to.x), quantizePos(ev.to.y)});
+    }
+    return s;
+}
+
+void Server::tick() {
+    world_.step();
+    Snapshot snap = buildSnapshot();
+    const std::uint32_t tick = snap.tick;
+    history_[tick % history_.size()] = std::move(snap);
+    const Snapshot& current = history_[tick % history_.size()];
+
+    for (auto& c : clients_) {
+        const Snapshot* base = nullptr;
+        if (c->ackedTick != 0 && tick - c->ackedTick < history_.size() / 2) {
+            const Snapshot& candidate = history_[c->ackedTick % history_.size()];
+            if (candidate.tick == c->ackedTick)
+                base = &candidate;
+        }
+        Writer w;
+        encodeSnapshot(w, current, base, c->commandSeq);
+        c->conn->setUnreliable(std::move(w.data()));
+        const std::uint16_t seq = c->conn->flush();
+        c->sentTicks[seq % c->sentTicks.size()] = {seq, tick};
+    }
+}
+
+void Server::update(double now) {
+    now_ = now;
+    receive(now);
+
+    int steps = 0;
+    while (now >= nextTick_ && steps < 5) {
+        tick();
+        nextTick_ += kTickDt;
+        ++steps;
+    }
+    if (now - nextTick_ > 1.0)
+        nextTick_ = now;
+
+    for (std::size_t i = clients_.size(); i-- > 0;) {
+        clients_[i]->conn->update(now);
+        if (now - clients_[i]->conn->lastReceiveTime() > kTimeout)
+            drop(i, false);
+    }
+}
+
+}

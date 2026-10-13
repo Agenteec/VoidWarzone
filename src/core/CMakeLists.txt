@@ -1,6 +1,7 @@
 add_library(vw_core STATIC
     core/GameData.cpp
     core/Map.cpp
+    core/Movement.cpp
     core/Pathfinding.cpp
     core/World.cpp
 )
