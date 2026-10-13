@@ -14,6 +14,7 @@
 
 #include "core/Version.h"
 #include "net/NetLibrary.h"
+#include "net/MasterClient.h"
 #include "server/Server.h"
 
 namespace {
@@ -71,6 +72,7 @@ int main(int argc, char** argv) {
     std::filesystem::path dataDir = std::filesystem::path(argv[0]).parent_path() / "data";
     vw::server::ServerConfig config;
     double runFor = 0.0;
+    std::string master;
     int simPlayers = -1;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
@@ -85,6 +87,8 @@ int main(int argc, char** argv) {
             config.name = argv[++i];
         else if (arg == "--max-players" && hasValue)
             config.maxPlayers = std::atoi(argv[++i]);
+        else if (arg == "--master" && hasValue)
+            master = argv[++i];
         else if (arg == "--cheats")
             config.cheats = true;
         else if (arg == "--seconds" && hasValue)
@@ -116,8 +120,29 @@ int main(int argc, char** argv) {
             return 1;
         spdlog::info("Void Warzone dedicated server {}", vw::kVersion);
 
+        vw::net::MasterClient lobby;
+        const vw::net::RoomInfo room{"", config.name, config.mapName, 0, static_cast<std::uint8_t>(config.maxPlayers), true};
+        double lobbyRetry = 0.0;
+        std::string announced;
+
         while (g_running && (runFor <= 0.0 || nowSeconds() - start < runFor)) {
-            server.update(nowSeconds());
+            const double now = nowSeconds();
+            server.update(now);
+            if (!master.empty()) {
+                const auto state = lobby.state();
+                if ((state == vw::net::MasterClient::State::Idle || state == vw::net::MasterClient::State::Failed) && now >= lobbyRetry) {
+                    if (state == vw::net::MasterClient::State::Failed)
+                        spdlog::warn("master: {}", lobby.error());
+                    lobby.host(master, room, server.iceHub(), now);
+                    lobbyRetry = now + 10.0;
+                }
+                lobby.update(now);
+                lobby.setPlayers(server.playerCount());
+                if (lobby.state() == vw::net::MasterClient::State::Hosting && lobby.code() != announced) {
+                    announced = lobby.code();
+                    spdlog::info("room code {}", announced);
+                }
+            }
             const double wait = server.nextTickTime() - nowSeconds();
             if (wait > 0.0)
                 std::this_thread::sleep_for(std::chrono::duration<double>(std::min(wait, 0.005)));
