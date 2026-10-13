@@ -7,3 +7,7 @@
 CMakeUserPresets.json
 compile_commands.json
 *.user
+/android/.gradle/
+/android/app/build/
+/android/build/
+/android/local.properties

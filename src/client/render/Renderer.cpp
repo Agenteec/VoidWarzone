@@ -42,7 +42,8 @@ constexpr std::uint64_t kOverlayState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_
 
 }
 
-bool Renderer::init(SDL_Window* window) {
+bool Renderer::init(SDL_Window* window, float scale) {
+    scale_ = std::max(1.0f, scale);
     bgfx::renderFrame();
 
     bgfx::Init init;
@@ -50,7 +51,14 @@ bool Renderer::init(SDL_Window* window) {
         spdlog::error("no native window handle");
         return false;
     }
-    SDL_GetWindowSizeInPixels(window, &width_, &height_);
+    int pw = 0;
+    int ph = 0;
+    SDL_GetWindowSizeInPixels(window, &pw, &ph);
+    width_ = std::max(1, static_cast<int>(static_cast<float>(pw) / scale_));
+    height_ = std::max(1, static_cast<int>(static_cast<float>(ph) / scale_));
+#if defined(SDL_PLATFORM_ANDROID)
+    init.type = bgfx::RendererType::OpenGLES;
+#endif
     init.swapChain.width = static_cast<std::uint32_t>(width_);
     init.swapChain.height = static_cast<std::uint32_t>(height_);
     init.swapChain.flags = BGFX_SWAP_CHAIN_MSAA_X4;
@@ -105,10 +113,10 @@ void Renderer::shutdown() {
 }
 
 void Renderer::resize(int width, int height) {
-    width_ = width;
-    height_ = height;
-    swapChain_.width = static_cast<std::uint32_t>(width);
-    swapChain_.height = static_cast<std::uint32_t>(height);
+    width_ = std::max(1, static_cast<int>(static_cast<float>(width) / scale_));
+    height_ = std::max(1, static_cast<int>(static_cast<float>(height) / scale_));
+    swapChain_.width = static_cast<std::uint32_t>(width_);
+    swapChain_.height = static_cast<std::uint32_t>(height_);
     bgfx::reset(BGFX_RESET_VSYNC, &swapChain_);
 }
 

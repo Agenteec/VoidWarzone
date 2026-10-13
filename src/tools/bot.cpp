@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -7,6 +8,7 @@
 #include <string_view>
 #include <thread>
 
+#include <juice/juice.h>
 #include <spdlog/spdlog.h>
 
 #include "core/GameData.h"
@@ -41,6 +43,7 @@ int main(int argc, char** argv) {
     std::string name = "bot";
     double seconds = 10.0;
     bool list = false;
+    bool relayOnly = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
         const bool hasValue = i + 1 < argc;
@@ -58,14 +61,21 @@ int main(int argc, char** argv) {
             dataDir = argv[++i];
         else if (arg == "--list")
             list = true;
+        else if (arg == "--relay-only")
+            relayOnly = true;
+        else if (arg == "--verbose")
+            juice_set_log_level(JUICE_LOG_LEVEL_DEBUG);
     }
 
+    const auto logLevel = std::find(argv, argv + argc, std::string_view("--verbose")) != argv + argc ? JUICE_LOG_LEVEL_DEBUG : JUICE_LOG_LEVEL_WARN;
     vw::net::NetLibrary lib;
     if (!lib.ok())
         return 1;
+    juice_set_log_level(logLevel);
     const auto data = vw::GameData::parse(readFile(dataDir / "units.json"), readFile(dataDir / "skills.json"), readFile(dataDir / "items.json"));
 
     vw::net::MasterClient lobby;
+    lobby.setRelayOnly(relayOnly);
     vw::net::NetClient client;
     const double start = nowSeconds();
 
@@ -104,6 +114,7 @@ int main(int argc, char** argv) {
         lobby.update(now);
         if (!code.empty() && client.state() == vw::net::ClientState::Disconnected && lobby.state() == vw::net::MasterClient::State::Ready) {
             spdlog::info("ice connected in {:.2f}s via {}", now - start, lobby.agent()->selectedPath());
+            spdlog::info("pair: {}", lobby.agent()->selectedPair());
             client.connectVia(lobby.agent(), data.hash(), name, now);
         }
         if (lobby.state() == vw::net::MasterClient::State::Failed) {
@@ -114,7 +125,6 @@ int main(int argc, char** argv) {
         client.update(now);
         if (!wasConnected && client.state() == vw::net::ClientState::Connected) {
             connectedAt = now;
-            lobby.close();
             spdlog::info("joined as player {} on map {} ({})", client.player() + 1, client.mapName(), client.path());
         }
         if (wasConnected && client.state() != vw::net::ClientState::Connected) {
@@ -128,6 +138,10 @@ int main(int argc, char** argv) {
         if (const auto* s = client.latest(); s && s->tick != lastTick) {
             lastTick = s->tick;
             ++snapshots;
+        }
+        if (connectedAt > 0.0 && now - connectedAt >= 3.0 && lobby.state() != vw::net::MasterClient::State::Idle && !code.empty()) {
+            spdlog::info("turn relay candidates gathered: {}", lobby.relayCandidates());
+            lobby.close();
         }
         if (connectedAt > 0.0 && now - connectedAt >= seconds)
             break;

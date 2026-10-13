@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
     juice_server_credentials_t credentials{};
     credentials.username = turnUser.c_str();
     credentials.password = turnPass.c_str();
-    credentials.allocations_quota = 8;
+    credentials.allocations_quota = 0;
     const bool turn = !turnUser.empty() && !turnPass.empty();
 
     juice_server_config_t stunConfig{};

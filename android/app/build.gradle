@@ -1,0 +1,85 @@
+plugins {
+    id 'com.android.application'
+}
+
+def localProps = new Properties()
+def localFile = rootProject.file('local.properties')
+if (localFile.exists())
+    localFile.withInputStream { localProps.load(it) }
+
+def repoRoot = rootProject.file('..')
+def cmakeExe = localProps.getProperty('vw.cmake', 'cmake')
+def ninjaExe = localProps.getProperty('vw.ninja', '')
+def nativeBuildDir = new File(repoRoot, 'build/android-arm64')
+def generatedDir = layout.buildDirectory.dir('vw').get().asFile
+
+android {
+    namespace 'com.voidwarzone.game'
+    compileSdk 36
+    ndkVersion '30.0.15729638'
+
+    defaultConfig {
+        applicationId 'com.voidwarzone.game'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '0.0.1'
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = [new File(generatedDir, 'jni')]
+            assets.srcDirs = [new File(generatedDir, 'assets')]
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+def nativeEnvironment = {
+    def env = [ANDROID_NDK_HOME: android.ndkDirectory.absolutePath]
+    if (ninjaExe)
+        env.PATH = new File(ninjaExe).parent + File.pathSeparator + System.getenv('PATH')
+    return env
+}
+
+tasks.register('vwConfigureNative', Exec) {
+    workingDir repoRoot
+    commandLine cmakeExe, '--preset', 'android-arm64'
+    doFirst { environment nativeEnvironment() }
+}
+
+tasks.register('vwBuildNative', Exec) {
+    dependsOn 'vwConfigureNative'
+    workingDir repoRoot
+    commandLine cmakeExe, '--build', nativeBuildDir.absolutePath, '--target', 'vw_client'
+    doFirst { environment nativeEnvironment() }
+}
+
+tasks.register('vwNativeLibs', Sync) {
+    dependsOn 'vwBuildNative'
+    from(new File(nativeBuildDir, 'lib')) { include 'libmain.so' }
+    into new File(generatedDir, 'jni/arm64-v8a')
+}
+
+tasks.register('vwAssets', Sync) {
+    from(new File(repoRoot, 'data'))
+    into new File(generatedDir, 'assets/data')
+}
+
+tasks.named('preBuild') {
+    dependsOn 'vwNativeLibs', 'vwAssets'
+}

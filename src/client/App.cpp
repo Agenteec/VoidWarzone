@@ -67,10 +67,17 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
     window_ = window;
     options_ = std::move(options);
     now_ = nowSeconds();
-    pixelDensity_ = SDL_GetWindowPixelDensity(window);
-    if (!netLibrary_.ok() || !renderer_.init(window))
+    float scale = options_.uiScale;
+    touchUi_ = options_.touch;
+#if defined(SDL_PLATFORM_ANDROID)
+    touchUi_ = true;
+    if (scale <= 0.0f)
+        scale = std::max(1.0f, SDL_GetWindowDisplayScale(window) * 0.8f);
+#endif
+    if (!netLibrary_.ok() || !renderer_.init(window, std::max(1.0f, scale)))
         return false;
     initialized_ = true;
+    updateInputScale();
 
     try {
         loadContent();
@@ -244,15 +251,40 @@ void App::leaveGame(std::string status) {
     setScreen(Screen::Menu);
 }
 
+void App::updateInputScale() {
+    pixelDensity_ = SDL_GetWindowPixelDensity(window_) / renderer_.scale();
+}
+
 void App::handleEvent(const SDL_Event& e) {
     switch (e.type) {
     case SDL_EVENT_QUIT:
         running_ = false;
         return;
+    case SDL_EVENT_WILL_ENTER_BACKGROUND:
+        paused_ = true;
+        return;
+    case SDL_EVENT_DID_ENTER_FOREGROUND: {
+        paused_ = false;
+        int w = 0;
+        int h = 0;
+        SDL_GetWindowSizeInPixels(window_, &w, &h);
+        renderer_.resize(w, h);
+        return;
+    }
     case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
         renderer_.resize(e.window.data1, e.window.data2);
-        pixelDensity_ = SDL_GetWindowPixelDensity(window_);
+        updateInputScale();
         return;
+    case SDL_EVENT_FINGER_DOWN:
+    case SDL_EVENT_FINGER_MOTION:
+    case SDL_EVENT_FINGER_UP:
+        handleFinger(e);
+        return;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        if (e.button.button == SDL_BUTTON_LEFT && e.button.which != SDL_TOUCH_MOUSEID &&
+            hitButton(glm::vec2(e.button.x, e.button.y) * pixelDensity_))
+            return;
+        break;
     case SDL_EVENT_MOUSE_MOTION:
         mouse_ = glm::vec2(e.motion.x, e.motion.y) * pixelDensity_;
         break;
@@ -263,16 +295,157 @@ void App::handleEvent(const SDL_Event& e) {
             codeInput_ += e.text.text;
         return;
     case SDL_EVENT_KEY_DOWN:
-        if (screen_ != Screen::Game) {
-            handleMenuKey(e.key.key);
-            return;
-        }
-        break;
+        pressKey(e.key.key == SDLK_AC_BACK ? SDLK_ESCAPE : e.key.key, (e.key.mod & SDL_KMOD_SHIFT) != 0);
+        return;
     default:
         break;
     }
     if (screen_ == Screen::Game)
         handleGameEvent(e);
+}
+
+void App::pressKey(SDL_Keycode key, bool shift) {
+    if (screen_ == Screen::Game)
+        handleGameKey(key, shift);
+    else
+        handleMenuKey(key);
+}
+
+bool App::hitButton(glm::vec2 p) {
+    for (const auto& b : buttons_) {
+        const glm::vec2 lo{static_cast<float>(b.col * 8), static_cast<float>(b.row * 16)};
+        const glm::vec2 hi = lo + glm::vec2(static_cast<float>(b.width * 8), static_cast<float>(b.height * 16));
+        if (p.x >= lo.x && p.x < hi.x && p.y >= lo.y && p.y < hi.y) {
+            pressKey(b.key, b.shift);
+            return true;
+        }
+    }
+    return false;
+}
+
+void App::button(int col, int row, int width, int height, SDL_Keycode key, bool shift, bool active, const std::string& label, bool center) {
+    const glm::vec2 lo{static_cast<float>(col * 8), static_cast<float>(row * 16)};
+    const glm::vec2 hi = lo + glm::vec2(static_cast<float>(width * 8 - 2), static_cast<float>(height * 16 - 2));
+    renderer_.drawScreenRect(lo, hi, active ? glm::vec4{0.2f, 0.45f, 0.35f, 0.75f} : glm::vec4{0.12f, 0.12f, 0.2f, 0.7f});
+    const int textCol = center ? col + std::max(0, (width - static_cast<int>(label.size())) / 2) : col + 1;
+    text(textCol, row + height / 2, active ? 0x0f : 0x07, "%s", label.substr(0, static_cast<std::size_t>(std::max(0, width))).c_str());
+    buttons_.push_back({col, row, width, height, key, shift});
+}
+
+void App::handleFinger(const SDL_Event& e) {
+    touchUi_ = true;
+    const glm::vec2 p{e.tfinger.x * static_cast<float>(renderer_.width()), e.tfinger.y * static_cast<float>(renderer_.height())};
+    const SDL_FingerID id = e.tfinger.fingerID;
+
+    auto spreadAndCenter = [this](float& spread, glm::vec2& center) {
+        const auto& a = fingers_.begin()->second.pos;
+        const auto& b = std::next(fingers_.begin())->second.pos;
+        spread = glm::distance(a, b);
+        center = (a + b) * 0.5f;
+    };
+
+    if (e.type == SDL_EVENT_FINGER_DOWN) {
+        fingers_[id] = {p, p};
+        if (fingers_.size() >= 2) {
+            gesture_ = true;
+            dragging_ = false;
+            spreadAndCenter(gestureSpread_, gestureCenter_);
+        }
+        return;
+    }
+
+    const auto it = fingers_.find(id);
+    if (it == fingers_.end())
+        return;
+
+    if (e.type == SDL_EVENT_FINGER_MOTION) {
+        it->second.pos = p;
+        if (gesture_ && fingers_.size() >= 2 && screen_ == Screen::Game) {
+            float spread = 0.0f;
+            glm::vec2 center{};
+            spreadAndCenter(spread, center);
+            const auto before = camera_.screenToGround(gestureCenter_.x, gestureCenter_.y);
+            const auto after = camera_.screenToGround(center.x, center.y);
+            if (before && after)
+                camera_.target += *before - *after;
+            if (spread > 10.0f && gestureSpread_ > 10.0f)
+                camera_.distance = std::clamp(camera_.distance * gestureSpread_ / spread, kMinZoom, kMaxZoom);
+            if (map_)
+                camera_.target = glm::clamp(camera_.target, glm::vec2(0.0f), glm::vec2(map_->width(), map_->height()));
+            gestureSpread_ = spread;
+            gestureCenter_ = center;
+        } else if (!gesture_ && screen_ == Screen::Game && glm::distance(it->second.start, p) > 16.0f) {
+            dragging_ = true;
+            dragStart_ = it->second.start;
+            mouse_ = p;
+        }
+        return;
+    }
+
+    const Finger finger = it->second;
+    fingers_.erase(it);
+    if (gesture_) {
+        if (fingers_.empty())
+            gesture_ = false;
+        return;
+    }
+    if (dragging_) {
+        dragging_ = false;
+        boxSelect(finger.start, p, false);
+        return;
+    }
+    tap(p);
+}
+
+void App::tap(glm::vec2 p) {
+    if (hitButton(p) || screen_ != Screen::Game)
+        return;
+    const auto ground = camera_.screenToGround(p.x, p.y);
+    if (armedSkill_ >= 0) {
+        castSlot(static_cast<std::uint8_t>(armedSkill_), ground);
+        armedSkill_ = -1;
+        return;
+    }
+    if (attackMoveArmed_) {
+        issueCommand(p, true);
+        attackMoveArmed_ = false;
+        return;
+    }
+    if (ground)
+        if (const auto* e = entityAt(*ground, 0.6f); e && isOwn(*e)) {
+            selected_ = {e->id};
+            return;
+        }
+    if (!selected_.empty())
+        issueCommand(p, false);
+}
+
+void App::castSlot(std::uint8_t slot, std::optional<glm::vec2> ground) {
+    const auto* latest = net_.latest();
+    if (!latest)
+        return;
+    for (const auto id : selected_) {
+        const auto* own = latest->view.unit(id);
+        if (!own || own->rank != static_cast<std::uint8_t>(Rank::Hero) || slot >= own->skills.size())
+            continue;
+        const auto& skill = data_->skill(own->skills[slot].skill);
+        if (skill.passive)
+            continue;
+        glm::vec2 point{};
+        if (skill.target == SkillTarget::Self) {
+            if (const auto* e = findEntity(id))
+                point = e->pos;
+        } else if (ground) {
+            point = *ground;
+        } else {
+            return;
+        }
+        if (own->skills[slot].cooldown == 0) {
+            prediction_.cancel({id});
+            net_.sendCommand(CastCommand{0, static_cast<entt::entity>(id), slot, point});
+        }
+        return;
+    }
 }
 
 void App::handleMenuKey(SDL_Keycode key) {
@@ -310,7 +483,9 @@ void App::handleMenuKey(SDL_Keycode key) {
         }
         break;
     case Screen::Address:
-        if (key == SDLK_ESCAPE) {
+        if (key == SDLK_INSERT) {
+            SDL_StartTextInput(window_);
+        } else if (key == SDLK_ESCAPE) {
             setScreen(Screen::Menu);
         } else if (key == SDLK_BACKSPACE && !addressInput_.empty()) {
             addressInput_.pop_back();
@@ -322,7 +497,9 @@ void App::handleMenuKey(SDL_Keycode key) {
         }
         break;
     case Screen::Code:
-        if (key == SDLK_ESCAPE)
+        if (key == SDLK_INSERT)
+            SDL_StartTextInput(window_);
+        else if (key == SDLK_ESCAPE)
             setScreen(Screen::Menu);
         else if (key == SDLK_BACKSPACE && !codeInput_.empty())
             codeInput_.pop_back();
@@ -382,56 +559,59 @@ void App::handleGameEvent(const SDL_Event& e) {
                 boxSelect(dragStart_, p, add);
         }
         break;
-    case SDL_EVENT_KEY_DOWN:
-        if (e.key.key == SDLK_A && !selected_.empty()) {
-            attackMoveArmed_ = true;
-        } else if (e.key.key == SDLK_S && !selected_.empty()) {
-            prediction_.cancel(selected_);
-            net_.sendCommand(StopCommand{selectedEntities()});
-        } else if (e.key.key == SDLK_ESCAPE) {
-            if (attackMoveArmed_)
-                attackMoveArmed_ = false;
-            else if (panel_ != Panel::None)
-                panel_ = Panel::None;
-            else
-                selected_.clear();
-        } else if (e.key.key == SDLK_SPACE) {
-            pruneSelection();
-            if (!selected_.empty())
-                if (const auto* u = findEntity(selected_.front()))
-                    camera_.target = u->pos;
-        } else if (e.key.key == SDLK_F10) {
-            leaveGame("left the game");
-        } else if (panel_ != Panel::None && ((e.key.key >= SDLK_1 && e.key.key <= SDLK_9) || e.key.key == SDLK_0)) {
-            handlePanelKey(e.key.key, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
-        } else if (e.key.key >= SDLK_1 && e.key.key <= SDLK_9) {
-            const auto index = static_cast<std::size_t>(e.key.key - SDLK_1);
-            if (index < data_->recruitable().size())
-                net_.sendCommand(RecruitCommand{0, data_->recruitable()[index]});
-        } else if (e.key.key == SDLK_B || e.key.key == SDLK_I || e.key.key == SDLK_L) {
-            const Panel p = e.key.key == SDLK_B ? Panel::Shop : e.key.key == SDLK_I ? Panel::Stash : Panel::Learn;
-            panel_ = panel_ == p ? Panel::None : p;
-        } else if (e.key.key == SDLK_P) {
-            for (const auto id : selected_)
-                net_.sendCommand(PromoteCommand{0, static_cast<entt::entity>(id)});
-        } else if (e.key.key == SDLK_Q || e.key.key == SDLK_W || e.key.key == SDLK_E || e.key.key == SDLK_R) {
-            const std::uint8_t slot = e.key.key == SDLK_Q ? 0 : e.key.key == SDLK_W ? 1 : e.key.key == SDLK_E ? 2 : 3;
-            const auto ground = camera_.screenToGround(mouse_.x, mouse_.y);
-            const auto* latest = net_.latest();
-            if (ground && latest)
-                for (const auto id : selected_)
-                    if (const auto* own = latest->view.unit(id); own && own->rank == static_cast<std::uint8_t>(Rank::Hero) && slot < own->skills.size() &&
-                                                                 !data_->skill(own->skills[slot].skill).passive) {
-                        if (own->skills[slot].cooldown == 0) {
-                            prediction_.cancel({id});
-                            net_.sendCommand(CastCommand{0, static_cast<entt::entity>(id), slot, *ground});
-                        }
-                        break;
-                    }
-        }
-        break;
     default:
         break;
+    }
+}
+
+void App::handleGameKey(SDL_Keycode key, bool shift) {
+    if (key == SDLK_A && !selected_.empty()) {
+        attackMoveArmed_ = true;
+        armedSkill_ = -1;
+    } else if (key == SDLK_S && !selected_.empty()) {
+        prediction_.cancel(selected_);
+        net_.sendCommand(StopCommand{selectedEntities()});
+    } else if (key == SDLK_ESCAPE) {
+        if (attackMoveArmed_ || armedSkill_ >= 0) {
+            attackMoveArmed_ = false;
+            armedSkill_ = -1;
+        } else if (panel_ != Panel::None)
+            panel_ = Panel::None;
+        else
+            selected_.clear();
+    } else if (key == SDLK_SPACE) {
+        pruneSelection();
+        if (!selected_.empty())
+            if (const auto* u = findEntity(selected_.front()))
+                camera_.target = u->pos;
+    } else if (key == SDLK_F10) {
+        leaveGame("left the game");
+    } else if (panel_ != Panel::None && ((key >= SDLK_1 && key <= SDLK_9) || key == SDLK_0)) {
+        handlePanelKey(key, shift);
+    } else if (key >= SDLK_1 && key <= SDLK_9) {
+        const auto index = static_cast<std::size_t>(key - SDLK_1);
+        if (index < data_->recruitable().size())
+            net_.sendCommand(RecruitCommand{0, data_->recruitable()[index]});
+    } else if (key == SDLK_B || key == SDLK_I || key == SDLK_L) {
+        const Panel p = key == SDLK_B ? Panel::Shop : key == SDLK_I ? Panel::Stash : Panel::Learn;
+        panel_ = panel_ == p ? Panel::None : p;
+    } else if (key == SDLK_P) {
+        for (const auto id : selected_)
+            net_.sendCommand(PromoteCommand{0, static_cast<entt::entity>(id)});
+    } else if (key == SDLK_Q || key == SDLK_W || key == SDLK_E || key == SDLK_R) {
+        const std::uint8_t slot = key == SDLK_Q ? 0 : key == SDLK_W ? 1 : key == SDLK_E ? 2 : 3;
+        if (touchUi_) {
+            bool self = false;
+            if (const auto* own = focusedOwn(); own && slot < own->skills.size())
+                self = data_->skill(own->skills[slot].skill).target == SkillTarget::Self;
+            if (self)
+                castSlot(slot, std::nullopt);
+            else
+                armedSkill_ = slot;
+            attackMoveArmed_ = false;
+        } else {
+            castSlot(slot, camera_.screenToGround(mouse_.x, mouse_.y));
+        }
     }
 }
 
@@ -541,7 +721,7 @@ void App::updateCamera(float dt) {
     if (keys[SDL_SCANCODE_LEFT])
         move.x -= 1.0f;
 
-    if (SDL_GetMouseFocus() == window_ && (SDL_GetWindowFlags(window_) & SDL_WINDOW_INPUT_FOCUS)) {
+    if (!touchUi_ && SDL_GetMouseFocus() == window_ && (SDL_GetWindowFlags(window_) & SDL_WINDOW_INPUT_FOCUS)) {
         constexpr float edge = 6.0f;
         if (mouse_.x <= edge)
             move.x -= 1.0f;
@@ -611,7 +791,8 @@ void App::frame(double dt) {
 
     if (screen_ == Screen::Game)
         updateGame(static_cast<float>(dt));
-    render();
+    if (!paused_)
+        render();
 }
 
 glm::vec4 App::unitColor(const net::InterpolatedEntity& e) const {
@@ -629,10 +810,13 @@ void App::render() {
     camera_.update(renderer_.width(), renderer_.height(), renderer_.homogeneousDepth());
     renderer_.begin(camera_);
     bgfx::dbgTextClear();
+    buttons_.clear();
     if (screen_ == Screen::Game && map_) {
         renderWorld();
         renderHud();
         renderGameHud();
+        if (touchUi_)
+            renderTouchControls();
     } else {
         renderMenu();
     }
@@ -907,7 +1091,7 @@ void App::renderGameHud() {
         recruit += "[" + std::to_string(i + 1) + "] " + def.name + " " + std::to_string(static_cast<int>(def.cost)) + "  ";
     }
     text(1, 8, 0x07, "Recruit: %s | [P] promote [B] shop [I] stash [L] learn [QWER] skills", recruit.c_str());
-    renderUnitPanel(rows - 12);
+    renderUnitPanel(rows - (touchUi_ ? 15 : 12));
     renderSidePanel();
 
     if (game.boss != net::kNoEntity)
@@ -928,7 +1112,7 @@ void App::renderGameHud() {
     if (state != MatchState::Playing) {
         const char* msg = state == MatchState::Victory ? "VICTORY - THE VOID IS SEALED" : "DEFEAT - THE CORE HAS FALLEN";
         text(std::max(0, (cols - static_cast<int>(std::strlen(msg))) / 2), rows / 2 - 1, state == MatchState::Victory ? 0x0a : 0x0c, "%s", msg);
-        const char* hint = "F10 - back to menu";
+        const char* hint = touchUi_ ? "tap MENU to leave" : "F10 - back to menu";
         text(std::max(0, (cols - static_cast<int>(std::strlen(hint))) / 2), rows / 2 + 1, 0x07, "%s", hint);
     } else if (bannerTime_ > 0.0f && !banner_.empty()) {
         text(std::max(0, (cols - static_cast<int>(banner_.size())) / 2), rows / 3, 0x0e, "%s", banner_.c_str());
@@ -1032,16 +1216,32 @@ void App::renderSidePanel() {
             std::string price = item.cost > 0.0f ? std::to_string(static_cast<int>(item.cost)) + "e" : "";
             if (item.shards > 0)
                 price += (price.empty() ? "" : " ") + std::to_string(item.shards) + "s";
-            text(x, row++, 0x0f, "[%d] %s (%s) %s", static_cast<int>((i + 1) % 10), item.name.c_str(), price.c_str(),
-                 modsText(item.mods).c_str());
+            const std::string line = "[" + std::to_string((i + 1) % 10) + "] " + item.name + " (" + price + ") " + modsText(item.mods);
+            if (touchUi_) {
+                button(x, row, 60, 2, static_cast<SDL_Keycode>(i == 9 ? SDLK_0 : SDLK_1 + i), false, false, line, false);
+                row += 2;
+            } else {
+                text(x, row++, 0x0f, "%s", line.c_str());
+            }
         }
     } else if (panel_ == Panel::Stash) {
         text(x, row++, 0x0e, "STASH - digit equips on selected, Shift+digit unequips slot");
         for (std::size_t i = 0; i < latest->view.stash.size() && i < 9; ++i) {
             const auto& item = data_->item(latest->view.stash[i]);
-            text(x, row++, 0x0f, "[%d] %s (%s) %s", static_cast<int>(i + 1), item.name.c_str(), kRarity[static_cast<int>(item.rarity)],
-                 modsText(item.mods).c_str());
+            const std::string line = "[" + std::to_string(i + 1) + "] " + item.name + " (" + kRarity[static_cast<int>(item.rarity)] + ") " +
+                                     modsText(item.mods);
+            if (touchUi_) {
+                button(x, row, 60, 2, static_cast<SDL_Keycode>(SDLK_1 + i), false, false, line, false);
+                row += 2;
+            } else {
+                text(x, row++, 0x0f, "%s", line.c_str());
+            }
         }
+        if (const auto* own = focusedOwn(); own && touchUi_)
+            for (std::size_t i = 0; i < own->items.size() && i < 9; ++i) {
+                button(x, row, 60, 2, static_cast<SDL_Keycode>(SDLK_1 + i), true, false, "unequip " + data_->item(own->items[i]).name, false);
+                row += 2;
+            }
         if (latest->view.stash.empty())
             text(x, row++, 0x08, "empty - buy in the shop or kill bosses");
     } else if (panel_ == Panel::Learn) {
@@ -1060,8 +1260,14 @@ void App::renderSidePanel() {
             for (const auto& s : own->skills)
                 if (s.skill == pool[i])
                     level = s.level;
-            text(x, row++, level > 0 ? 0x0a : 0x0f, "[%d] %s%s L%d/%d", static_cast<int>(i + 1), skill.name.c_str(), skill.passive ? " (passive)" : "",
-                 level, static_cast<int>(kMaxSkillLevel));
+            const std::string line = "[" + std::to_string(i + 1) + "] " + skill.name + (skill.passive ? " (passive)" : "") + " L" +
+                                     std::to_string(level) + "/" + std::to_string(kMaxSkillLevel);
+            if (touchUi_) {
+                button(x, row, 60, 2, static_cast<SDL_Keycode>(SDLK_1 + i), false, level > 0, line, false);
+                row += 2;
+            } else {
+                text(x, row++, level > 0 ? 0x0a : 0x0f, "%s", line.c_str());
+            }
         }
     }
 }
@@ -1099,58 +1305,126 @@ void App::handlePanelKey(SDL_Keycode key, bool shift) {
     }
 }
 
+int App::menuItem(int row, SDL_Keycode key, const std::string& label) {
+    const int cols = renderer_.width() / 8;
+    const int height = touchUi_ ? 3 : 1;
+    button(2, row, std::min(cols - 4, 72), height, key, false, false, label, false);
+    return row + height + (touchUi_ ? 1 : 0);
+}
+
+void App::renderTouchControls() {
+    const int cols = renderer_.width() / 8;
+    const int rows = renderer_.height() / 16;
+    const int y = rows - 4;
+    constexpr int w = 11;
+    constexpr int h = 3;
+
+    button(cols - 12, 1, 11, 2, SDLK_F10, false, false, "MENU");
+
+    int x = 1;
+    for (std::size_t i = 0; i < data_->recruitable().size() && i < 4; ++i) {
+        const auto& def = data_->unit(data_->recruitable()[i]);
+        button(x, y, w, h, static_cast<SDL_Keycode>(SDLK_1 + i), false, false, def.name + " " + std::to_string(static_cast<int>(def.cost)));
+        x += w + 1;
+    }
+    button(x, y, w, h, SDLK_P, false, false, "PROMOTE");
+    x += w + 1;
+    button(x, y, w, h, SDLK_B, false, panel_ == Panel::Shop, "SHOP");
+    x += w + 1;
+    button(x, y, w, h, SDLK_I, false, panel_ == Panel::Stash, "STASH");
+    x += w + 1;
+    button(x, y, w, h, SDLK_L, false, panel_ == Panel::Learn, "LEARN");
+
+    if (selected_.empty())
+        return;
+    int rx = cols - (w + 1);
+    if (const auto* own = focusedOwn(); own && own->rank == static_cast<std::uint8_t>(Rank::Hero)) {
+        static constexpr SDL_Keycode kSlots[] = {SDLK_Q, SDLK_W, SDLK_E, SDLK_R};
+        for (int i = std::min<int>(3, static_cast<int>(own->skills.size()) - 1); i >= 0; --i) {
+            const auto& slot = own->skills[static_cast<std::size_t>(i)];
+            const auto& skill = data_->skill(slot.skill);
+            if (skill.passive)
+                continue;
+            std::string label = skill.name.substr(0, w - 1);
+            if (slot.cooldown > 0)
+                label = std::to_string((slot.cooldown + 9) / 10) + "s";
+            button(rx, y, w, h, kSlots[i], false, armedSkill_ == i, label);
+            rx -= w + 1;
+        }
+    }
+    button(rx, y, w, h, SDLK_S, false, false, "STOP");
+    rx -= w + 1;
+    button(rx, y, w, h, SDLK_A, false, attackMoveArmed_, "ATK-MOVE");
+    if (attackMoveArmed_ || armedSkill_ >= 0) {
+        rx -= w + 1;
+        button(rx, y, w, h, SDLK_ESCAPE, false, false, "CANCEL");
+        text(std::max(0, cols / 2 - 8), y - 2, 0x0e, "tap the target");
+    }
+}
+
 void App::renderMenu() {
     text(2, 2, 0x0b, "VOID WARZONE %.*s", static_cast<int>(kVersion.size()), kVersion.data());
     int row = 5;
     switch (screen_) {
     case Screen::Menu:
-        text(2, row++, 0x0f, "[1] Host game (map %s, port %u)", options_.map.c_str(), static_cast<unsigned>(options_.port));
-        text(2, row++, 0x0f, "[D] Difficulty: %s", difficultyName(options_.difficulty));
-        text(2, row++, 0x0f, "[2] Find LAN games");
-        text(2, row++, 0x0f, "[3] Connect to address");
-        text(2, row++, 0x0f, "[4] Join by room code");
-        text(2, row++, 0x0f, "[5] Online games");
-        text(2, row++, 0x0f, "[Esc] Quit");
+        row = menuItem(row, SDLK_1, "[1] Host game (map " + options_.map + ")");
+        row = menuItem(row, SDLK_D, std::string("[D] Difficulty: ") + difficultyName(options_.difficulty));
+        row = menuItem(row, SDLK_2, "[2] Find LAN games");
+        row = menuItem(row, SDLK_3, "[3] Connect to address");
+        row = menuItem(row, SDLK_4, "[4] Join by room code");
+        row = menuItem(row, SDLK_5, "[5] Online games");
+        row = menuItem(row, SDLK_ESCAPE, "[Esc] Quit");
         break;
     case Screen::Lan: {
         text(2, row++, 0x0f, "LAN games (searching...)");
         ++row;
-        int i = 1;
-        for (const auto& s : lan_.servers())
-            text(2, row++, 0x0f, "[%d] %s | %s | %d/%d | %s", i++, s.name.c_str(), s.map.c_str(), s.players, s.maxPlayers,
-                                s.address.toString().c_str());
+        int i = 0;
+        for (const auto& srv : lan_.servers()) {
+            if (i >= 9)
+                break;
+            row = menuItem(row, static_cast<SDL_Keycode>(SDLK_1 + i), "[" + std::to_string(i + 1) + "] " + srv.name + " | " + srv.map + " | " +
+                                                                  std::to_string(srv.players) + "/" + std::to_string(srv.maxPlayers) + " | " +
+                                                                  srv.address.toString());
+            ++i;
+        }
         if (lan_.servers().empty())
             text(2, row++, 0x08, "no games found");
         ++row;
-        text(2, row++, 0x08, "[Esc] Back");
+        row = menuItem(row, SDLK_ESCAPE, "[Esc] Back");
         break;
     }
     case Screen::Address:
-        text(2, row++, 0x0f, "Address (host[:port]), Enter to connect, Esc to go back:");
-        text(2, row++, 0x0e, "> %s_", addressInput_.c_str());
+    case Screen::Code: {
+        const bool address = screen_ == Screen::Address;
+        text(2, row++, 0x0f, address ? "Address (host[:port]):" : "Room code (VOID-XXXX):");
+        row = menuItem(row, SDLK_INSERT, "> " + (address ? addressInput_ : codeInput_) + "_");
+        row = menuItem(row, SDLK_RETURN, address ? "[Enter] Connect" : "[Enter] Join");
+        row = menuItem(row, SDLK_ESCAPE, "[Esc] Back");
         break;
-    case Screen::Code:
-        text(2, row++, 0x0f, "Room code (VOID-XXXX), Enter to join, Esc to go back:");
-        text(2, row++, 0x0e, "> %s_", codeInput_.c_str());
-        break;
+    }
     case Screen::Online: {
         const bool loading = lobby_.state() == net::MasterClient::State::Connecting;
         text(2, row++, 0x0f, "Online games%s", loading ? " (loading...)" : "");
         ++row;
-        int i = 1;
-        for (const auto& room : lobby_.rooms())
-            text(2, row++, 0x0f, "[%d] %s | %s | %s | %d/%d", i++, room.code.c_str(), room.name.c_str(), room.map.c_str(), room.players,
-                 room.maxPlayers);
+        int i = 0;
+        for (const auto& room : lobby_.rooms()) {
+            if (i >= 9)
+                break;
+            row = menuItem(row, static_cast<SDL_Keycode>(SDLK_1 + i), "[" + std::to_string(i + 1) + "] " + room.code + " | " + room.name + " | " +
+                                                                  room.map + " | " + std::to_string(room.players) + "/" +
+                                                                  std::to_string(room.maxPlayers));
+            ++i;
+        }
         if (lobby_.rooms().empty())
-            text(2, row++, 0x08, lobby_.state() == net::MasterClient::State::Failed ? lobby_.error().c_str() : "no games found");
+            text(2, row++, 0x08, "%s", lobby_.state() == net::MasterClient::State::Failed ? lobby_.error().c_str() : "no games found");
         ++row;
-        text(2, row++, 0x08, "[Esc] Back");
+        row = menuItem(row, SDLK_ESCAPE, "[Esc] Back");
         break;
     }
     case Screen::Joining:
     case Screen::Connecting:
         text(2, row++, 0x0f, "%s ...", status_.c_str());
-        text(2, row++, 0x08, "[Esc] Cancel");
+        row = menuItem(row, SDLK_ESCAPE, "[Esc] Cancel");
         break;
     case Screen::Game:
         break;

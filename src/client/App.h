@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -32,6 +34,8 @@ struct LaunchOptions {
     Difficulty difficulty = Difficulty::Normal;
     bool cheats = false;
     std::string master = "127.0.0.1:27400";
+    float uiScale = 0.0f;
+    bool touch = false;
 };
 
 struct UnitVisual {
@@ -71,6 +75,16 @@ private:
 
     void handleMenuKey(SDL_Keycode key);
     void handleGameEvent(const SDL_Event& e);
+    void handleGameKey(SDL_Keycode key, bool shift);
+    void handleFinger(const SDL_Event& e);
+    void tap(glm::vec2 p);
+    bool hitButton(glm::vec2 p);
+    void pressKey(SDL_Keycode key, bool shift);
+    void castSlot(std::uint8_t slot, std::optional<glm::vec2> ground);
+    void button(int col, int row, int width, int height, SDL_Keycode key, bool shift, bool active, const std::string& label, bool center = true);
+    int menuItem(int row, SDL_Keycode key, const std::string& label);
+    void renderTouchControls();
+    void updateInputScale();
     void updateGame(float dt);
     void updateCamera(float dt);
 
@@ -140,6 +154,27 @@ private:
 
     enum class Panel { None, Shop, Stash, Learn };
     Panel panel_ = Panel::None;
+
+    struct UiButton {
+        int col;
+        int row;
+        int width;
+        int height;
+        SDL_Keycode key;
+        bool shift;
+    };
+    struct Finger {
+        glm::vec2 start;
+        glm::vec2 pos;
+    };
+    std::vector<UiButton> buttons_;
+    std::map<SDL_FingerID, Finger> fingers_;
+    bool touchUi_ = false;
+    bool gesture_ = false;
+    glm::vec2 gestureCenter_{};
+    float gestureSpread_ = 0.0f;
+    int armedSkill_ = -1;
+    bool paused_ = false;
 };
 
 }

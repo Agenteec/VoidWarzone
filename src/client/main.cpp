@@ -27,12 +27,21 @@ int main(int argc, char** argv) {
             options.port = static_cast<std::uint16_t>(std::atoi(argv[++i]));
         else if (arg == "--master" && hasValue)
             options.master = argv[++i];
+        else if (arg == "--ui-scale" && hasValue)
+            options.uiScale = static_cast<float>(std::atof(argv[++i]));
+        else if (arg == "--touch")
+            options.touch = true;
         else if (arg == "--cheats")
             options.cheats = true;
         else if (arg == "--difficulty" && hasValue)
             vw::parseDifficulty(argv[++i], options.difficulty);
     }
 
+#if defined(SDL_PLATFORM_ANDROID)
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+    SDL_SetHint(SDL_HINT_ANDROID_BLOCK_ON_PAUSE, "0");
+    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+#endif
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         spdlog::error("SDL_Init: {}", SDL_GetError());
         return 1;

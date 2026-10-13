@@ -20,6 +20,8 @@ public:
     bool browse(const std::string& master, double now);
     void update(double now);
     void setPlayers(int players);
+    void setRelayOnly(bool relayOnly) { relayOnly_ = relayOnly; }
+    int relayCandidates() const { return relayCandidates_; }
     void close();
 
     State state() const { return state_; }
@@ -50,6 +52,8 @@ private:
     std::shared_ptr<IceAgent> agent_;
     std::vector<RoomInfo> rooms_;
     double started_ = 0.0;
+    bool relayOnly_ = false;
+    int relayCandidates_ = 0;
 };
 
 }

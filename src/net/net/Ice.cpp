@@ -96,9 +96,18 @@ std::string IceAgent::selectedPath() const {
     const std::string r = remote;
     if (l.find("typ relay") != std::string::npos || r.find("typ relay") != std::string::npos)
         return "relay";
-    if (l.find("typ srflx") != std::string::npos || r.find("typ srflx") != std::string::npos)
-        return "p2p (nat)";
+    for (const char* t : {"typ srflx", "typ prflx"})
+        if (l.find(t) != std::string::npos || r.find(t) != std::string::npos)
+            return "p2p (nat)";
     return "p2p (direct)";
+}
+
+std::string IceAgent::selectedPair() const {
+    char local[JUICE_MAX_CANDIDATE_SDP_STRING_LEN] = {};
+    char remote[JUICE_MAX_CANDIDATE_SDP_STRING_LEN] = {};
+    if (!agent_ || juice_get_selected_candidates(agent_, local, sizeof(local), remote, sizeof(remote)) != JUICE_ERR_SUCCESS)
+        return {};
+    return std::string(local) + " <-> " + remote;
 }
 
 bool IceAgent::send(const Address&, const void* data, std::size_t size) {

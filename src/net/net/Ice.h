@@ -46,6 +46,7 @@ public:
     bool takeGatheringDone();
     State state() const { return state_.load(); }
     std::string selectedPath() const;
+    std::string selectedPair() const;
 
     bool send(const Address& to, const void* data, std::size_t size) override;
     bool receive(Bytes& out);

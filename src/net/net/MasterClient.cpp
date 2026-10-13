@@ -80,6 +80,9 @@ void MasterClient::setPlayers(int players) {
 
 void MasterClient::flushCandidates(std::uint32_t peer, IceAgent& agent) {
     for (const auto& c : agent.takeCandidates()) {
+        relayCandidates_ += c.find("typ relay") != std::string::npos;
+        if (relayOnly_ && c.find("typ relay") == std::string::npos)
+            continue;
         auto w = lobbyMessage(LobbyMsg::Candidate);
         w.u32(peer);
         w.str(c);
@@ -165,6 +168,8 @@ void MasterClient::handle(const Bytes& message) {
     case LobbyMsg::Candidate: {
         const std::uint32_t peer = r.u32();
         const std::string sdp = r.str(1024);
+        if (relayOnly_ && sdp.find("typ relay") == std::string::npos)
+            break;
         if (mode_ == Mode::Join && agent_)
             agent_->addRemoteCandidate(sdp);
         else if (hub_)

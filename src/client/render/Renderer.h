@@ -25,10 +25,11 @@ enum DrawFlags : std::uint8_t {
 
 class Renderer {
 public:
-    bool init(SDL_Window* window);
+    bool init(SDL_Window* window, float scale = 1.0f);
     void shutdown();
     void resize(int width, int height);
 
+    float scale() const { return scale_; }
     int width() const { return width_; }
     int height() const { return height_; }
     bool homogeneousDepth() const;
@@ -59,6 +60,7 @@ private:
 
     int width_ = 0;
     int height_ = 0;
+    float scale_ = 1.0f;
     bgfx::SwapChain swapChain_;
     bgfx::ProgramHandle program_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle params_ = BGFX_INVALID_HANDLE;

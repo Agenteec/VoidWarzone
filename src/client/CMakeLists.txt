@@ -15,7 +15,12 @@ else()
     add_executable(vw_client ${VW_CLIENT_SOURCES})
 endif()
 
-set(VW_SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+set(VW_SHADER_EXPORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders/generated)
+if(TARGET bgfx::shaderc)
+    set(VW_SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+else()
+    set(VW_SHADER_DIR ${VW_SHADER_EXPORT_DIR})
+endif()
 if(TARGET bgfx::shaderc)
     bgfx_compile_shaders(TYPE VERTEX SHADERS shaders/vs_mesh.sc
         VARYING_DEF ${CMAKE_CURRENT_SOURCE_DIR}/shaders/varying.def.sc
@@ -26,6 +31,9 @@ if(TARGET bgfx::shaderc)
         OUTPUT_DIR ${VW_SHADER_DIR} INCLUDE_DIRS ${bgfx_SOURCE_DIR}/bgfx/src
         OUT_FILES_VAR VW_FS_FILES AS_HEADERS)
     target_sources(vw_client PRIVATE ${VW_VS_FILES} ${VW_FS_FILES})
+    add_custom_target(vw_export_shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${VW_SHADER_DIR} ${VW_SHADER_EXPORT_DIR}
+        DEPENDS ${VW_VS_FILES} ${VW_FS_FILES})
 endif()
 
 target_include_directories(vw_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${VW_SHADER_DIR})
