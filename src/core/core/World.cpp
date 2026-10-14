@@ -20,6 +20,8 @@ namespace {
 constexpr float kLeashFactor = 1.5f;
 constexpr float kWaypointReach = 2.5f;
 constexpr float kArriveDistance = 0.3f;
+constexpr float kPriorityWeight = 2.5f;
+constexpr float kFollowGap = 1.5f;
 constexpr float kRangeSlack = 0.1f;
 constexpr float kAimTolerance = 0.12f;
 constexpr float kPitchRate = 1.5f;
@@ -138,6 +140,8 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     if (def.structure) {
         registry_.emplace<Structure>(e);
         navDirty_ = true;
+        if (def.buildable)
+            ++builtVersion_;
         if (def.produces != kInvalidUnitDef)
             registry_.emplace<Producer>(e, Producer{def.produces, def.produceInterval, def.produceInterval, def.produceMax, {}});
     } else {
@@ -263,8 +267,25 @@ void World::apply(const Command& command) {
             } else if constexpr (std::is_same_v<T, AttackCommand>) {
                 if (!alive(cmd.target))
                     return;
-                for (const auto e : units)
-                    give(e, {OrderType::Attack, {}, cmd.target, {}});
+                const std::uint8_t targetTeam = registry_.get<Team>(cmd.target).id;
+                for (const auto e : units) {
+                    if (e == cmd.target)
+                        continue;
+                    const bool ally = registry_.get<Team>(e).id == targetTeam;
+                    give(e, {ally ? OrderType::Follow : OrderType::Attack, {}, cmd.target, {}});
+                }
+            } else if constexpr (std::is_same_v<T, BuildCommand>) {
+                if (cmd.unit >= data_->units().size() || !data_->unit(cmd.unit).buildable)
+                    return;
+                const glm::vec2 pos = snapBuild(cmd.pos);
+                for (const auto e : units) {
+                    if (!data_->unit(registry_.get<Unit>(e).def).builder)
+                        continue;
+                    const SiteStatus status = checkSite(cmd.unit, pos, registry_.get<Team>(e).id);
+                    if (status == SiteStatus::Blocked || status == SiteStatus::NearEnemy)
+                        return;
+                    give(e, {OrderType::Build, pos, entt::null, pos, cmd.unit});
+                }
             } else {
                 for (const auto e : units) {
                     const glm::vec2 pos = registry_.get<Position>(e).value;
@@ -308,6 +329,7 @@ void World::step() {
     run([&] {
         updateSpawners();
         updateProducers();
+        updateConstruction();
     });
     run([&] { updateHeroes(); });
     run([&] { updateUnits(); });
@@ -344,7 +366,7 @@ void World::rebuildNav() {
     for (auto [e, pos, unit] : registry_.view<const Position, const Unit, const Structure>().each()) {
         if (registry_.get<Health>(e).hp <= 0.0f)
             continue;
-        const float r = std::max(unit.radius - 0.25f, 0.5f);
+        const float r = data_->unit(unit.def).wall ? 0.5f : unit.radius + 0.3f;
         const glm::ivec2 c = Map::cellOf(pos.value);
         const int span = static_cast<int>(std::ceil(r)) + 1;
         for (int y = c.y - span; y <= c.y + span; ++y)
@@ -352,8 +374,10 @@ void World::rebuildNav() {
                 if (nav_->inside(x, y) && (glm::ivec2(x, y) == c || glm::distance(Map::center({x, y}), pos.value) < r))
                     nav_->setBlocked(x, y, true);
     }
-    if (mode_ == GameMode::Arena)
+    if (builtVersion_ != fieldsVersion_) {
+        fieldsVersion_ = builtVersion_;
         flowFields_.clear();
+    }
     for (auto [e, nav] : registry_.view<Navigator>().each()) {
         nav.repath = 0;
         nav.path.clear();
@@ -413,9 +437,12 @@ entt::entity World::findEnemy(glm::vec2 pos, std::uint8_t team, float radius) co
         if (item.team == team)
             return;
         const float d = glm::distance(item.pos, pos) - item.radius;
-        if (d <= radius && d < bestDist && alive(item.entity) && !registry_.all_of<Invulnerable>(item.entity)) {
+        if (d > radius || !alive(item.entity) || registry_.all_of<Invulnerable>(item.entity))
+            return;
+        const float score = d - kPriorityWeight * data_->unit(registry_.get<Unit>(item.entity).def).priority;
+        if (score < bestDist) {
             best = item.entity;
-            bestDist = d;
+            bestDist = score;
         }
     });
     return best;
@@ -493,13 +520,11 @@ glm::vec2 World::lanePoint(const LaneFollower& lane, int i) const {
 }
 
 const FlowField& World::flowField(glm::vec2 goal) {
-    const bool soft = mode_ == GameMode::Arena;
-    const Map& nav = soft ? *map_ : navMap();
-    const int key = nav.index(nearestFree(nav, Map::cellOf(goal)));
+    const int key = map_->index(nearestFree(*map_, Map::cellOf(goal)));
     auto it = flowFields_.find(key);
     if (it == flowFields_.end()) {
         const auto t0 = std::chrono::steady_clock::now();
-        it = flowFields_.emplace(key, soft ? FlowField(nav, goal, &navMap(), 300) : FlowField(nav, goal)).first;
+        it = flowFields_.emplace(key, FlowField(*map_, goal, &navMap(), 300)).first;
         times_.worstField = std::max(times_.worstField, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
         ++times_.fields;
     }
@@ -549,8 +574,19 @@ void World::updateUnits() {
             const glm::vec2 d = tp - pos.value;
             if (glm::dot(d, d) > reach * reach && unit.speed > 0.0f && !(order && order->type == OrderType::Hold))
                 vel.value = navigate(e, pos.value, tp, unit.speed);
+        } else if (order && order->type == OrderType::Build) {
+            vel.value = builderStep(e, pos.value, unit, team.id, *order);
+        } else if (order && order->type == OrderType::Follow) {
+            if (!alive(order->target)) {
+                finishOrder(e, *order);
+            } else {
+                const glm::vec2 tp = registry_.get<Position>(order->target).value;
+                if (glm::distance(tp, pos.value) > unit.radius + registry_.get<Unit>(order->target).radius + kFollowGap)
+                    vel.value = navigate(e, pos.value, tp, unit.speed);
+            }
         } else if (order && (order->type == OrderType::Move || order->type == OrderType::AttackMove || order->type == OrderType::Patrol)) {
-            if (glm::distance(pos.value, order->point) < kArriveDistance) {
+            const float arrive = order->type == OrderType::Patrol ? kArriveDistance + unit.radius * 2.0f : kArriveDistance;
+            if (glm::distance(pos.value, order->point) < arrive) {
                 finishOrder(e, *order);
             } else {
                 vel.value = navigate(e, pos.value, order->point, unit.speed);
@@ -574,7 +610,8 @@ void World::updateUnits() {
                     const bool nearGoal = order &&
                                           (order->type == OrderType::Move || order->type == OrderType::AttackMove ||
                                            order->type == OrderType::Patrol) &&
-                                          glm::distance(pos.value, order->point) < unit.radius * 2.0f + 1.0f;
+                                          glm::distance(pos.value, order->point) <
+                                              unit.radius * 2.0f + (order->type == OrderType::Patrol ? 4.0f : 1.0f);
                     if (glm::distance(pos.value, progress->anchor) < expected * 0.2f && nearGoal) {
                         finishOrder(e, *order);
                     } else if (glm::distance(pos.value, progress->anchor) < expected * 0.2f) {
@@ -707,7 +744,8 @@ void World::updateWeapons() {
     };
     std::vector<PendingShot> shots;
 
-    for (auto [e, pos, unit, team, weapon, target] : registry_.view<const Position, const Unit, const Team, Weapon, const Target>().each()) {
+    for (auto [e, pos, unit, team, weapon, target] :
+         registry_.view<const Position, const Unit, const Team, Weapon, const Target>(entt::exclude<Construction>).each()) {
         weapon.cooldown = std::max(0.0f, weapon.cooldown - kTickDt);
         if (weapon.cooldown > 0.0f || !alive(target.value))
             continue;
@@ -769,8 +807,11 @@ void World::removeDead() {
         if (h.hp > 0.0f)
             continue;
         dead.push_back(e);
-        if (registry_.all_of<Structure>(e))
+        if (registry_.all_of<Structure>(e)) {
             navDirty_ = true;
+            if (data_->unit(unit.def).buildable)
+                ++builtVersion_;
+        }
         events_.push_back({EventType::Death, e, entt::null, pos.value, pos.value});
         if (team.id != 0) {
             kills.push_back({unit.def, pos.value, h.lastHitBy});

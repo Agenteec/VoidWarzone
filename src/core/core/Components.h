@@ -74,13 +74,18 @@ struct Target {
     entt::entity value = entt::null;
 };
 
-enum class OrderType : std::uint8_t { None, Move, AttackMove, Attack, Patrol, Hold };
+enum class OrderType : std::uint8_t { None, Move, AttackMove, Attack, Patrol, Hold, Follow, Build };
 
 struct Order {
     OrderType type = OrderType::None;
     glm::vec2 point{};
     entt::entity target = entt::null;
     glm::vec2 origin{};
+    std::uint16_t build = 0xffff;
+};
+
+struct Construction {
+    float progress = 0.0f;
 };
 
 struct OrderQueue {

@@ -64,11 +64,6 @@ void writeCommand(Writer& w, std::uint32_t seq, const Command& command) {
                 w.u32(entt::to_integral(c.unit));
                 w.u8(c.slot);
                 return;
-            } else if constexpr (std::is_same_v<T, BuildCommand>) {
-                w.u16(c.unit);
-                w.f32(c.pos.x);
-                w.f32(c.pos.y);
-                return;
             } else {
                 writeUnits(w, c.units);
             }
@@ -81,6 +76,11 @@ void writeCommand(Writer& w, std::uint32_t seq, const Command& command) {
                 w.u8(c.queue ? 1 : 0);
             } else if constexpr (std::is_same_v<T, StopCommand>) {
                 w.u8(c.hold ? 1 : 0);
+            } else if constexpr (std::is_same_v<T, BuildCommand>) {
+                w.u16(c.unit);
+                w.f32(c.pos.x);
+                w.f32(c.pos.y);
+                w.u8(c.queue ? 1 : 0);
             }
         },
         command);
@@ -172,8 +172,11 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
     }
     case 10: {
         BuildCommand c;
+        if (!readUnits(r, c.units))
+            return false;
         c.unit = r.u16();
         c.pos = {r.f32(), r.f32()};
+        c.queue = r.u8() != 0;
         if (!std::isfinite(c.pos.x) || !std::isfinite(c.pos.y))
             return false;
         command = c;

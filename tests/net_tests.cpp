@@ -125,7 +125,7 @@ TEST_CASE("command roundtrip") {
 
 TEST_CASE("build command roundtrip and arena map") {
     Writer w;
-    writeCommand(w, 7, BuildCommand{3, 11, {20.5f, 31.5f}});
+    writeCommand(w, 7, BuildCommand{{static_cast<entt::entity>(4)}, 11, {20.5f, 31.5f}, true});
     Reader r(w.data().data(), w.size());
     r.u8();
     std::uint32_t seq = 0;
@@ -135,6 +135,8 @@ TEST_CASE("build command roundtrip and arena map") {
     REQUIRE(b);
     CHECK(b->unit == 11);
     CHECK(b->pos.y == 31.5f);
+    CHECK(b->queue);
+    CHECK(b->units.size() == 1);
 
     const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
     const auto map = Map::parse(readData("maps/void_arena.json"));

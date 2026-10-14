@@ -13,6 +13,7 @@
 #include "core/Components.h"
 #include "core/GameData.h"
 #include "core/Map.h"
+#include "core/Build.h"
 #include "core/Pathfinding.h"
 #include "core/SpatialHash.h"
 
@@ -104,9 +105,8 @@ public:
 
     Difficulty difficulty() const { return difficulty_; }
     GameMode mode() const { return mode_; }
-    bool buildingAllowed() const { return mode_ == GameMode::Arena; }
-    bool canBuild(UnitDefId def, glm::vec2 pos) const;
-    static glm::vec2 snapBuild(glm::vec2 pos) { return {std::floor(pos.x) + 0.5f, std::floor(pos.y) + 0.5f}; }
+    SiteStatus checkSite(UnitDefId def, glm::vec2 pos, std::uint8_t team) const;
+    bool canBuild(UnitDefId def, glm::vec2 pos) const { return checkSite(def, pos, 0) == SiteStatus::Ok; }
     const PlayerState& player(std::uint8_t p) const { return players_[p]; }
     int activePlayers() const;
     int heroCount(std::uint8_t player) const;
@@ -139,7 +139,9 @@ private:
     void handle(const BuyCommand& cmd);
     void handle(const EquipCommand& cmd);
     void handle(const UnequipCommand& cmd);
-    void handle(const BuildCommand& cmd);
+    glm::vec2 builderStep(entt::entity e, glm::vec2 pos, const Unit& unit, std::uint8_t team, Order& order);
+    entt::entity structureAt(glm::vec2 pos, UnitDefId def) const;
+    void updateConstruction();
     void finishOrder(entt::entity e, Order& order);
     void applyMotion(entt::entity e, const Unit& unit, glm::vec2& vel, float& facing);
     void updateProducers();
@@ -179,6 +181,8 @@ private:
     float maxStructureRadius_ = 0.5f;
     std::unique_ptr<Map> nav_;
     bool navDirty_ = true;
+    int builtVersion_ = 0;
+    int fieldsVersion_ = 0;
     int pathBudget_ = 0;
     std::vector<SimEvent> events_;
     std::size_t stepEvents_ = 0;

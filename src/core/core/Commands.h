@@ -69,9 +69,10 @@ struct UnequipCommand {
 };
 
 struct BuildCommand {
-    std::uint8_t player = 0;
+    std::vector<entt::entity> units;
     std::uint16_t unit = 0;
     glm::vec2 pos{};
+    bool queue = false;
 };
 
 using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand, PromoteCommand, CastCommand, LearnCommand, BuyCommand,

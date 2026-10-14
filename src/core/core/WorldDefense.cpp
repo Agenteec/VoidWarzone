@@ -113,36 +113,87 @@ void World::handle(const RecruitCommand& cmd) {
     spawn(cmd.unit, 0, pos, cmd.player);
 }
 
-bool World::canBuild(UnitDefId id, glm::vec2 pos) const {
-    if (!map_ || id >= data_->units().size())
-        return false;
+SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team) const {
+    if (!map_ || id >= data_->units().size() || !data_->unit(id).buildable)
+        return SiteStatus::Blocked;
     const auto& def = data_->unit(id);
-    if (!def.buildable)
-        return false;
-    const Map& nav = navMap();
-    const float r = std::max(def.radius - 0.25f, 0.5f);
-    const glm::ivec2 c = Map::cellOf(pos);
-    const int span = static_cast<int>(std::ceil(r)) + 1;
-    for (int y = c.y - span; y <= c.y + span; ++y)
-        for (int x = c.x - span; x <= c.x + span; ++x)
-            if ((glm::ivec2(x, y) == c || glm::distance(Map::center({x, y}), pos) < r) && nav.blocked(x, y))
-                return false;
-    for (auto [e, p, unit] : registry_.view<const Position, const Unit>().each())
-        if (glm::distance(p.value, pos) < def.radius + unit.radius - 0.1f && alive(e))
-            return false;
-    return true;
+    std::vector<SiteBlocker> around;
+    const float reach = def.radius + data_->maxRadius() + kEnemyBuildGap + 1.0f;
+    for (auto [e, p, unit, t] : registry_.view<const Position, const Unit, const Team>().each()) {
+        if (glm::distance(p.value, pos) > reach || !alive(e))
+            continue;
+        const auto& other = data_->unit(unit.def);
+        around.push_back({p.value, unit.radius, registry_.all_of<Structure>(e), other.wall, t.id});
+    }
+    return vw::checkSite(*map_, def, pos, team, around);
 }
 
-void World::handle(const BuildCommand& cmd) {
-    if (!buildingAllowed() || cmd.player >= kMaxPlayers || cmd.unit >= data_->units().size())
-        return;
-    auto& player = players_[cmd.player];
-    const auto& def = data_->unit(cmd.unit);
-    const glm::vec2 pos = snapBuild(cmd.pos);
-    if (!player.active || player.energy < def.cost || !canBuild(cmd.unit, pos))
-        return;
+entt::entity World::structureAt(glm::vec2 pos, UnitDefId def) const {
+    for (auto [e, p, unit] : registry_.view<const Position, const Unit, const Structure>().each())
+        if (unit.def == def && glm::distance(p.value, pos) < 0.3f && alive(e))
+            return e;
+    return entt::null;
+}
+
+glm::vec2 World::builderStep(entt::entity e, glm::vec2 pos, const Unit& unit, std::uint8_t team, Order& order) {
+    if (order.build >= data_->units().size()) {
+        finishOrder(e, order);
+        return {};
+    }
+    const auto& def = data_->unit(order.build);
+    entt::entity site = structureAt(order.point, order.build);
+    if (site != entt::null && !registry_.all_of<Construction>(site)) {
+        finishOrder(e, order);
+        return {};
+    }
+    if (glm::distance(pos, order.point) > def.radius + unit.radius + 1.0f)
+        return navigate(e, pos, order.point, unit.speed);
+    registry_.remove<Navigator>(e);
+    if (site != entt::null)
+        return {};
+    const auto* owner = registry_.try_get<Owner>(e);
+    const SiteStatus status = checkSite(order.build, order.point, team);
+    if (!owner || status == SiteStatus::Blocked || status == SiteStatus::NearEnemy) {
+        finishOrder(e, order);
+        return {};
+    }
+    if (status == SiteStatus::Occupied)
+        return {};
+    auto& player = players_[owner->player];
+    if (player.energy < def.cost) {
+        finishOrder(e, order);
+        return {};
+    }
     player.energy -= def.cost;
-    spawn(cmd.unit, 0, pos, cmd.player);
+    site = spawn(order.build, team, order.point, owner->player);
+    registry_.emplace<Construction>(site);
+    auto& health = registry_.get<Health>(site);
+    health.hp = health.max * 0.1f;
+    return {};
+}
+
+void World::updateConstruction() {
+    for (auto [s, construction, pos, unit] : registry_.view<Construction, const Position, const Unit>().each()) {
+        if (!alive(s))
+            continue;
+        int builders = 0;
+        for (auto [b, order, bp, bu] : registry_.view<const Order, const Position, const Unit>().each())
+            if (order.type == OrderType::Build && order.build == unit.def && glm::distance(order.point, pos.value) < 0.3f &&
+                glm::distance(bp.value, pos.value) <= unit.radius + bu.radius + 1.6f)
+                ++builders;
+        if (builders == 0)
+            continue;
+        const float step = kTickDt * std::pow(static_cast<float>(builders), 0.75f) / std::max(data_->unit(unit.def).buildTime, 0.1f);
+        construction.progress += step;
+        auto& health = registry_.get<Health>(s);
+        health.hp = std::min(health.max, health.hp + health.max * 0.9f * step);
+    }
+    std::vector<entt::entity> done;
+    for (auto [s, construction] : registry_.view<const Construction>().each())
+        if (construction.progress >= 1.0f)
+            done.push_back(s);
+    for (const auto s : done)
+        registry_.remove<Construction>(s);
 }
 
 void World::updateProducers() {
@@ -153,7 +204,7 @@ void World::updateProducers() {
         int owner;
     };
     std::vector<Pending> pending;
-    for (auto [e, producer, pos, unit] : registry_.view<Producer, const Position, const Unit>().each()) {
+    for (auto [e, producer, pos, unit] : registry_.view<Producer, const Position, const Unit>(entt::exclude<Construction>).each()) {
         if (!alive(e))
             continue;
         std::erase_if(producer.spawned, [&](entt::entity s) { return !alive(s); });
@@ -340,7 +391,7 @@ void World::updateDefense() {
     const auto& def = map_->defense();
     auto grantIncome = [&] {
         float income = def.baseIncome;
-        for (auto [e, unit, team] : registry_.view<const Unit, const Team, const Structure>().each())
+        for (auto [e, unit, team] : registry_.view<const Unit, const Team, const Structure>(entt::exclude<Construction>).each())
             if (team.id == 0 && alive(e))
                 income += data_->unit(unit.def).income;
         grantTeamEnergy(income * kTickDt);

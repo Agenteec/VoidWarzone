@@ -237,7 +237,7 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
     if (scale <= 0.0f)
         scale = 100.0f / static_cast<float>(renderScale_);
 #endif
-    if (!netLibrary_.ok() || !renderer_.init(window, std::max(1.0f, scale)))
+    if (!netLibrary_.ok() || !renderer_.init(window, std::max(1.0f, scale), options_.renderer))
         return false;
     initialized_ = true;
     applyWindow();
@@ -661,6 +661,10 @@ void App::tap(glm::vec2 p) {
     if (ground)
         if (const auto* e = entityAt(*ground, 0.6f); e && isOwn(*e)) {
             selected_ = {e->id};
+            inspected_ = 0;
+            return;
+        } else if (e && selected_.empty()) {
+            inspected_ = e->id;
             return;
         }
     if (!selected_.empty())
@@ -776,8 +780,6 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         armOrder(Arm::Patrol);
     } else if ((key == SDLK_S || key == SDLK_H) && !selected_.empty()) {
         prediction_.cancel(selected_);
-        for (const auto id : selected_)
-            waypoints_.erase(id);
         net_.sendCommand(StopCommand{selectedEntities(), key == SDLK_H});
     } else if (key == SDLK_ESCAPE) {
         if (pauseOpen_) {
@@ -813,8 +815,8 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         controlGroup(static_cast<int>(key - SDLK_0), ctrl, shift);
     } else if (panel_ != Panel::None && ((key >= SDLK_1 && key <= SDLK_9) || key == SDLK_0)) {
         handlePanelKey(key, shift);
-    } else if (key == SDLK_Z || key == SDLK_X) {
-        const auto index = static_cast<std::size_t>(key == SDLK_Z ? 0 : 1);
+    } else if (key == SDLK_Z || key == SDLK_X || key == SDLK_C) {
+        const auto index = static_cast<std::size_t>(key == SDLK_Z ? 0 : key == SDLK_X ? 1 : 2);
         if (index < data_->recruitable().size())
             net_.sendCommand(RecruitCommand{0, data_->recruitable()[index]});
     } else if (buildKeyIndex(key) >= 0) {
@@ -883,6 +885,11 @@ void App::clickSelect(glm::vec2 screen, bool add) {
     if (!ground)
         return;
     const auto* e = entityAt(*ground, 0.4f);
+    if (e && !isOwn(*e) && !add) {
+        inspected_ = e->id;
+        return;
+    }
+    inspected_ = 0;
     if (!e || !isOwn(*e))
         return;
     if (const auto it = std::find(selected_.begin(), selected_.end(), e->id); it != selected_.end())
@@ -952,24 +959,17 @@ void App::issueCommandAt(glm::vec2 point, bool attackMove, bool patrol) {
         ownTeam = first->team;
 
     const auto* target = entityAt(*ground, 0.4f);
-    auto remember = [&](glm::vec2 p) {
-        for (const auto id : selected_) {
-            auto& list = waypoints_[id];
-            if (!queue)
-                list.clear();
-            list.push_back(p);
-        }
-    };
-    if (target && target->team != ownTeam && !patrol) {
+    const bool followable = target && !data_->unit(target->def).structure &&
+                            std::find(selected_.begin(), selected_.end(), target->id) == selected_.end();
+    if (target && !patrol && (target->team != ownTeam || followable)) {
+        const bool enemy = target->team != ownTeam;
         if (!queue)
             prediction_.cancel(selected_);
-        remember(target->pos);
         net_.sendCommand(AttackCommand{selectedEntities(), static_cast<entt::entity>(target->id), queue});
-        addEffect(Mesh::Cylinder, {ground->x, 0.1f, ground->y}, {1.0f, 0.3f, 0.3f, 0.8f}, 0.4f, 1.4f, 0.35f);
+        addEffect(Mesh::Cylinder, {target->pos.x, 0.1f, target->pos.y}, orderColor(static_cast<std::uint8_t>(enemy ? OrderType::Attack : OrderType::Follow)),
+                  0.4f, data_->unit(target->def).radius * 2.0f + 1.0f, 0.35f);
         return;
     }
-
-    remember(*ground);
     const auto seq = net_.sendCommand(MoveCommand{selectedEntities(), *ground, attackMove, queue, patrol});
     if (queue) {
     } else if (attackMove || patrol) {
@@ -981,9 +981,7 @@ void App::issueCommandAt(glm::vec2 point, bool attackMove, bool patrol) {
                 units.push_back(*e);
         prediction_.onMove(units, *ground, seq, *data_, *map_);
     }
-    const glm::vec4 color = patrol       ? glm::vec4{0.4f, 0.7f, 1.0f, 0.8f}
-                            : attackMove ? glm::vec4{1.0f, 0.6f, 0.2f, 0.8f}
-                                         : glm::vec4{0.35f, 1.0f, 0.55f, 0.8f};
+    const glm::vec4 color = orderColor(static_cast<std::uint8_t>(patrol ? OrderType::Patrol : attackMove ? OrderType::AttackMove : OrderType::Move));
     addEffect(Mesh::Cylinder, {ground->x, 0.1f, ground->y}, color, 0.4f, 1.4f, 0.35f);
 }
 

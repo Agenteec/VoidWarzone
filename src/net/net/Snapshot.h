@@ -63,8 +63,15 @@ struct OwnSkill {
     std::uint16_t cooldown = 0;
 };
 
+struct OwnOrder {
+    std::uint8_t type = 0;
+    std::uint16_t x = 0;
+    std::uint16_t y = 0;
+};
+
 struct OwnUnit {
     std::uint32_t id = 0;
+    std::vector<OwnOrder> orders;
     std::uint8_t rank = 0;
     std::uint8_t level = 0;
     std::uint16_t xp = 0;

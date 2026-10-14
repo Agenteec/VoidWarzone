@@ -399,6 +399,22 @@ ClientView Server::buildView(const Client& client) const {
         for (const auto& s : prog.skills)
             u.skills.push_back({s.skill, s.level, static_cast<std::uint16_t>(std::ceil(s.cooldown * 10.0f))});
         u.items.assign(prog.items.begin(), prog.items.end());
+        const auto& reg = world_->registry();
+        auto addOrder = [&](const Order& o) {
+            if (o.type == OrderType::None || o.type == OrderType::Hold || u.orders.size() >= 8)
+                return;
+            glm::vec2 p = o.point;
+            if ((o.type == OrderType::Attack || o.type == OrderType::Follow) && reg.valid(o.target) && reg.all_of<Position>(o.target))
+                p = reg.get<Position>(o.target).value;
+            u.orders.push_back({static_cast<std::uint8_t>(o.type), quantizePos(p.x), quantizePos(p.y)});
+            if (o.type == OrderType::Patrol)
+                u.orders.push_back({static_cast<std::uint8_t>(o.type), quantizePos(o.origin.x), quantizePos(o.origin.y)});
+        };
+        if (const auto* order = reg.try_get<Order>(e))
+            addOrder(*order);
+        if (const auto* queue = reg.try_get<OrderQueue>(e))
+            for (const auto& o : queue->items)
+                addOrder(o);
         v.units.push_back(std::move(u));
     }
     return v;

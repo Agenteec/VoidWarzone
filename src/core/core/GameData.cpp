@@ -140,6 +140,11 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         def.structure = u.value("structure", def.structure);
         def.income = u.value("income", def.income);
         def.buildable = u.value("buildable", def.buildable);
+        def.builder = u.value("builder", def.builder);
+        def.wall = u.value("wall", def.wall);
+        def.buildTime = u.value("buildTime", def.buildTime);
+        const bool armed = u.contains("weapon");
+        def.priority = u.value("priority", armed ? (def.structure ? 2.0f : 3.0f) : (def.structure ? 1.0f : 2.0f));
         if (const auto pr = u.find("produce"); pr != u.end()) {
             produceNames.emplace(d.units_.size(), pr->at("unit").get<std::string>());
             def.produceInterval = pr->value("interval", def.produceInterval);

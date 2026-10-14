@@ -321,7 +321,8 @@ void World::applySkillEffect(entt::entity caster, const SkillEffect& fx, std::ui
             pushOutOfWalls(*map_, registry_.get<Position>(caster).value, unit.radius);
         registry_.remove<Navigator>(caster);
         if (auto* order = registry_.try_get<Order>(caster); order && order->type != OrderType::Attack && order->type != OrderType::Patrol &&
-                                                            order->type != OrderType::Hold)
+                                                            order->type != OrderType::Hold && order->type != OrderType::Follow &&
+                                                            order->type != OrderType::Build)
             finishOrder(caster, *order);
         break;
     }

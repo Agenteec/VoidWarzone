@@ -419,6 +419,27 @@
       }
     },
     {
+      "id": "engineer",
+      "name": "Engineer",
+      "cost": 50,
+      "maxHp": 160,
+      "armor": 2,
+      "radius": 0.45,
+      "speed": 4.5,
+      "sight": 8,
+      "accel": 10.0,
+      "turnRate": 7.0,
+      "builder": true,
+      "visual": {
+        "shape": "cube",
+        "height": 0.8,
+        "model": {
+          "body": "drlbod01",
+          "prop": "prlwhl1"
+        }
+      }
+    },
+    {
       "id": "drone",
       "name": "Drone",
       "maxHp": 120,
@@ -624,7 +645,10 @@
           "pie": "blwallh",
           "fit": 1.0
         }
-      }
+      },
+      "wall": true,
+      "priority": 0.2,
+      "buildTime": 3
     },
     {
       "id": "gun_tower",
@@ -650,7 +674,8 @@
           "weapon": "gnlmg2",
           "mount": "trlmg2"
         }
-      }
+      },
+      "buildTime": 8
     },
     {
       "id": "cannon_hardpoint",
@@ -676,7 +701,8 @@
           "weapon": "gnhcan",
           "mount": "trhcan"
         }
-      }
+      },
+      "buildTime": 14
     },
     {
       "id": "auto_factory",
@@ -698,7 +724,8 @@
         "model": {
           "pie": "blfact1"
         }
-      }
+      },
+      "buildTime": 18
     },
     {
       "id": "power_plant",
@@ -716,7 +743,8 @@
         "model": {
           "pie": "blpower0"
         }
-      }
+      },
+      "buildTime": 14
     }
   ]
 }

@@ -3,6 +3,7 @@ add_library(vw_core STATIC
     core/Heroes.cpp
     core/Map.cpp
     core/Movement.cpp
+    core/Build.cpp
     core/Pathfinding.cpp
     core/World.cpp
     core/WorldDefense.cpp

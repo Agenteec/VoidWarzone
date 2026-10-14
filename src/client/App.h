@@ -45,6 +45,7 @@ struct LaunchOptions {
     std::string master = "77.83.86.108:27400";
     float uiScale = 0.0f;
     bool touch = false;
+    std::string renderer;
     std::optional<glm::vec2> camera;
     float zoom = 0.0f;
     int shadows = -1;
@@ -112,7 +113,10 @@ private:
     void issueArmed(glm::vec2 screen);
     void armOrder(Arm arm);
     void renderWaypoints();
-    std::unordered_map<std::uint32_t, std::vector<glm::vec2>> waypoints_;
+    static glm::vec4 orderColor(std::uint8_t type);
+    std::vector<entt::entity> selectedBuilders() const;
+    std::uint32_t inspected_ = 0;
+    void drawInspect();
     void pruneSelection();
     const net::InterpolatedEntity* entityAt(glm::vec2 p, float pad) const;
     const net::InterpolatedEntity* findEntity(std::uint32_t id) const;
@@ -159,7 +163,6 @@ private:
     Dock dock_ = Dock::None;
     void drawGroupBar();
     void renderBuildGhost();
-    bool arenaMode() const;
     int buildKeyIndex(SDL_Keycode key) const;
     void armBuild(std::size_t index);
     bool buildValid(UnitDefId def, glm::vec2 pos) const;

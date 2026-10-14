@@ -126,6 +126,7 @@ void App::drawTouchHud() {
     drawDock();
     drawSidePanel();
     drawGroupBar();
+    drawInspect();
     drawChat();
 }
 

@@ -74,8 +74,7 @@ void App::drawDock() {
     const ImVec2 tab = touch ? ImVec2{52.0f * s, 46.0f * s} : ImVec2{40.0f * s, 34.0f * s};
     const float energy = static_cast<float>(latest->view.energy);
     const bool hasSelection = !selected_.empty();
-    if (dock_ == Dock::Build && !arenaMode())
-        dock_ = Dock::None;
+    const bool builders = !selectedBuilders().empty();
 
     ImGui::SetNextWindowPos({display.x - pad, display.y - pad}, ImGuiCond_Always, {1.0f, 1.0f});
     ImGui::SetNextWindowBgAlpha(0.8f);
@@ -179,7 +178,7 @@ void App::drawDock() {
             const auto& def = data_->unit(list[i]);
             char cost[16];
             std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
-            const char* key = i < 2 ? kRecruitKeyNames[i] : "";
+            const char* key = i < 3 ? kRecruitKeyNames[i] : "";
             if (cardButton(def.id.c_str(), def.name.substr(0, 7).c_str(), cost, key, energy >= def.cost, false, cell))
                 net_.sendCommand(RecruitCommand{0, list[i]});
             unitTooltip(def, "Recruit", key);
@@ -193,7 +192,7 @@ void App::drawDock() {
             std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
             const char* key = i < 5 ? kBuildKeyNames[i] : "";
             const bool armed = buildArmed_ == static_cast<int>(list[i]);
-            if (cardButton(def.id.c_str(), def.name.substr(0, 8).c_str(), cost, touch ? "" : key, energy >= def.cost || armed, armed, cell))
+            if (cardButton(def.id.c_str(), def.name.substr(0, 8).c_str(), cost, touch ? "" : key, builders && (energy >= def.cost || armed), armed, cell))
                 armBuild(i);
             unitTooltip(def, "Build", key);
             if (def.produces != kInvalidUnitDef && ImGui::BeginItemTooltip()) {
@@ -221,7 +220,7 @@ void App::drawDock() {
         toggleDock(Dock::Production);
     if (tabButton(ICON_FA_BOLT "##s", "Hero skills", dock_ == Dock::Skills))
         toggleDock(Dock::Skills);
-    if (arenaMode() && tabButton(ICON_FA_WRENCH "##b", "Build: walls, turrets, factories", dock_ == Dock::Build))
+    if (tabButton(ICON_FA_WRENCH "##b", "Build (select an engineer): walls, turrets, factories", dock_ == Dock::Build))
         toggleDock(Dock::Build);
     if (tabButton(ICON_FA_SHOPPING_CART "##shop", "Shop [B]", panel_ == Panel::Shop))
         panel_ = panel_ == Panel::Shop ? Panel::None : Panel::Shop;

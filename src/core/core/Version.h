@@ -6,6 +6,6 @@
 namespace vw {
 
 inline constexpr std::string_view kVersion = VW_VERSION;
-inline constexpr std::uint32_t kProtocolVersion = 5;
+inline constexpr std::uint32_t kProtocolVersion = 6;
 
 }

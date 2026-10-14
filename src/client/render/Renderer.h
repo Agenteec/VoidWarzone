@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <map>
+#include <string>
 #include <vector>
 
 #include <bx/allocator.h>
@@ -49,7 +50,7 @@ struct Lighting {
 
 class Renderer {
 public:
-    bool init(SDL_Window* window, float scale = 1.0f);
+    bool init(SDL_Window* window, float scale = 1.0f, const std::string& backend = {});
     void shutdown();
     void resize(int width, int height);
     void setVideo(bool vsync, int msaa);

@@ -20,10 +20,6 @@ constexpr SDL_Keycode kBuildKeys[] = {SDLK_D, SDLK_F, SDLK_G, SDLK_J, SDLK_K};
 
 }
 
-bool App::arenaMode() const {
-    return net_.lobby().mode == static_cast<std::uint8_t>(GameMode::Arena);
-}
-
 int App::buildKeyIndex(SDL_Keycode key) const {
     for (int i = 0; i < 5; ++i)
         if (kBuildKeys[i] == key)
@@ -31,9 +27,17 @@ int App::buildKeyIndex(SDL_Keycode key) const {
     return -1;
 }
 
+std::vector<entt::entity> App::selectedBuilders() const {
+    std::vector<entt::entity> builders;
+    for (const auto id : selected_)
+        if (const auto* e = findEntity(id); e && isOwn(*e) && data_->unit(e->def).builder)
+            builders.push_back(static_cast<entt::entity>(id));
+    return builders;
+}
+
 void App::armBuild(std::size_t index) {
     const auto& list = data_->buildable();
-    if (!arenaMode() || index >= list.size())
+    if (index >= list.size() || selectedBuilders().empty())
         return;
     const int def = static_cast<int>(list[index]);
     buildArmed_ = buildArmed_ == def ? -1 : def;
@@ -45,27 +49,28 @@ bool App::buildValid(UnitDefId id, glm::vec2 pos) const {
     if (!map_)
         return false;
     const auto& def = data_->unit(id);
-    const float r = std::max(def.radius - 0.25f, 0.5f);
-    const glm::ivec2 c = Map::cellOf(pos);
-    const int span = static_cast<int>(std::ceil(r)) + 1;
-    for (int y = c.y - span; y <= c.y + span; ++y)
-        for (int x = c.x - span; x <= c.x + span; ++x)
-            if ((glm::ivec2(x, y) == c || glm::distance(Map::center({x, y}), pos) < r) && map_->blocked(x, y))
-                return false;
-    for (const auto& e : entities_)
-        if (e.kind == net::EntityKind::Unit && e.hp > 0 && glm::distance(e.pos, pos) < def.radius + data_->unit(e.def).radius - 0.1f)
-            return false;
-    return true;
+    std::vector<SiteBlocker> around;
+    for (const auto& e : entities_) {
+        if (e.kind != net::EntityKind::Unit || e.hp == 0 || glm::distance(e.pos, pos) > def.radius + 12.0f + kEnemyBuildGap)
+            continue;
+        const auto& other = data_->unit(e.def);
+        if (!other.structure && isOwn(e) && other.builder)
+            continue;
+        around.push_back({e.pos, other.radius, other.structure, other.wall, e.team});
+    }
+    const SiteStatus status = checkSite(*map_, def, pos, 0, around);
+    return status == SiteStatus::Ok || status == SiteStatus::Occupied;
 }
 
 void App::placeBuild(glm::vec2 screen, bool keep) {
     if (buildArmed_ < 0)
         return;
     if (const auto ground = camera_.screenToGround(screen.x, screen.y)) {
-        const glm::vec2 pos = World::snapBuild(*ground);
+        const glm::vec2 pos = snapBuild(*ground);
         const auto def = static_cast<UnitDefId>(buildArmed_);
         if (buildValid(def, pos)) {
-            net_.sendCommand(BuildCommand{0, def, pos});
+            const bool queue = !touchLayout() && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
+            net_.sendCommand(BuildCommand{selectedBuilders(), def, pos, queue});
             addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.y}, {0.35f, 1.0f, 0.55f, 0.8f}, 0.4f, data_->unit(def).radius * 2.5f, 0.35f);
         }
     }
@@ -80,7 +85,7 @@ void App::renderBuildGhost() {
     if (!ground)
         return;
     const auto def = static_cast<UnitDefId>(buildArmed_);
-    const glm::vec2 pos = World::snapBuild(*ground);
+    const glm::vec2 pos = snapBuild(*ground);
     const float d = data_->unit(def).radius * 2.0f;
     const float h = std::max(visuals_[def].height, 0.8f);
     const glm::vec4 color = buildValid(def, pos) ? glm::vec4{0.35f, 1.0f, 0.55f, 0.35f} : glm::vec4{1.0f, 0.25f, 0.25f, 0.35f};
@@ -183,34 +188,117 @@ void App::drawGroupBar() {
 
 namespace vw::client {
 
-void App::renderWaypoints() {
-    for (auto it = waypoints_.begin(); it != waypoints_.end();) {
-        const auto* e = findEntity(it->first);
-        auto& list = it->second;
-        if (e && !list.empty() && glm::distance(e->pos, list.front()) < data_->unit(e->def).radius + 1.0f)
-            list.erase(list.begin());
-        if (!e || list.empty())
-            it = waypoints_.erase(it);
-        else
-            ++it;
+glm::vec4 App::orderColor(std::uint8_t type) {
+    switch (static_cast<OrderType>(type)) {
+    case OrderType::AttackMove:
+    case OrderType::Attack:
+        return {1.0f, 0.35f, 0.25f, 0.6f};
+    case OrderType::Patrol:
+        return {0.35f, 0.65f, 1.0f, 0.6f};
+    case OrderType::Follow:
+        return {1.0f, 0.85f, 0.25f, 0.6f};
+    case OrderType::Build:
+        return {0.85f, 0.55f, 1.0f, 0.6f};
+    default:
+        return {0.35f, 1.0f, 0.55f, 0.6f};
     }
-    const glm::vec4 color{0.35f, 1.0f, 0.55f, 0.55f};
+}
+
+void App::renderWaypoints() {
+    const auto* latest = net_.latest();
+    if (!latest)
+        return;
     for (const auto id : selected_) {
-        const auto it = waypoints_.find(id);
+        const auto* own = latest->view.unit(id);
         const auto* e = findEntity(id);
-        if (it == waypoints_.end() || !e || it->second.size() < 2)
+        if (!own || !e || own->orders.empty())
             continue;
         glm::vec2 from = e->pos;
-        for (const auto& p : it->second) {
+        for (std::size_t i = 0; i < own->orders.size(); ++i) {
+            const auto& o = own->orders[i];
+            const glm::vec2 p{net::dequantizePos(o.x), net::dequantizePos(o.y)};
+            const glm::vec4 color = orderColor(o.type);
             const float len = glm::distance(from, p);
             for (float t = 0.8f; t < len; t += 0.8f) {
                 const glm::vec2 q = from + (p - from) * (t / len);
                 renderer_.draw(Mesh::Sphere, {q.x, 0.12f, q.y}, glm::vec3(0.12f), 0.0f, color, Unlit | Alpha);
             }
             renderer_.draw(Mesh::Cylinder, {p.x, 0.04f, p.y}, {0.7f, 0.04f, 0.7f}, 0.0f, color, Unlit | Alpha);
+            if (static_cast<OrderType>(o.type) == OrderType::Patrol && i + 1 < own->orders.size()) {
+                const auto& back = own->orders[i + 1];
+                const glm::vec2 b{net::dequantizePos(back.x), net::dequantizePos(back.y)};
+                const float l2 = glm::distance(p, b);
+                for (float t = 0.8f; t < l2; t += 1.6f) {
+                    const glm::vec2 q = p + (b - p) * (t / l2);
+                    renderer_.draw(Mesh::Sphere, {q.x, 0.12f, q.y}, glm::vec3(0.09f), 0.0f, color, Unlit | Alpha);
+                }
+                renderer_.draw(Mesh::Cylinder, {b.x, 0.04f, b.y}, {0.7f, 0.04f, 0.7f}, 0.0f, color, Unlit | Alpha);
+                from = b;
+                ++i;
+                continue;
+            }
             from = p;
         }
     }
+}
+
+}
+
+namespace vw::client {
+
+void App::drawInspect() {
+    if (!selected_.empty())
+        inspected_ = 0;
+    if (inspected_ == 0)
+        return;
+    const auto* e = findEntity(inspected_);
+    if (!e || e->hp == 0) {
+        inspected_ = 0;
+        return;
+    }
+    const float s = uiScale();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const auto& def = data_->unit(e->def);
+    const float width = 300.0f * s;
+    ImGui::SetNextWindowPos({display.x * 0.5f, display.y - hudBottom_ * 0.2f - 8.0f * s}, ImGuiCond_Always, {0.5f, 1.0f});
+    ImGui::SetNextWindowSizeConstraints({width, 0.0f}, {width, display.y});
+    ImGui::SetNextWindowBgAlpha(0.85f);
+    ImGui::Begin("##inspect", nullptr, kHudFlags);
+    ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.1f);
+    ImGui::TextUnformatted(def.name.c_str());
+    ImGui::PopFont();
+    ImGui::SameLine();
+    if (e->owner != net::kNoOwner) {
+        const glm::vec4 c = playerColor(e->owner);
+        std::string owner = "player";
+        for (const auto& p : net_.lobby().players)
+            if (p.id == e->owner)
+                owner = p.name;
+        ImGui::TextColored({c.r, c.g, c.b, 1.0f}, "%s%s", owner.c_str(), e->owner == net_.player() ? " (you)" : "");
+    } else {
+        ImGui::TextColored(toVec(e->team == 1 ? kVoid : kAccent), "%s", e->team == 1 ? "the Void" : "allied");
+    }
+    if (e->rank > 1) {
+        const int rank = std::min(e->rank - 1, 3);
+        ImGui::SameLine();
+        ImGui::TextColored(toVec(kRankColors[rank]), "%s", kRankNames[rank]);
+    }
+    const float w = ImGui::GetContentRegionAvail().x;
+    char label[48];
+    const float frac = static_cast<float>(e->hp) / static_cast<float>(std::max<std::uint16_t>(e->maxHp, 1));
+    std::snprintf(label, sizeof(label), "%u / %u", e->hp, e->maxHp);
+    bar(frac, {w, 16.0f * s}, hpColor(frac), label);
+    if (def.weapon)
+        ImGui::TextDisabled("damage %.0f  range %.1f  every %.1fs", def.weapon->damage, def.weapon->range, def.weapon->cooldown);
+    ImGui::TextDisabled("armor %.0f%s", def.armor, def.speed > 0.0f ? "" : "  structure");
+    if (def.speed > 0.0f) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("speed %.1f", def.speed);
+    }
+    if (def.income > 0.0f)
+        ImGui::TextDisabled("+%.1f energy/s", def.income);
+    trackWindow();
+    ImGui::End();
 }
 
 }

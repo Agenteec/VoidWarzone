@@ -58,6 +58,7 @@ void App::drawDesktopHud() {
     drawMinimap(panelH - 16.0f * s);
     drawDock();
     drawGroupBar();
+    drawInspect();
     drawSelection();
     drawSidePanel();
     drawChat();

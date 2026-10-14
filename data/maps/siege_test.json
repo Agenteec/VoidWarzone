@@ -31,7 +31,7 @@
     { "unit": "void_tower", "team": 1, "pos": [70, 78] },
     { "unit": "void_tower", "team": 1, "pos": [78, 70] }
   ],
-  "playerStart": { "pos": [18, 18], "units": ["tank", "tank", "scout", "scout"] },
+  "playerStart": { "pos": [18, 18], "units": ["tank", "tank", "scout", "scout", "engineer"] },
   "resourcePoints": [
     { "name": "A", "pos": [34, 34], "radius": 3.5, "income": 2 },
     { "name": "B", "pos": [17, 42], "radius": 3.5, "income": 3 },

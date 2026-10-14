@@ -51,7 +51,7 @@ constexpr float kShadowDepth = 60.0f;
 
 }
 
-bool Renderer::init(SDL_Window* window, float scale) {
+bool Renderer::init(SDL_Window* window, float scale, const std::string& backend) {
     scale_ = std::max(1.0f, scale);
     bgfx::renderFrame();
 
@@ -70,6 +70,16 @@ bool Renderer::init(SDL_Window* window, float scale) {
 #if defined(SDL_PLATFORM_ANDROID)
     init.type = bgfx::RendererType::OpenGLES;
 #endif
+    if (backend == "vulkan")
+        init.type = bgfx::RendererType::Vulkan;
+    else if (backend == "d3d11")
+        init.type = bgfx::RendererType::Direct3D11;
+    else if (backend == "d3d12")
+        init.type = bgfx::RendererType::Direct3D12;
+    else if (backend == "gl")
+        init.type = bgfx::RendererType::OpenGL;
+    else if (backend == "gles")
+        init.type = bgfx::RendererType::OpenGLES;
     init.swapChain.width = static_cast<std::uint32_t>(width_);
     init.swapChain.height = static_cast<std::uint32_t>(height_);
     init.swapChain.flags = BGFX_SWAP_CHAIN_MSAA_X4;

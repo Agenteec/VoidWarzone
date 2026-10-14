@@ -78,6 +78,10 @@ struct UnitDef {
     float income = 0.0f;
     bool structure = false;
     bool buildable = false;
+    bool builder = false;
+    bool wall = false;
+    float buildTime = 10.0f;
+    float priority = 1.0f;
     UnitDefId produces = kInvalidUnitDef;
     float produceInterval = 20.0f;
     int produceMax = 4;

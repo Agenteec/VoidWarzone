@@ -87,7 +87,7 @@
     {"unit": "void_citadel", "team": 1, "pos": [290, 78]},
     {"unit": "void_citadel", "team": 1, "pos": [290, 98]}
   ],
-  "playerStart": {"pos": [30, 88], "units": ["tank", "tank", "scout", "scout"]},
+  "playerStart": {"pos": [30, 88], "units": ["tank", "tank", "scout", "scout", "engineer"]},
   "resourcePoints": [
     {"name": "A", "pos": [118, 51], "radius": 3.5, "income": 2},
     {"name": "B", "pos": [118, 88], "radius": 3.5, "income": 3},
