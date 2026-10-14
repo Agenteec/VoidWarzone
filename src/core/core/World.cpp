@@ -222,7 +222,7 @@ void World::apply(const Command& command) {
                     spacing = std::max(spacing, registry_.get<Unit>(e).radius * 2.0f + 0.3f);
                     positions.push_back(registry_.get<Position>(e).value);
                 }
-                const auto goals = assignFormation(map_, positions, spacing, cmd.point);
+                const auto goals = assignFormation(map_ ? &navMap() : nullptr, positions, spacing, cmd.point);
                 for (std::size_t i = 0; i < units.size(); ++i) {
                     auto& order = registry_.get<Order>(units[i]);
                     order = {cmd.attack ? OrderType::AttackMove : OrderType::Move, goals[i], entt::null};
@@ -534,7 +534,13 @@ void World::updateUnits() {
                         vel.value = turned;
                 } else if (++progress->ticks >= kStuckTicks) {
                     const float expected = unit.speed * static_cast<float>(kStuckTicks) * kTickDt;
-                    if (glm::distance(pos.value, progress->anchor) < expected * 0.2f) {
+                    auto* order = registry_.try_get<Order>(e);
+                    const bool nearGoal = order && (order->type == OrderType::Move || order->type == OrderType::AttackMove) &&
+                                          glm::distance(pos.value, order->point) < unit.radius * 2.0f + 1.0f;
+                    if (glm::distance(pos.value, progress->anchor) < expected * 0.2f && nearGoal) {
+                        *order = {};
+                        registry_.remove<Navigator>(e);
+                    } else if (glm::distance(pos.value, progress->anchor) < expected * 0.2f) {
                         progress->detour = kDetourTicks;
                         progress->side = -progress->side;
                         if (auto* nav = registry_.try_get<Navigator>(e))

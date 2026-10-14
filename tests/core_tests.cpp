@@ -192,6 +192,28 @@ TEST_CASE("lane creeps pass a structure standing on the lane") {
     CHECK(passed == 5);
 }
 
+TEST_CASE("ordered squads drive around towers on the real map") {
+    const auto data = vw::GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
+    const auto map = vw::Map::parse(readData("maps/void_siege.json"));
+    vw::World world(data, map);
+    std::vector<entt::entity> squad;
+    for (int i = 0; i < 6; ++i)
+        squad.push_back(world.spawn(data.find(i % 2 ? "scout" : "tank"), 0, {66.0f + static_cast<float>(i % 3), 69.0f + static_cast<float>(i / 3)}, 0));
+    auto& reg = world.registry();
+    auto run = [&](glm::vec2 goal, float seconds) {
+        world.apply(vw::MoveCommand{squad, goal, false});
+        for (int t = 0; t < static_cast<int>(seconds * vw::kTickRate); ++t)
+            world.step();
+        int done = 0;
+        for (const auto e : squad)
+            done += reg.get<vw::Order>(e).type == vw::OrderType::None && glm::distance(reg.get<vw::Position>(e).value, goal) < 4.0f;
+        return done;
+    };
+    CHECK(run({96.0f, 70.0f}, 15.0f) == 6);
+    CHECK(run({70.0f, 71.0f}, 15.0f) == 6);
+    CHECK(run({82.0f, 70.0f}, 15.0f) == 6);
+}
+
 TEST_CASE("units separate") {
     const auto data = vw::GameData::parse(kUnits);
     vw::Map map(30, 30);
