@@ -10,6 +10,7 @@
 #include <string_view>
 #include <thread>
 
+#include <juice/juice.h>
 #include <spdlog/spdlog.h>
 
 #include "core/Version.h"
@@ -87,6 +88,7 @@ int main(int argc, char** argv) {
     double runFor = 0.0;
     std::string master;
     int simPlayers = -1;
+    bool iceLog = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
         const bool hasValue = i + 1 < argc;
@@ -116,6 +118,8 @@ int main(int argc, char** argv) {
                 spdlog::error("unknown mode {}", argv[i]);
                 return 1;
             }
+        } else if (arg == "--ice-log") {
+            iceLog = true;
         } else if (arg == "--no-lobby") {
             config.lobby = false;
         } else if (arg == "--simulate")
@@ -128,6 +132,15 @@ int main(int argc, char** argv) {
     vw::net::NetLibrary net;
     if (!net.ok())
         return 1;
+    if (iceLog) {
+        juice_set_log_handler([](juice_log_level_t level, const char* message) {
+            if (level >= JUICE_LOG_LEVEL_WARN)
+                spdlog::warn("ice: {}", message);
+            else
+                spdlog::info("ice: {}", message);
+        });
+        juice_set_log_level(JUICE_LOG_LEVEL_INFO);
+    }
 
     try {
         const auto data = vw::GameData::parse(readFile(dataDir / "units.json"), readFile(dataDir / "skills.json"), readFile(dataDir / "items.json"));
