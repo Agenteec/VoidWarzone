@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -41,6 +43,7 @@ private:
     void fail(std::string error);
     void send(const Writer& w) { link_.send(w.data()); }
     void flushCandidates(std::uint32_t peer, IceAgent& agent);
+    void report(std::uint32_t peer, IceAgent& agent, double now);
 
     TcpLink link_;
     Mode mode_ = Mode::None;
@@ -55,6 +58,9 @@ private:
     std::shared_ptr<IceAgent> agent_;
     std::vector<RoomInfo> rooms_;
     double started_ = 0.0;
+    double now_ = 0.0;
+    std::map<std::uint32_t, double> peerStart_;
+    std::set<std::uint32_t> reported_;
     bool relayOnly_ = false;
     bool noHost_ = false;
     bool noRelay_ = false;

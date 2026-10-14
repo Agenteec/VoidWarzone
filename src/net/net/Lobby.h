@@ -26,6 +26,7 @@ enum class LobbyMsg : std::uint8_t {
     ListRooms,
     RoomList,
     PeerLeft,
+    Report,
 };
 
 struct RoomInfo {

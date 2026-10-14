@@ -18,7 +18,7 @@ public:
 
     Lobby(net::IceServers servers, Send send, Close close);
 
-    void onConnect(std::uint32_t session);
+    void onConnect(std::uint32_t session, std::string address = {});
     void onMessage(std::uint32_t session, const net::Bytes& message);
     void onDisconnect(std::uint32_t session);
 
@@ -37,6 +37,18 @@ private:
     void send(std::uint32_t session, const net::Writer& w) { send_(session, w.data()); }
     void joinError(std::uint32_t session, const std::string& reason);
     const Peer* hostPeer(std::uint32_t host, std::uint32_t peer) const;
+    std::string who(std::uint32_t session) const;
+    void countCandidate(std::uint32_t peer, bool fromHost, const std::string& sdp);
+    void logCandidates(std::uint32_t peer, bool fromHost);
+    void countCandidateLines(std::uint32_t peer, const std::string& sdp);
+
+    struct CandidateStats {
+        int host = 0;
+        int host6 = 0;
+        int srflx = 0;
+        int relay = 0;
+        int other = 0;
+    };
 
     net::IceServers servers_;
     Send send_;
@@ -46,6 +58,8 @@ private:
     std::unordered_map<std::uint32_t, Peer> peers_;
     std::unordered_map<std::uint32_t, std::uint32_t> joinerPeers_;
     std::uint32_t nextPeer_ = 1;
+    std::unordered_map<std::uint32_t, std::string> addresses_;
+    std::unordered_map<std::uint64_t, CandidateStats> stats_;
     std::mt19937 rng_{std::random_device{}()};
 };
 

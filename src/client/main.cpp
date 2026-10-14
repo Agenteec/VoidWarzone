@@ -1,11 +1,15 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <juice/juice.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #if defined(SDL_PLATFORM_ANDROID)
 #include <spdlog/sinks/android_sink.h>
@@ -13,10 +17,31 @@
 
 #include "App.h"
 
-int main(int argc, char** argv) {
+namespace {
+
+void setupLogging() {
+    std::vector<spdlog::sink_ptr> sinks;
 #if defined(SDL_PLATFORM_ANDROID)
-    spdlog::set_default_logger(spdlog::android_logger_mt("vw", "VoidWarzone"));
+    sinks.push_back(std::make_shared<spdlog::sinks::android_sink_mt>("VoidWarzone"));
+#else
+    sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
 #endif
+    if (char* pref = SDL_GetPrefPath("Agenteec", "VoidWarzone")) {
+        try {
+            sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(std::string(pref) + "client.log", 2 * 1024 * 1024, 3, true));
+        } catch (const std::exception&) {
+        }
+        SDL_free(pref);
+    }
+    auto logger = std::make_shared<spdlog::logger>("vw", sinks.begin(), sinks.end());
+    logger->flush_on(spdlog::level::info);
+    spdlog::set_default_logger(logger);
+}
+
+}
+
+int main(int argc, char** argv) {
+    setupLogging();
     juice_set_log_handler([](juice_log_level_t level, const char* message) {
         if (level >= JUICE_LOG_LEVEL_WARN)
             spdlog::warn("ice: {}", message);

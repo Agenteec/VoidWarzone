@@ -1,6 +1,9 @@
 #include "net/MasterClient.h"
 
 #include <algorithm>
+#include <cstdio>
+
+#include <spdlog/spdlog.h>
 
 #include "core/Version.h"
 #include "net/Protocol.h"
@@ -103,6 +106,25 @@ void MasterClient::flushCandidates(std::uint32_t peer, IceAgent& agent) {
     }
 }
 
+void MasterClient::report(std::uint32_t peer, IceAgent& agent, double now) {
+    const auto state = agent.state();
+    if (reported_.contains(peer) || (state != IceAgent::State::Connected && state != IceAgent::State::Failed))
+        return;
+    reported_.insert(peer);
+    const auto start = peerStart_.contains(peer) ? peerStart_[peer] : started_;
+    char head[96];
+    std::snprintf(head, sizeof(head), "%s in %.2fs | upnp %s | ", state == IceAgent::State::Connected ? "connected" : "FAILED", now - start,
+                  mapper_ && mapper_->state() == PortMapper::State::Ready ? "on" : "off");
+    std::string text = head;
+    text += state == IceAgent::State::Connected ? agent.selectedPath() + " | " + agent.selectedPair() : "relay candidates " + std::to_string(relayCandidates_);
+    auto w = lobbyMessage(LobbyMsg::Report);
+    w.u32(peer);
+    w.str(text.substr(0, 1000));
+    send(w);
+    link_.update();
+    spdlog::info("ice report peer {}: {}", peer, text);
+}
+
 void MasterClient::handle(const Bytes& message) {
     Reader r(message.data(), message.size());
     const auto type = static_cast<LobbyMsg>(r.u8());
@@ -152,6 +174,7 @@ void MasterClient::handle(const Bytes& message) {
         if (!r.ok() || !hub_)
             break;
         IceAgent& agent = hub_->create(peer, servers_, mapper_);
+        peerStart_[peer] = now_;
         agent.setRemoteDescription(offer);
         auto w = lobbyMessage(LobbyMsg::PeerAnswer);
         w.u32(peer);
@@ -214,6 +237,7 @@ void MasterClient::handle(const Bytes& message) {
 void MasterClient::update(double now) {
     if (mode_ == Mode::None)
         return;
+    now_ = now;
     link_.update();
     Bytes message;
     while (mode_ != Mode::None && link_.pop(message))
@@ -232,10 +256,13 @@ void MasterClient::update(double now) {
 
     if (mode_ == Mode::Host && hub_) {
         std::erase_if(peers_, [&](std::uint32_t p) { return hub_->find(p) == nullptr; });
-        for (const auto p : peers_)
+        for (const auto p : peers_) {
             flushCandidates(p, *hub_->find(p));
+            report(p, *hub_->find(p), now);
+        }
     } else if (mode_ == Mode::Join && agent_) {
         flushCandidates(0, *agent_);
+        report(0, *agent_, now);
         if (agent_->state() == IceAgent::State::Connected)
             state_ = State::Ready;
         else if (agent_->state() == IceAgent::State::Failed)

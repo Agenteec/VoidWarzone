@@ -21,6 +21,12 @@ class MasterServer::Session : public std::enable_shared_from_this<Session> {
 public:
     Session(MasterServer& owner, tcp::socket socket, std::uint32_t id) : owner_(owner), socket_(std::move(socket)), id_(id) {}
 
+    std::string remote() const {
+        std::error_code ec;
+        const auto ep = socket_.remote_endpoint(ec);
+        return ec ? std::string{} : ep.address().to_string() + ":" + std::to_string(ep.port());
+    }
+
     void start() { readHeader(); }
 
     void send(const net::Bytes& message) {
@@ -125,7 +131,10 @@ void MasterServer::accept() {
             const std::uint32_t id = nextId_++;
             auto session = std::make_shared<Session>(*this, std::move(socket), id);
             sessions_[id] = session;
-            lobby_.onConnect(id);
+            std::string address;
+            if (const auto ep = session->remote(); !ep.empty())
+                address = ep;
+            lobby_.onConnect(id, address);
             session->start();
         }
         accept();
