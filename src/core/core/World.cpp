@@ -3,6 +3,7 @@
 #include "core/Movement.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <numbers>
@@ -33,7 +34,11 @@ float approach(float from, float to, float maxStep) {
     const float d = wrapAngle(to - from);
     return wrapAngle(from + std::clamp(d, -maxStep, maxStep));
 }
-constexpr int kRepathTicks = 15;
+constexpr int kRepathTicks = 12;
+constexpr int kScanInterval = 3;
+constexpr int kPathsPerTick = 8;
+constexpr int kStuckTicks = 20;
+constexpr int kDetourTicks = 14;
 
 glm::vec2 seek(glm::vec2 pos, glm::vec2 goal, float speed) {
     return vw::seek(pos, goal, speed, kTickDt);
@@ -42,12 +47,16 @@ glm::vec2 seek(glm::vec2 pos, glm::vec2 goal, float speed) {
 }
 
 World::World() {
-    spatial_.reset(128.0f, 128.0f, 4.0f);
+    spatial_.reset(128.0f, 128.0f, 3.0f);
+    structures_.reset(128.0f, 128.0f, 8.0f);
 }
 
 World::World(const GameData& data, const Map& map, Difficulty difficulty) : data_(&data), map_(&map), difficulty_(difficulty) {
-    spatial_.reset(static_cast<float>(map.width()), static_cast<float>(map.height()), 4.0f);
-    maxRadius_ = std::max(data.maxRadius(), 0.5f);
+    spatial_.reset(static_cast<float>(map.width()), static_cast<float>(map.height()), 3.0f);
+    structures_.reset(static_cast<float>(map.width()), static_cast<float>(map.height()), 8.0f);
+    for (const auto& def : data.units())
+        (def.structure ? maxStructureRadius_ : maxUnitRadius_) = std::max(def.structure ? maxStructureRadius_ : maxUnitRadius_, def.radius);
+    nav_ = std::make_unique<Map>(map);
 
     std::unordered_map<std::string, entt::entity> tagged;
     for (const auto& u : map.units()) {
@@ -84,6 +93,11 @@ World::World(const GameData& data, const Map& map, Difficulty difficulty) : data
         }
         registry_.emplace<Spawner>(e, Spawner{id, s.team, s.lane, s.interval, s.delay, s.count, s.offset, building});
     }
+
+    rebuildNav();
+    for (const auto& lane : map.lanes())
+        for (const auto& p : lane.points)
+            flowField(p);
 }
 
 entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int owner) {
@@ -119,10 +133,13 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
             boss.cooldowns.push_back(a.cooldown * 0.5f);
         registry_.emplace<Boss>(e, std::move(boss));
     }
-    if (def.structure)
+    if (def.structure) {
         registry_.emplace<Structure>(e);
-    else
+        navDirty_ = true;
+    } else {
         registry_.emplace<Order>(e);
+        registry_.emplace<Progress>(e, Progress{pos});
+    }
     if (owner >= 0)
         registry_.emplace<Owner>(e, static_cast<std::uint8_t>(owner));
     events_.push_back({EventType::Spawn, e, entt::null, pos, pos});
@@ -232,33 +249,79 @@ void World::apply(const Command& command) {
         command);
 }
 
+const char* SystemTimes::name(std::size_t i) {
+    static constexpr const char* names[kCount] = {"spatial", "spawners", "heroes",  "units",  "bosses", "integrate", "collisions",
+                                                  "turrets", "weapons",  "projectiles", "dead", "points", "defense"};
+    return i < kCount ? names[i] : "?";
+}
+
 void World::step() {
+    using Clock = std::chrono::steady_clock;
     events_.erase(events_.begin(), events_.begin() + static_cast<std::ptrdiff_t>(std::min(stepEvents_, events_.size())));
     for (auto [e, p, prev] : registry_.view<const Position, PrevPosition>().each())
         prev.value = p.value;
 
-    rebuildSpatial();
-    updateSpawners();
-    updateHeroes();
-    updateUnits();
-    updateBosses();
-    integrate();
-    resolveCollisions();
-    updateTurrets();
-    updateWeapons();
-    updateProjectiles();
-    removeDead();
-    updateResourcePoints();
-    updateDefense();
+    if (navDirty_)
+        rebuildNav();
+    pathBudget_ = kPathsPerTick;
+    const auto begin = Clock::now();
+    auto last = begin;
+    std::size_t index = 0;
+    auto run = [&](auto&& system) {
+        system();
+        const auto now = Clock::now();
+        times_.seconds[index++] += std::chrono::duration<double>(now - last).count();
+        last = now;
+    };
+    run([&] { rebuildSpatial(); });
+    run([&] { updateSpawners(); });
+    run([&] { updateHeroes(); });
+    run([&] { updateUnits(); });
+    run([&] { updateBosses(); });
+    run([&] { integrate(); });
+    run([&] { resolveCollisions(); });
+    run([&] { updateTurrets(); });
+    run([&] { updateWeapons(); });
+    run([&] { updateProjectiles(); });
+    run([&] { removeDead(); });
+    run([&] { updateResourcePoints(); });
+    run([&] { updateDefense(); });
+    times_.peak = std::max(times_.peak, std::chrono::duration<double>(last - begin).count());
+    ++times_.steps;
     stepEvents_ = events_.size();
     ++tick_;
 }
 
 void World::rebuildSpatial() {
     spatial_.clear();
-    const auto view = registry_.view<const Position, const Unit>();
-    for (const auto e : view)
-        spatial_.insert(e, view.get<const Position>(e).value);
+    structures_.clear();
+    for (auto [e, pos, unit, team, vel] : registry_.view<const Position, const Unit, const Team, const Velocity>().each()) {
+        const bool structure = registry_.all_of<Structure>(e);
+        (structure ? structures_ : spatial_).insert({e, pos.value, vel.value, unit.radius, team.id, structure});
+    }
+}
+
+void World::rebuildNav() {
+    navDirty_ = false;
+    if (!map_ || !nav_)
+        return;
+    *nav_ = *map_;
+    ++times_.navRebuilds;
+    for (auto [e, pos, unit] : registry_.view<const Position, const Unit, const Structure>().each()) {
+        if (registry_.get<Health>(e).hp <= 0.0f)
+            continue;
+        const float r = std::max(unit.radius - 0.25f, 0.5f);
+        const glm::ivec2 c = Map::cellOf(pos.value);
+        const int span = static_cast<int>(std::ceil(r)) + 1;
+        for (int y = c.y - span; y <= c.y + span; ++y)
+            for (int x = c.x - span; x <= c.x + span; ++x)
+                if (nav_->inside(x, y) && (glm::ivec2(x, y) == c || glm::distance(Map::center({x, y}), pos.value) < r))
+                    nav_->setBlocked(x, y, true);
+    }
+    for (auto [e, nav] : registry_.view<Navigator>().each()) {
+        nav.repath = 0;
+        nav.path.clear();
+    }
 }
 
 std::vector<entt::entity> World::spawnOnLane(UnitDefId def, std::uint8_t team, int lane, int count, float offset) {
@@ -310,11 +373,11 @@ void World::updateSpawners() {
 entt::entity World::findEnemy(glm::vec2 pos, std::uint8_t team, float radius) const {
     entt::entity best = entt::null;
     float bestDist = std::numeric_limits<float>::max();
-    spatial_.query(pos, radius + maxRadius_, [&](const SpatialHash::Item& item) {
-        if (registry_.get<Team>(item.entity).id == team || !alive(item.entity) || registry_.all_of<Invulnerable>(item.entity))
+    queryAll(pos, radius, [&](const SpatialHash::Item& item) {
+        if (item.team == team)
             return;
-        const float d = glm::distance(item.pos, pos) - registry_.get<Unit>(item.entity).radius;
-        if (d <= radius && d < bestDist) {
+        const float d = glm::distance(item.pos, pos) - item.radius;
+        if (d <= radius && d < bestDist && alive(item.entity) && !registry_.all_of<Invulnerable>(item.entity)) {
             best = item.entity;
             bestDist = d;
         }
@@ -322,23 +385,67 @@ entt::entity World::findEnemy(glm::vec2 pos, std::uint8_t team, float radius) co
     return best;
 }
 
+glm::vec2 World::avoid(entt::entity e, glm::vec2 pos, glm::vec2 vel, float radius, std::uint8_t team) const {
+    const float speed = glm::length(vel);
+    if (speed < 1e-3f)
+        return vel;
+    const glm::vec2 dir = vel / speed;
+    const glm::vec2 left{-dir.y, dir.x};
+    const float look = radius + 1.2f;
+    const float tie = (entt::to_integral(e) & 1u) ? 1.0f : -1.0f;
+    glm::vec2 steer{};
+    queryAll(pos, look, [&](const SpatialHash::Item& o) {
+        if (o.entity == e || (o.team != team && !o.structure))
+            return;
+        const glm::vec2 rel = o.pos - pos;
+        const float ahead = glm::dot(rel, dir);
+        const float reach = radius + o.radius + 0.15f;
+        if (ahead <= 0.0f || ahead > reach + look)
+            return;
+        const float lateral = dir.x * rel.y - dir.y * rel.x;
+        if (std::abs(lateral) >= reach)
+            return;
+        if (!o.structure && glm::dot(o.vel, dir) > speed * 0.6f)
+            return;
+        const float side = lateral > 0.05f ? -1.0f : lateral < -0.05f ? 1.0f : tie;
+        steer += left * side * (1.0f - ahead / (reach + look)) * (1.0f - std::abs(lateral) / reach);
+    });
+    if (glm::dot(steer, steer) < 1e-6f)
+        return vel;
+    const glm::vec2 turned = glm::normalize(dir + steer * 2.0f);
+    if (map_ && navMap().blocked(Map::cellOf(pos + turned * (radius + 0.6f))))
+        return vel;
+    return turned * speed;
+}
+
 glm::vec2 World::navigate(entt::entity e, glm::vec2 pos, glm::vec2 goal, float speed) {
-    if (!map_ || lineOfSight(*map_, pos, goal)) {
-        registry_.remove<Navigator>(e);
+    if (!map_)
         return seek(pos, goal, speed);
+    const Map& nav = navMap();
+    auto& n = registry_.get_or_emplace<Navigator>(e);
+    if ((--n.repath <= 0 || glm::distance(n.goal, goal) > 1.0f) && pathBudget_ > 0) {
+        n.goal = goal;
+        n.repath = kRepathTicks + static_cast<int>(entt::to_integral(e) % 5u);
+        n.direct = lineOfSight(nav, pos, goal);
+        if (n.direct)
+            n.path.clear();
+        else {
+            const auto t0 = std::chrono::steady_clock::now();
+            n.path = findPath(nav, pos, goal);
+            times_.worstPath = std::max(times_.worstPath, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+            ++times_.paths;
+            --pathBudget_;
+            times_.worstWork = std::max(times_.worstWork, lastPathWork());
+        }
+        n.next = 0;
     }
-    auto& nav = registry_.get_or_emplace<Navigator>(e);
-    if (--nav.repath <= 0 && (nav.path.empty() || glm::distance(nav.goal, goal) > 1.0f)) {
-        nav.goal = goal;
-        nav.path = findPath(*map_, pos, goal);
-        nav.next = 0;
-        nav.repath = kRepathTicks;
-    }
-    while (nav.next < nav.path.size() && glm::distance(pos, nav.path[nav.next]) < 0.6f)
-        ++nav.next;
-    if (nav.next >= nav.path.size())
+    if (n.direct)
         return seek(pos, goal, speed);
-    return seek(pos, nav.path[nav.next], speed);
+    while (n.next < n.path.size() && glm::distance(pos, n.path[n.next]) < 0.6f)
+        ++n.next;
+    if (n.next >= n.path.size())
+        return seek(pos, goal, speed);
+    return seek(pos, n.path[n.next], speed);
 }
 
 glm::vec2 World::lanePoint(const LaneFollower& lane, int i) const {
@@ -350,8 +457,12 @@ glm::vec2 World::lanePoint(const LaneFollower& lane, int i) const {
 const FlowField& World::flowField(glm::vec2 goal) {
     const int key = map_->index(nearestFree(*map_, Map::cellOf(goal)));
     auto it = flowFields_.find(key);
-    if (it == flowFields_.end())
+    if (it == flowFields_.end()) {
+        const auto t0 = std::chrono::steady_clock::now();
         it = flowFields_.emplace(key, FlowField(*map_, goal)).first;
+        times_.worstField = std::max(times_.worstField, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+        ++times_.fields;
+    }
     return it->second;
 }
 
@@ -387,7 +498,7 @@ void World::updateUnits() {
                 if (glm::distance(tp, pos.value) - registry_.get<Unit>(target.value).radius > acquire * kLeashFactor)
                     target.value = entt::null;
             }
-            if (target.value == entt::null)
+            if (target.value == entt::null && (tick_ + entt::to_integral(e)) % kScanInterval == 0)
                 target.value = findEnemy(pos.value, team.id, acquire);
         }
 
@@ -408,6 +519,34 @@ void World::updateUnits() {
             vel.value = laneVelocity(*lane, pos.value, unit.speed);
         }
 
+        if (auto* progress = registry_.try_get<Progress>(e)) {
+            if (glm::dot(vel.value, vel.value) > 1e-6f) {
+                vel.value = avoid(e, pos.value, vel.value, unit.radius, team.id);
+                if (progress->detour > 0) {
+                    --progress->detour;
+                    const float a = progress->side * 1.1f;
+                    const glm::vec2 v = vel.value;
+                    const glm::vec2 turned{v.x * std::cos(a) - v.y * std::sin(a), v.x * std::sin(a) + v.y * std::cos(a)};
+                    if (!map_ || !navMap().blocked(Map::cellOf(pos.value + glm::normalize(turned) * (unit.radius + 0.6f))))
+                        vel.value = turned;
+                } else if (++progress->ticks >= kStuckTicks) {
+                    const float expected = unit.speed * static_cast<float>(kStuckTicks) * kTickDt;
+                    if (glm::distance(pos.value, progress->anchor) < expected * 0.2f) {
+                        progress->detour = kDetourTicks;
+                        progress->side = -progress->side;
+                        if (auto* nav = registry_.try_get<Navigator>(e))
+                            nav->repath = 0;
+                    }
+                    progress->anchor = pos.value;
+                    progress->ticks = 0;
+                }
+            } else {
+                progress->anchor = pos.value;
+                progress->ticks = 0;
+                progress->detour = 0;
+            }
+        }
+
         if (glm::dot(vel.value, vel.value) > 1e-6f)
             facing.angle = std::atan2(vel.value.y, vel.value.x);
     }
@@ -421,10 +560,10 @@ void World::integrate() {
 void World::resolveCollisions() {
     for (auto [e, pos, unit] : registry_.view<Position, const Unit>(entt::exclude<Structure>).each()) {
         glm::vec2 push{};
-        spatial_.query(pos.value, unit.radius + maxRadius_, [&](const SpatialHash::Item& item) {
+        queryAll(pos.value, unit.radius, [&](const SpatialHash::Item& item) {
             if (item.entity == e)
                 return;
-            const float minDist = unit.radius + registry_.get<Unit>(item.entity).radius;
+            const float minDist = unit.radius + item.radius;
             glm::vec2 d = pos.value - item.pos;
             float dist2 = glm::dot(d, d);
             if (dist2 >= minDist * minDist)
@@ -436,7 +575,7 @@ void World::resolveCollisions() {
             }
             const float dist = std::sqrt(dist2);
             const glm::vec2 n = dist > 1e-4f ? d / dist : d;
-            const float share = registry_.all_of<Structure>(item.entity) ? 1.0f : 0.5f;
+            const float share = item.structure ? 1.0f : 0.5f;
             push += n * (minDist - dist) * share;
         });
         pos.value += push;
@@ -547,6 +686,8 @@ void World::removeDead() {
         if (h.hp > 0.0f)
             continue;
         dead.push_back(e);
+        if (registry_.all_of<Structure>(e))
+            navDirty_ = true;
         events_.push_back({EventType::Death, e, entt::null, pos.value, pos.value});
         if (team.id != 0) {
             kills.push_back({unit.def, pos.value, h.lastHitBy});

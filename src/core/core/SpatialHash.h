@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 
 #include <entt/entity/entity.hpp>
@@ -14,10 +15,14 @@ public:
     struct Item {
         entt::entity entity;
         glm::vec2 pos;
+        glm::vec2 vel;
+        float radius;
+        std::uint8_t team;
+        bool structure;
     };
 
     void reset(float width, float height, float cellSize) {
-        cellSize_ = cellSize;
+        inv_ = 1.0f / cellSize;
         cols_ = std::max(1, static_cast<int>(std::ceil(width / cellSize)));
         rows_ = std::max(1, static_cast<int>(std::ceil(height / cellSize)));
         buckets_.assign(static_cast<std::size_t>(cols_ * rows_), {});
@@ -28,7 +33,7 @@ public:
             b.clear();
     }
 
-    void insert(entt::entity e, glm::vec2 p) { buckets_[bucket(col(p.x), row(p.y))].push_back({e, p}); }
+    void insert(const Item& item) { buckets_[bucket(col(item.pos.x), row(item.pos.y))].push_back(item); }
 
     template <class F>
     void query(glm::vec2 p, float radius, F&& f) const {
@@ -43,11 +48,11 @@ public:
     }
 
 private:
-    int col(float x) const { return std::clamp(static_cast<int>(std::floor(x / cellSize_)), 0, cols_ - 1); }
-    int row(float y) const { return std::clamp(static_cast<int>(std::floor(y / cellSize_)), 0, rows_ - 1); }
+    int col(float x) const { return std::clamp(static_cast<int>(std::floor(x * inv_)), 0, cols_ - 1); }
+    int row(float y) const { return std::clamp(static_cast<int>(std::floor(y * inv_)), 0, rows_ - 1); }
     std::size_t bucket(int c, int r) const { return static_cast<std::size_t>(r * cols_ + c); }
 
-    float cellSize_ = 4.0f;
+    float inv_ = 0.25f;
     int cols_ = 1;
     int rows_ = 1;
     std::vector<std::vector<Item>> buckets_{1};

@@ -51,6 +51,18 @@ int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty diffic
         }
     }
 
+    const auto& t = world.systemTimes();
+    double total = 0.0;
+    for (std::size_t i = 0; i < vw::SystemTimes::kCount; ++i)
+        total += t.seconds[i];
+    std::string line;
+    for (std::size_t i = 0; i < vw::SystemTimes::kCount; ++i)
+        if (t.seconds[i] / total > 0.01)
+            line += fmt::format(" {} {:.0f}%", vw::SystemTimes::name(i), t.seconds[i] / total * 100.0);
+    spdlog::info("tick avg {:.3f} ms, peak {:.2f} ms |{} | paths {} (worst {:.2f} ms) fields {} (worst {:.2f} ms) nav {} work {}",
+                 total / static_cast<double>(t.steps) * 1000.0, t.peak * 1000.0, line, t.paths, t.worstPath * 1000.0, t.fields,
+                 t.worstField * 1000.0, t.navRebuilds, t.worstWork);
+
     const auto& d = world.defense();
     const char* result = d.state == vw::MatchState::Victory ? "VICTORY" : d.state == vw::MatchState::Defeat ? "DEFEAT" : "TIMEOUT";
     int structures[2] = {0, 0};

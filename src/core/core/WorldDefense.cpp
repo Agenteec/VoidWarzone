@@ -124,10 +124,10 @@ void World::updateBosses() {
             const auto& ability = def.abilities[static_cast<std::size_t>(boss.casting)];
             const float dmg = ability.damage * enemyDamageScale() * (boss.enraged && def.enrage ? def.enrage->damage : 1.0f);
             std::vector<entt::entity> hits;
-            spatial_.query(boss.castPos, ability.radius + maxRadius_, [&](const SpatialHash::Item& item) {
-                if (registry_.get<Team>(item.entity).id == team.id || !alive(item.entity))
+            queryAll(boss.castPos, ability.radius, [&](const SpatialHash::Item& item) {
+                if (item.team == team.id || !alive(item.entity))
                     return;
-                if (glm::distance(item.pos, boss.castPos) - registry_.get<Unit>(item.entity).radius <= ability.radius)
+                if (glm::distance(item.pos, boss.castPos) - item.radius <= ability.radius)
                     hits.push_back(item.entity);
             });
             for (const auto h : hits)
@@ -184,11 +184,9 @@ void World::updateResourcePoints() {
         const auto& def = defs[i];
         auto& st = points_[i];
         int counts[2] = {0, 0};
-        spatial_.query(def.pos, def.radius + maxRadius_, [&](const SpatialHash::Item& item) {
-            if (registry_.all_of<Structure>(item.entity) || !alive(item.entity))
-                return;
-            if (glm::distance(item.pos, def.pos) <= def.radius)
-                ++counts[registry_.get<Team>(item.entity).id & 1];
+        spatial_.query(def.pos, def.radius, [&](const SpatialHash::Item& item) {
+            if (glm::distance(item.pos, def.pos) <= def.radius && alive(item.entity))
+                ++counts[item.team & 1];
         });
 
         if (counts[0] > 0 && counts[1] == 0)

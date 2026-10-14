@@ -95,6 +95,7 @@ public:
     int index(glm::ivec2 c) const { return index(c.x, c.y); }
 
     void addWall(const Rect& r);
+    void setBlocked(int x, int y, bool blocked) { cells_[static_cast<std::size_t>(index(x, y))] = blocked ? 1 : 0; }
 
     static glm::ivec2 cellOf(glm::vec2 p) { return {static_cast<int>(std::floor(p.x)), static_cast<int>(std::floor(p.y))}; }
     static glm::vec2 center(glm::ivec2 c) { return glm::vec2(c) + 0.5f; }

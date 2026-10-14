@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <queue>
@@ -50,6 +51,47 @@ float octile(glm::ivec2 a, glm::ivec2 b) {
 
 using QueueItem = std::pair<float, int>;
 using MinQueue = std::priority_queue<QueueItem, std::vector<QueueItem>, std::greater<>>;
+
+struct SearchBuffers {
+    std::vector<float> g;
+    std::vector<int> parent;
+    std::vector<std::uint32_t> stamp;
+    std::vector<QueueItem> heap;
+    std::uint32_t generation = 0;
+
+    void begin(std::size_t size) {
+        if (stamp.size() != size) {
+            g.assign(size, kInf);
+            parent.assign(size, -1);
+            stamp.assign(size, 0);
+            generation = 0;
+        }
+        if (++generation == 0) {
+            std::fill(stamp.begin(), stamp.end(), 0u);
+            generation = 1;
+        }
+        heap.clear();
+    }
+    float cost(int i) const { return stamp[static_cast<std::size_t>(i)] == generation ? g[static_cast<std::size_t>(i)] : kInf; }
+    void set(int i, float c, int p) {
+        stamp[static_cast<std::size_t>(i)] = generation;
+        g[static_cast<std::size_t>(i)] = c;
+        parent[static_cast<std::size_t>(i)] = p;
+    }
+    void push(float f, int i) {
+        heap.emplace_back(f, i);
+        std::push_heap(heap.begin(), heap.end(), std::greater<>{});
+    }
+    QueueItem pop() {
+        std::pop_heap(heap.begin(), heap.end(), std::greater<>{});
+        const QueueItem top = heap.back();
+        heap.pop_back();
+        return top;
+    }
+};
+
+thread_local SearchBuffers g_search;
+thread_local std::size_t g_work = 0;
 
 }
 
@@ -110,7 +152,12 @@ glm::ivec2 nearestFree(const Map& map, glm::ivec2 cell, int maxRadius) {
     return cell;
 }
 
+std::size_t lastPathWork() {
+    return g_work;
+}
+
 std::vector<glm::vec2> findPath(const Map& map, glm::vec2 from, glm::vec2 to) {
+    g_work = 0;
     if (lineOfSight(map, from, to))
         return {to};
 
@@ -119,35 +166,32 @@ std::vector<glm::vec2> findPath(const Map& map, glm::vec2 from, glm::vec2 to) {
     if (map.blocked(start) || map.blocked(goal))
         return {};
 
-    const auto size = static_cast<std::size_t>(map.width() * map.height());
-    std::vector<float> g(size, kInf);
-    std::vector<int> parent(size, -1);
-    MinQueue open;
-
-    g[map.index(start)] = 0.0f;
-    open.emplace(octile(start, goal), map.index(start));
+    auto& s = g_search;
+    s.begin(static_cast<std::size_t>(map.width() * map.height()));
+    s.set(map.index(start), 0.0f, -1);
+    s.push(octile(start, goal), map.index(start));
 
     bool found = false;
-    while (!open.empty()) {
-        const auto [f, idx] = open.top();
-        open.pop();
+    while (!s.heap.empty()) {
+        const auto [f, idx] = s.pop();
+        ++g_work;
         const glm::ivec2 c{idx % map.width(), idx / map.width()};
         if (c == goal) {
             found = true;
             break;
         }
-        if (f - octile(c, goal) > g[idx] + 1e-4f)
+        const float gc = s.cost(idx);
+        if (f - octile(c, goal) > gc + 1e-4f)
             continue;
-        for (const auto& s : kSteps) {
-            if (!canStep(map, c, s.d))
+        for (const auto& step : kSteps) {
+            if (!canStep(map, c, step.d))
                 continue;
-            const glm::ivec2 n = c + s.d;
+            const glm::ivec2 n = c + step.d;
             const int ni = map.index(n);
-            const float ng = g[idx] + s.cost;
-            if (ng < g[ni]) {
-                g[ni] = ng;
-                parent[ni] = idx;
-                open.emplace(ng + octile(n, goal), ni);
+            const float ng = gc + step.cost;
+            if (ng < s.cost(ni)) {
+                s.set(ni, ng, idx);
+                s.push(ng + octile(n, goal), ni);
             }
         }
     }
@@ -155,7 +199,7 @@ std::vector<glm::vec2> findPath(const Map& map, glm::vec2 from, glm::vec2 to) {
         return {};
 
     std::vector<glm::vec2> cells;
-    for (int i = map.index(goal); i != -1; i = parent[i])
+    for (int i = map.index(goal); i != -1; i = s.parent[static_cast<std::size_t>(i)])
         cells.push_back(Map::center({i % map.width(), i / map.width()}));
     std::reverse(cells.begin(), cells.end());
     if (!map.blocked(Map::cellOf(to)))
@@ -165,9 +209,9 @@ std::vector<glm::vec2> findPath(const Map& map, glm::vec2 from, glm::vec2 to) {
     glm::vec2 cur = from;
     std::size_t i = 0;
     while (i < cells.size()) {
-        std::size_t j = cells.size() - 1;
-        while (j > i && !lineOfSight(map, cur, cells[j]))
-            --j;
+        std::size_t j = i;
+        while (j + 1 < cells.size() && lineOfSight(map, cur, cells[j + 1]))
+            ++j, ++g_work;
         path.push_back(cells[j]);
         cur = cells[j];
         i = j + 1;
@@ -180,26 +224,55 @@ FlowField::FlowField(const Map& map, glm::vec2 goal) : map_(&map), goal_(goal), 
     if (map.blocked(goalCell_))
         return;
 
-    MinQueue open;
-    cost_[map.index(goalCell_)] = 0.0f;
-    open.emplace(0.0f, map.index(goalCell_));
-    while (!open.empty()) {
-        const auto [d, idx] = open.top();
-        open.pop();
-        if (d > cost_[idx])
-            continue;
-        const glm::ivec2 c{idx % map.width(), idx / map.width()};
-        for (const auto& s : kSteps) {
-            if (!canStep(map, c, s.d))
+    constexpr int kBuckets = 15;
+    std::vector<int> dist(cost_.size(), std::numeric_limits<int>::max());
+    std::array<std::vector<int>, kBuckets> buckets;
+    dist[static_cast<std::size_t>(map.index(goalCell_))] = 0;
+    buckets[0].push_back(map.index(goalCell_));
+    std::size_t pending = 1;
+    for (int current = 0; pending > 0; ++current) {
+        auto& bucket = buckets[static_cast<std::size_t>(current % kBuckets)];
+        while (!bucket.empty()) {
+            const int idx = bucket.back();
+            bucket.pop_back();
+            --pending;
+            if (dist[static_cast<std::size_t>(idx)] != current)
                 continue;
-            const int ni = map.index(c + s.d);
-            const float nd = d + s.cost;
-            if (nd < cost_[ni]) {
-                cost_[ni] = nd;
-                open.emplace(nd, ni);
+            const glm::ivec2 c{idx % map.width(), idx / map.width()};
+            for (const auto& s : kSteps) {
+                if (!canStep(map, c, s.d))
+                    continue;
+                const int ni = map.index(c + s.d);
+                const int nd = current + (s.d.x != 0 && s.d.y != 0 ? 14 : 10);
+                if (nd < dist[static_cast<std::size_t>(ni)]) {
+                    dist[static_cast<std::size_t>(ni)] = nd;
+                    buckets[static_cast<std::size_t>(nd % kBuckets)].push_back(ni);
+                    ++pending;
+                }
             }
         }
     }
+    for (std::size_t i = 0; i < cost_.size(); ++i)
+        if (dist[i] != std::numeric_limits<int>::max())
+            cost_[i] = static_cast<float>(dist[i]) * 0.1f;
+
+    next_.assign(cost_.size(), -1);
+    for (int y = 0; y < map.height(); ++y)
+        for (int x = 0; x < map.width(); ++x) {
+            const int idx = map.index(x, y);
+            float best = cost_[static_cast<std::size_t>(idx)];
+            if (best == kInf)
+                continue;
+            for (const auto& s : kSteps) {
+                if (!canStep(map, {x, y}, s.d))
+                    continue;
+                const int ni = map.index(x + s.d.x, y + s.d.y);
+                if (cost_[static_cast<std::size_t>(ni)] < best) {
+                    best = cost_[static_cast<std::size_t>(ni)];
+                    next_[static_cast<std::size_t>(idx)] = ni;
+                }
+            }
+        }
 }
 
 float FlowField::cost(glm::ivec2 cell) const {
@@ -215,20 +288,10 @@ glm::vec2 FlowField::direction(glm::vec2 pos) const {
         return len > 1e-4f ? d / len : glm::vec2{};
     }
 
-    glm::ivec2 best = c;
-    float bestCost = here;
-    for (const auto& s : kSteps) {
-        if (!canStep(*map_, c, s.d))
-            continue;
-        const float nc = cost(c + s.d);
-        if (nc < bestCost) {
-            bestCost = nc;
-            best = c + s.d;
-        }
-    }
-    if (best == c)
+    const int next = next_[static_cast<std::size_t>(map_->index(c))];
+    if (next < 0)
         return {};
-    return glm::normalize(Map::center(best) - pos);
+    return glm::normalize(Map::center({next % map_->width(), next / map_->width()}) - pos);
 }
 
 }

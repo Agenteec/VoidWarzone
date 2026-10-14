@@ -79,6 +79,14 @@ struct Navigator {
     std::vector<glm::vec2> path;
     std::size_t next = 0;
     int repath = 0;
+    bool direct = false;
+};
+
+struct Progress {
+    glm::vec2 anchor{};
+    int ticks = 0;
+    int detour = 0;
+    float side = 1.0f;
 };
 
 struct LaneFollower {

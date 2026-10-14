@@ -260,6 +260,9 @@ void App::updateLobby() {
 }
 
 void App::startHost() {
+    simMs_ = 0.0;
+    simTotal_ = 0.0;
+    simSteps_ = 0;
     try {
         hostMap_ = std::make_unique<Map>(Map::parse(loadText("data/maps/" + options_.map + ".json")));
     } catch (const std::exception& e) {
@@ -870,6 +873,7 @@ void App::updateGame(float dt) {
 
 void App::frame(double dt) {
     now_ = nowSeconds();
+    frameMs_ = frameMs_ * 0.95f + static_cast<float>(dt * 1000.0) * 0.05f;
     fps_ = fps_ * 0.95f + (dt > 0.0 ? static_cast<float>(1.0 / dt) : 0.0f) * 0.05f;
 
     if (host_)
@@ -922,13 +926,38 @@ void App::render() {
     renderer_.end();
 }
 
+glm::vec4 App::visibleRect(float margin) const {
+    const auto w = static_cast<float>(renderer_.width());
+    const auto h = static_cast<float>(renderer_.height());
+    glm::vec2 lo{1e9f};
+    glm::vec2 hi{-1e9f};
+    for (const glm::vec2 corner : {glm::vec2{0.0f, 0.0f}, glm::vec2{w, 0.0f}, glm::vec2{0.0f, h}, glm::vec2{w, h}}) {
+        const auto g = camera_.screenToGround(corner.x, corner.y);
+        if (!g)
+            return {-1e9f, -1e9f, 1e9f, 1e9f};
+        lo = glm::min(lo, *g);
+        hi = glm::max(hi, *g);
+    }
+    return {lo.x - margin, lo.y - margin, hi.x + margin, hi.y + margin};
+}
+
 void App::renderWorld() {
     const glm::vec4 white{1.0f};
-    renderer_.drawTerrain(mapVisuals_.terrain, mapVisuals_.terrainTextures);
-    for (const auto& p : mapVisuals_.props)
-        renderer_.drawMesh(p.model->mesh, p.model->texture, p.model->mask, p.mtx, white);
+    const glm::vec4 view = visibleRect(10.0f);
+    auto inView = [&](glm::vec2 lo, glm::vec2 hi) { return hi.x >= view.x && hi.y >= view.y && lo.x <= view.z && lo.y <= view.w; };
+    float identity[16];
+    bx::mtxIdentity(identity);
+    for (const auto& chunk : mapVisuals_.chunks) {
+        if (!inView(chunk.min, chunk.max))
+            continue;
+        renderer_.drawTerrain(chunk.terrain, mapVisuals_.terrainTextures);
+        for (const auto& p : chunk.props)
+            renderer_.drawMesh(p.mesh, p.texture, p.mask, identity, white);
+    }
 
     for (const auto& e : entities_) {
+        if (!inView(e.pos, e.pos))
+            continue;
         if (e.kind == net::EntityKind::Projectile) {
             const glm::vec4 c = glm::mix(kTeamColors[e.team & 1], glm::vec4(1.0f, 0.9f, 0.6f, 1.0f), 0.6f);
             renderer_.draw(Mesh::Sphere, projectilePos(e), glm::vec3(0.28f), 0.0f, c, Unlit);
@@ -1026,7 +1055,7 @@ void App::renderHud() {
             ++teams[e.team & 1];
     const auto stats = net_.stats();
     const auto* latest = net_.latest();
-    renderer_.drawScreenRect({0.0f, 8.0f}, {std::min(static_cast<float>(renderer_.width()), 118.0f * 8.0f), 9.0f * 16.0f + 4.0f},
+    renderer_.drawScreenRect({0.0f, 8.0f}, {std::min(static_cast<float>(renderer_.width()), 118.0f * 8.0f), 10.0f * 16.0f + 4.0f},
                              {0.02f, 0.02f, 0.05f, 0.62f});
 
     text(1, 1, 0x0b, "Void Warzone %.*s | %s | %.0f fps", static_cast<int>(kVersion.size()), kVersion.data(), renderer_.name(), fps_);
@@ -1036,6 +1065,26 @@ void App::renderHud() {
     text(1, 3, 0x07, "rtt %.0f ms | loss %.1f%% | in %.1f out %.1f kbps | interp %.0f ms jitter %.1f ms | snap %d B | predicted %d",
                         stats.rtt, stats.packetLoss, stats.receivedKbps, stats.sentKbps, net_.interpDelay() * 1000.0, net_.jitter() * 1000.0,
                         static_cast<int>(net_.lastSnapshotBytes()), static_cast<int>(prediction_.active()));
+    {
+        const bgfx::Stats* st = bgfx::getStats();
+        const double cpu = st->cpuTimerFreq ? static_cast<double>(st->cpuTimeEnd - st->cpuTimeBegin) * 1000.0 / static_cast<double>(st->cpuTimerFreq) : 0.0;
+        const double gpu = st->gpuTimerFreq ? static_cast<double>(st->gpuTimeEnd - st->gpuTimeBegin) * 1000.0 / static_cast<double>(st->gpuTimerFreq) : 0.0;
+        if (host_) {
+            const auto& t = host_->world().systemTimes();
+            double total = 0.0;
+            for (const double s : t.seconds)
+                total += s;
+            if (t.steps > simSteps_) {
+                const double ms = (total - simTotal_) / static_cast<double>(t.steps - simSteps_) * 1000.0;
+                simMs_ = simSteps_ == 0 ? ms : simMs_ * 0.9 + ms * 0.1;
+                simTotal_ = total;
+                simSteps_ = t.steps;
+            }
+        }
+        const double sim = simMs_;
+        text(1, 9, 0x08, "frame %.1f ms | render cpu %.1f gpu %.1f ms | draws %u | sim %.2f ms/tick | entities %d", frameMs_, cpu, gpu, st->numDraw,
+             sim, static_cast<int>(entities_.size()));
+    }
     text(1, 4, 0x08, "LMB select | RMB move/attack | A+LMB attack-move | S stop | Space focus | arrows/edges/wheel camera | F5 shadows F6 light | F10 leave");
     if (host_) {
         if (lobby_.state() == net::MasterClient::State::Hosting)

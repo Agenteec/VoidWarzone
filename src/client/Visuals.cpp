@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
+#include <tuple>
 #include <numbers>
 #include <random>
 
@@ -106,6 +108,8 @@ const Model* ModelLibrary::model(const std::string& name) {
         result->min = pie.min;
         result->max = pie.max;
         result->connectors = pie.connectors;
+        result->vertices = pie.vertices;
+        result->indices = pie.indices;
     } catch (const std::exception& e) {
         spdlog::warn("model {}: {}", name, e.what());
     }
@@ -234,6 +238,7 @@ float MapVisuals::heightAt(float x, float z) const {
 }
 
 MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& renderer, ModelLibrary& models) {
+    constexpr int kChunk = 32;
     MapVisuals out;
     const int w = map.width();
     const int h = map.height();
@@ -329,23 +334,42 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             vertices.push_back({p.x, y, p.y, n.x, n.y, n.z, weights});
         }
 
-    std::vector<std::uint32_t> indices;
-    indices.reserve(static_cast<std::size_t>(w * h * 6));
-    for (int j = 0; j < h; ++j)
-        for (int i = 0; i < w; ++i) {
-            const auto a = static_cast<std::uint32_t>(j * out.columns + i);
-            const auto b = a + 1;
-            const auto c = a + static_cast<std::uint32_t>(out.columns);
-            const auto d = c + 1;
-            if (((i + j) & 1) == 0) {
-                for (const auto v : {a, c, b, b, c, d})
-                    indices.push_back(v);
-            } else {
-                for (const auto v : {a, c, d, a, d, b})
-                    indices.push_back(v);
-            }
+    const int chunksX = (w + kChunk - 1) / kChunk;
+    const int chunksY = (h + kChunk - 1) / kChunk;
+    out.chunks.resize(static_cast<std::size_t>(chunksX * chunksY));
+    for (int cy = 0; cy < chunksY; ++cy)
+        for (int cx = 0; cx < chunksX; ++cx) {
+            const int x0 = cx * kChunk;
+            const int y0 = cy * kChunk;
+            const int x1 = std::min(w, x0 + kChunk);
+            const int y1 = std::min(h, y0 + kChunk);
+            const int cols = x1 - x0 + 1;
+            std::vector<TerrainVertex> local;
+            local.reserve(static_cast<std::size_t>(cols * (y1 - y0 + 1)));
+            for (int j = y0; j <= y1; ++j)
+                for (int i = x0; i <= x1; ++i)
+                    local.push_back(vertices[static_cast<std::size_t>(j * out.columns + i)]);
+            std::vector<std::uint32_t> indices;
+            indices.reserve(static_cast<std::size_t>((x1 - x0) * (y1 - y0) * 6));
+            for (int j = y0; j < y1; ++j)
+                for (int i = x0; i < x1; ++i) {
+                    const auto a = static_cast<std::uint32_t>((j - y0) * cols + (i - x0));
+                    const auto b = a + 1;
+                    const auto c = a + static_cast<std::uint32_t>(cols);
+                    const auto d = c + 1;
+                    if (((i + j) & 1) == 0) {
+                        for (const auto v : {a, c, b, b, c, d})
+                            indices.push_back(v);
+                    } else {
+                        for (const auto v : {a, c, d, a, d, b})
+                            indices.push_back(v);
+                    }
+                }
+            auto& chunk = out.chunks[static_cast<std::size_t>(cy * chunksX + cx)];
+            chunk.min = {static_cast<float>(x0), static_cast<float>(y0)};
+            chunk.max = {static_cast<float>(x1), static_cast<float>(y1)};
+            chunk.terrain = renderer.createTerrain(local, indices);
         }
-    out.terrain = renderer.createTerrain(vertices, indices);
     out.terrainTextures = {models.texture("page-82-yellow-sand-arizona.png"), models.texture("page-83-red-earth-arizona.png"),
                            models.texture("page-85-cliff-arizona.png"), models.texture("page-84-tiles-arizona.png")};
 
@@ -357,14 +381,39 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
     const Model* bushes[] = {models.model("arizonabush1"), models.model("arizonabush2")};
     const Model* boulders[] = {models.model("mibould1"), models.model("mibould2")};
     const Model* wreck = models.model("drwreck");
+    struct Geometry {
+        std::vector<TexVertex> vertices;
+        std::vector<std::uint32_t> indices;
+        TextureId texture;
+        TextureId mask;
+    };
+    std::map<std::tuple<std::size_t, TextureId, TextureId>, Geometry> merged;
     auto place = [&](const Model* model, glm::vec2 at, float size, bool byHeight) {
-        if (!model)
+        if (!model || model->vertices.empty())
             return;
         const float extent = byHeight ? std::max(model->max.y, 1.0f) : std::max({model->max.x - model->min.x, model->max.z - model->min.z, 1.0f});
-        Placement p;
-        p.model = model;
-        makeModelMatrix(p.mtx, {at.x, out.heightAt(at.x, at.y) - 0.1f, at.y}, unit(rng) * 6.283f, size / extent, {});
-        out.props.push_back(p);
+        float m[16];
+        makeModelMatrix(m, {at.x, out.heightAt(at.x, at.y) - 0.1f, at.y}, unit(rng) * 6.283f, size / extent, {});
+        const int cx = std::clamp(static_cast<int>(at.x) / kChunk, 0, chunksX - 1);
+        const int cy = std::clamp(static_cast<int>(at.y) / kChunk, 0, chunksY - 1);
+        auto& g = merged[{static_cast<std::size_t>(cy * chunksX + cx), model->texture, model->mask}];
+        g.texture = model->texture;
+        g.mask = model->mask;
+        const auto base = static_cast<std::uint32_t>(g.vertices.size());
+        for (const auto& v : model->vertices) {
+            TexVertex t = v;
+            t.x = v.x * m[0] + v.y * m[4] + v.z * m[8] + m[12];
+            t.y = v.x * m[1] + v.y * m[5] + v.z * m[9] + m[13];
+            t.z = v.x * m[2] + v.y * m[6] + v.z * m[10] + m[14];
+            const glm::vec3 n = glm::normalize(glm::vec3(v.nx * m[0] + v.ny * m[4] + v.nz * m[8], v.nx * m[1] + v.ny * m[5] + v.nz * m[9],
+                                                         v.nx * m[2] + v.ny * m[6] + v.nz * m[10]));
+            t.nx = n.x;
+            t.ny = n.y;
+            t.nz = n.z;
+            g.vertices.push_back(t);
+        }
+        for (const auto i : model->indices)
+            g.indices.push_back(base + i);
     };
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x) {
@@ -383,6 +432,8 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             else if (roll > 0.985f)
                 place(boulders[static_cast<std::size_t>(unit(rng) * 1.99f)], at, 0.9f + unit(rng) * 1.4f, false);
         }
+    for (const auto& [key, g] : merged)
+        out.chunks[std::get<0>(key)].props.push_back({renderer.createMesh(g.vertices, g.indices), g.texture, g.mask});
     return out;
 }
 

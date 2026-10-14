@@ -62,6 +62,7 @@
   "buildPresets": [
     { "name": "windows-vs-debug", "configurePreset": "windows-vs", "configuration": "Debug" },
     { "name": "windows-vs-release", "configurePreset": "windows-vs", "configuration": "Release" },
+    { "name": "windows-vs-dev", "configurePreset": "windows-vs", "configuration": "RelWithDebInfo" },
     { "name": "windows-ninja", "configurePreset": "windows-ninja" },
     { "name": "linux", "configurePreset": "linux" },
     { "name": "linux-server", "configurePreset": "linux-server" },

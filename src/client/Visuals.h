@@ -12,6 +12,7 @@
 
 #include "core/GameData.h"
 #include "core/Map.h"
+#include "render/Pie.h"
 #include "render/Renderer.h"
 
 namespace vw::client {
@@ -23,6 +24,8 @@ struct Model {
     glm::vec3 min{0.0f};
     glm::vec3 max{0.0f};
     std::vector<glm::vec3> connectors;
+    std::vector<TexVertex> vertices;
+    std::vector<std::uint32_t> indices;
 };
 
 struct ModelPart {
@@ -45,11 +48,6 @@ struct UnitVisual {
 
 inline constexpr float kModelYaw = 1.5707963f;
 
-struct Placement {
-    const Model* model = nullptr;
-    float mtx[16];
-};
-
 class ModelLibrary {
 public:
     using Loader = std::function<std::string(const std::string&)>;
@@ -68,14 +66,26 @@ private:
 
 std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const GameData& data, ModelLibrary& models);
 
-struct MapVisuals {
+struct StaticBatch {
+    MeshId mesh = 0;
+    TextureId texture = 0;
+    TextureId mask = 0;
+};
+
+struct MapChunk {
+    glm::vec2 min{0.0f};
+    glm::vec2 max{0.0f};
     MeshId terrain = 0;
+    std::vector<StaticBatch> props;
+};
+
+struct MapVisuals {
+    std::vector<MapChunk> chunks;
     std::array<TextureId, 4> terrainTextures{};
     int columns = 0;
     int rows = 0;
     std::vector<float> heights;
     const Model* derrick = nullptr;
-    std::vector<Placement> props;
 
     float heightAt(float x, float z) const;
 };

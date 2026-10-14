@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <sstream>
@@ -190,4 +191,17 @@ TEST_CASE("units separate") {
 TEST_CASE("net library init") {
     vw::net::NetLibrary net;
     CHECK(net.ok());
+}
+
+TEST_CASE("bench pathing" * doctest::skip()) {
+    const auto map = vw::Map::parse(readData("maps/void_siege.json"));
+    auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < 20; ++i)
+        vw::FlowField field(map, {12.0f + static_cast<float>(i), 88.0f});
+    auto t1 = std::chrono::steady_clock::now();
+    for (int i = 0; i < 20; ++i)
+        CHECK_FALSE(vw::findPath(map, {30.0f, 88.0f}, {300.0f, 31.0f + static_cast<float>(i)}).empty());
+    auto t2 = std::chrono::steady_clock::now();
+    MESSAGE("field ms " << std::chrono::duration<double, std::milli>(t1 - t0).count() / 20 << " path ms "
+                        << std::chrono::duration<double, std::milli>(t2 - t1).count() / 20);
 }

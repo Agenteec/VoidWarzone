@@ -126,6 +126,7 @@ private:
 
     void render();
     void renderWorld();
+    glm::vec4 visibleRect(float margin) const;
     void renderHud();
     void renderMenu();
 
@@ -172,6 +173,10 @@ private:
     bool cameraPlaced_ = false;
     double now_ = 0.0;
     float fps_ = 0.0f;
+    float frameMs_ = 0.0f;
+    double simMs_ = 0.0;
+    double simTotal_ = 0.0;
+    std::uint64_t simSteps_ = 0;
     float pixelDensity_ = 1.0f;
     glm::vec2 mouse_{};
     glm::vec2 dragStart_{};

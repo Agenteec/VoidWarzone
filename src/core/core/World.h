@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -58,6 +59,20 @@ struct DefenseStatus {
     entt::entity boss = entt::null;
 };
 
+struct SystemTimes {
+    static constexpr std::size_t kCount = 13;
+    static const char* name(std::size_t i);
+    std::array<double, kCount> seconds{};
+    double peak = 0.0;
+    std::uint64_t steps = 0;
+    std::uint64_t paths = 0;
+    std::uint64_t fields = 0;
+    std::uint64_t navRebuilds = 0;
+    double worstPath = 0.0;
+    double worstField = 0.0;
+    std::size_t worstWork = 0;
+};
+
 const char* difficultyName(Difficulty d);
 bool parseDifficulty(std::string_view text, Difficulty& out);
 
@@ -92,6 +107,9 @@ public:
     void grantXp(entt::entity e, float amount);
     const std::vector<ResourcePointState>& resourcePoints() const { return points_; }
     const DefenseStatus& defense() const { return defense_; }
+    const SystemTimes& systemTimes() const { return times_; }
+    const Map& navMap() const { return nav_ ? *nav_ : *map_; }
+    void resetSystemTimes() { times_ = {}; }
 
 private:
     void rebuildSpatial();
@@ -126,6 +144,13 @@ private:
     float enemyCountScale() const;
 
     entt::entity findEnemy(glm::vec2 pos, std::uint8_t team, float radius) const;
+    glm::vec2 avoid(entt::entity e, glm::vec2 pos, glm::vec2 vel, float radius, std::uint8_t team) const;
+    void rebuildNav();
+    template <class F>
+    void queryAll(glm::vec2 pos, float radius, F&& f) const {
+        spatial_.query(pos, radius + maxUnitRadius_, f);
+        structures_.query(pos, radius + maxStructureRadius_, f);
+    }
     glm::vec2 navigate(entt::entity e, glm::vec2 pos, glm::vec2 goal, float speed);
     glm::vec2 laneVelocity(LaneFollower& lane, glm::vec2 pos, float speed);
     glm::vec2 lanePoint(const LaneFollower& lane, int i) const;
@@ -137,7 +162,12 @@ private:
     entt::registry registry_;
     std::uint64_t tick_ = 0;
     SpatialHash spatial_;
-    float maxRadius_ = 1.0f;
+    SpatialHash structures_;
+    float maxUnitRadius_ = 0.5f;
+    float maxStructureRadius_ = 0.5f;
+    std::unique_ptr<Map> nav_;
+    bool navDirty_ = true;
+    int pathBudget_ = 0;
     std::vector<SimEvent> events_;
     std::size_t stepEvents_ = 0;
     std::unordered_map<int, FlowField> flowFields_;
@@ -149,6 +179,7 @@ private:
     entt::entity core_ = entt::null;
     entt::entity portal_ = entt::null;
     int recruitCount_ = 0;
+    SystemTimes times_;
 
     struct PendingRespawn {
         std::uint8_t player;
