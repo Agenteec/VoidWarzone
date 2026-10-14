@@ -219,14 +219,14 @@ std::vector<glm::vec2> findPath(const Map& map, glm::vec2 from, glm::vec2 to) {
     return path;
 }
 
-FlowField::FlowField(const Map& map, glm::vec2 goal) : map_(&map), goal_(goal), goalCell_(nearestFree(map, Map::cellOf(goal))) {
+FlowField::FlowField(const Map& map, glm::vec2 goal, const Map* soft, int softCost) : map_(&map), goal_(goal), goalCell_(nearestFree(map, Map::cellOf(goal))) {
     cost_.assign(static_cast<std::size_t>(map.width() * map.height()), kInf);
     if (map.blocked(goalCell_))
         return;
 
-    constexpr int kBuckets = 15;
+    const int kBuckets = 15 + softCost;
     std::vector<int> dist(cost_.size(), std::numeric_limits<int>::max());
-    std::array<std::vector<int>, kBuckets> buckets;
+    std::vector<std::vector<int>> buckets(static_cast<std::size_t>(kBuckets));
     dist[static_cast<std::size_t>(map.index(goalCell_))] = 0;
     buckets[0].push_back(map.index(goalCell_));
     std::size_t pending = 1;
@@ -243,7 +243,7 @@ FlowField::FlowField(const Map& map, glm::vec2 goal) : map_(&map), goal_(goal), 
                 if (!canStep(map, c, s.d))
                     continue;
                 const int ni = map.index(c + s.d);
-                const int nd = current + (s.d.x != 0 && s.d.y != 0 ? 14 : 10);
+                const int nd = current + (s.d.x != 0 && s.d.y != 0 ? 14 : 10) + (soft && soft->blocked(c + s.d) ? softCost : 0);
                 if (nd < dist[static_cast<std::size_t>(ni)]) {
                     dist[static_cast<std::size_t>(ni)] = nd;
                     buckets[static_cast<std::size_t>(nd % kBuckets)].push_back(ni);

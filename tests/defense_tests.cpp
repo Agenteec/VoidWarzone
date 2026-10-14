@@ -120,3 +120,70 @@ TEST_CASE("losing the core ends the match") {
     run(world, 0.2f);
     CHECK(world.defense().state == MatchState::Defeat);
 }
+
+namespace {
+
+constexpr const char* kArenaUnits = R"({"units":[
+    {"id":"core","structure":true,"maxHp":1000,"radius":1},
+    {"id":"grunt","bounty":10,"maxHp":100,"radius":0.5,"speed":3,"sight":6,"weapon":{"damage":10,"range":0.5,"cooldown":1}},
+    {"id":"soldier","cost":50,"maxHp":200,"radius":0.5,"speed":4,"sight":8,"weapon":{"damage":30,"range":4,"cooldown":0.5}},
+    {"id":"wall","structure":true,"buildable":true,"cost":10,"maxHp":60,"radius":0.5},
+    {"id":"factory","structure":true,"buildable":true,"cost":40,"maxHp":500,"radius":1,"produce":{"unit":"soldier","interval":1,"max":2}}
+]})";
+
+constexpr const char* kArenaMap = R"({"width":30,"height":30,
+    "walls":[[0,14,13,2],[17,14,13,2]],
+    "lanes":[{"name":"gate","points":[[15,25],[15,3]]}],
+    "units":[{"unit":"core","role":"core","team":0,"pos":[15,25]}],
+    "playerStart":{"pos":[20,25],"units":[]},
+    "defense":{"firstWaveDelay":100,"waveInterval":100,"baseIncome":0,"startEnergy":100,
+      "waves":[{"groups":[{"unit":"grunt","count":1,"lanes":"all"}]}]}
+})";
+
+}
+
+TEST_CASE("arena building") {
+    const auto data = GameData::parse(kArenaUnits);
+    const auto map = Map::parse(kArenaMap);
+    CHECK(data.buildable().size() == 2);
+    CHECK(data.recruitable().size() == 1);
+
+    World defense(data, map);
+    defense.spawnPlayer(0);
+    defense.apply(BuildCommand{0, data.find("wall"), {5.2f, 5.7f}});
+    CHECK(countDef(defense, data, "wall") == 0);
+
+    World world(data, map, Difficulty::Normal, GameMode::Arena);
+    world.spawnPlayer(0);
+    world.apply(BuildCommand{0, data.find("wall"), {5.2f, 5.7f}});
+    CHECK(countDef(world, data, "wall") == 1);
+    CHECK(world.player(0).energy == doctest::Approx(90.0f));
+    world.apply(BuildCommand{0, data.find("wall"), {5.9f, 5.1f}});
+    world.apply(BuildCommand{0, data.find("wall"), {3.5f, 14.5f}});
+    world.apply(BuildCommand{0, data.find("soldier"), {8.5f, 8.5f}});
+    CHECK(countDef(world, data, "wall") == 1);
+    CHECK(countDef(world, data, "soldier") == 0);
+    CHECK(world.player(0).energy == doctest::Approx(90.0f));
+
+    world.apply(BuildCommand{0, data.find("factory"), {8.5f, 20.5f}});
+    CHECK(countDef(world, data, "factory") == 1);
+    run(world, 4.0f);
+    CHECK(countDef(world, data, "soldier") == 2);
+    for (auto [e, owner, unit] : world.registry().view<const Owner, const Unit>().each())
+        if (unit.def == data.find("soldier"))
+            CHECK(owner.player == 0);
+}
+
+TEST_CASE("arena creeps break through a walled gate") {
+    const auto data = GameData::parse(kArenaUnits);
+    const auto map = Map::parse(kArenaMap);
+    World world(data, map, Difficulty::Normal, GameMode::Arena);
+    world.spawnPlayer(0);
+    world.devBoost(0);
+    for (int x = 13; x < 17; ++x)
+        world.apply(BuildCommand{0, data.find("wall"), {static_cast<float>(x) + 0.5f, 14.5f}});
+    CHECK(countDef(world, data, "wall") == 4);
+    world.spawnOnLane(data.find("grunt"), 1, 0, 1, 0.0f);
+    run(world, 20.0f);
+    CHECK(countDef(world, data, "wall") < 4);
+}

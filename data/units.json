@@ -587,6 +587,116 @@
           "pie": "blresch0_nex"
         }
       }
+    },
+    {
+      "id": "wall",
+      "name": "Wall",
+      "structure": true,
+      "buildable": true,
+      "cost": 15,
+      "maxHp": 1600,
+      "armor": 10,
+      "radius": 0.5,
+      "visual": {
+        "shape": "cube",
+        "height": 1.4,
+        "model": {
+          "pie": "blwallh",
+          "fit": 1.0
+        }
+      }
+    },
+    {
+      "id": "gun_tower",
+      "name": "MG Tower",
+      "structure": true,
+      "buildable": true,
+      "cost": 90,
+      "maxHp": 1300,
+      "armor": 4,
+      "radius": 0.9,
+      "weapon": {
+        "damage": 13,
+        "range": 8,
+        "cooldown": 0.45,
+        "projectileSpeed": 30
+      },
+      "visual": {
+        "shape": "cylinder",
+        "height": 3.0,
+        "model": {
+          "pie": "blguardr",
+          "fit": 1.3,
+          "weapon": "gnlmg2",
+          "mount": "trlmg2"
+        }
+      }
+    },
+    {
+      "id": "cannon_hardpoint",
+      "name": "Hardpoint",
+      "structure": true,
+      "buildable": true,
+      "cost": 220,
+      "maxHp": 2600,
+      "armor": 8,
+      "radius": 1.0,
+      "weapon": {
+        "damage": 60,
+        "range": 10,
+        "cooldown": 1.6,
+        "projectileSpeed": 24
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 3.0,
+        "model": {
+          "pie": "blhardpt",
+          "fit": 1.2,
+          "weapon": "gnhcan",
+          "mount": "trhcan"
+        }
+      }
+    },
+    {
+      "id": "auto_factory",
+      "name": "Factory",
+      "structure": true,
+      "buildable": true,
+      "cost": 300,
+      "maxHp": 4000,
+      "armor": 6,
+      "radius": 2.0,
+      "produce": {
+        "unit": "scout",
+        "interval": 18,
+        "max": 3
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 3.5,
+        "model": {
+          "pie": "blfact1"
+        }
+      }
+    },
+    {
+      "id": "power_plant",
+      "name": "Generator",
+      "structure": true,
+      "buildable": true,
+      "cost": 200,
+      "maxHp": 2400,
+      "armor": 6,
+      "radius": 1.6,
+      "income": 1.5,
+      "visual": {
+        "shape": "cube",
+        "height": 3.5,
+        "model": {
+          "pie": "blpower0"
+        }
+      }
     }
   ]
 }

@@ -113,6 +113,7 @@ private:
     std::vector<entt::entity> selectedEntities() const;
     bool isOwn(const net::InterpolatedEntity& e) const { return e.owner == net_.player(); }
     glm::vec4 unitColor(const net::InterpolatedEntity& e) const;
+    glm::vec4 playerColor(std::uint8_t owner) const;
 
     glm::vec3 muzzleOf(const net::InterpolatedEntity& e) const;
     glm::vec3 projectilePos(const net::InterpolatedEntity& e);
@@ -147,6 +148,15 @@ private:
     void drawMinimap(float size);
     void drawSelection();
     void drawCommandCard();
+    void drawGroupBar();
+    void drawBuildBar();
+    void renderBuildGhost();
+    bool arenaMode() const;
+    int buildKeyIndex(SDL_Keycode key) const;
+    void armBuild(std::size_t index);
+    bool buildValid(UnitDefId def, glm::vec2 pos) const;
+    void placeBuild(glm::vec2 screen, bool keep);
+    void controlGroup(int n, bool assign, bool add);
     void drawChat();
     void drawTopBar();
     void drawBossBar();
@@ -239,6 +249,11 @@ private:
     glm::vec2 gestureCenter_{};
     float gestureSpread_ = 0.0f;
     int armedSkill_ = -1;
+    int buildArmed_ = -1;
+    std::array<std::vector<std::uint32_t>, 10> groups_;
+    int lastGroup_ = -1;
+    double lastGroupTime_ = 0.0;
+    bool groupHeld_ = false;
     bool paused_ = false;
     int shadowQuality_ = 2;
     int lightPreset_ = 0;
@@ -251,6 +266,8 @@ private:
     float uiScaleUser_ = 1.0f;
     int renderScale_ = 45;
     int layout_ = 0;
+    int preferredColor_ = -1;
+    bool setupSent_ = false;
     int settingsTab_ = 0;
     bool autoStart_ = false;
     TextureId minimap_ = 0;

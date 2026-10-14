@@ -15,7 +15,7 @@ std::size_t lastPathWork();
 
 class FlowField {
 public:
-    FlowField(const Map& map, glm::vec2 goal);
+    FlowField(const Map& map, glm::vec2 goal, const Map* soft = nullptr, int softCost = 0);
 
     glm::vec2 direction(glm::vec2 pos) const;
     float cost(glm::ivec2 cell) const;

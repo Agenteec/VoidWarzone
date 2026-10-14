@@ -52,6 +52,8 @@ private:
         std::uint8_t player = 0;
         std::string name;
         bool ready = false;
+        std::uint8_t color = 0;
+        std::uint8_t team = 0;
         std::uint32_t commandSeq = 0;
         std::uint32_t ackedTick = 0;
         std::array<std::pair<std::uint16_t, std::uint32_t>, 256> sentTicks{};
@@ -69,6 +71,7 @@ private:
     void sendAccept(const Client& client);
     void sendDeny(const net::Address& to, std::uint64_t salt, std::uint8_t reason);
     void broadcastLobby();
+    void handlePlayerSetup(Client& client, net::Reader& r);
     void broadcastChat(const Client& from, const std::string& text);
     void drop(std::size_t index, bool notify);
     void startMatch();

@@ -11,6 +11,7 @@ set(VW_CLIENT_SOURCES
     ui/ImGuiLayer.cpp
     Ui.cpp
     UiDesktop.cpp
+    UiGroups.cpp
     UiMenu.cpp
 )
 

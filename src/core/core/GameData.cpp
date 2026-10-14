@@ -122,6 +122,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         }
 
     const json unitsJson = json::parse(unitsText);
+    std::unordered_map<std::size_t, std::string> produceNames;
     for (const auto& u : unitsJson.at("units")) {
         UnitDef def;
         def.id = u.at("id").get<std::string>();
@@ -136,6 +137,12 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         def.sight = u.value("sight", def.sight);
         def.structure = u.value("structure", def.structure);
         def.income = u.value("income", def.income);
+        def.buildable = u.value("buildable", def.buildable);
+        if (const auto pr = u.find("produce"); pr != u.end()) {
+            produceNames.emplace(d.units_.size(), pr->at("unit").get<std::string>());
+            def.produceInterval = pr->value("interval", def.produceInterval);
+            def.produceMax = pr->value("max", def.produceMax);
+        }
         if (const auto w = u.find("weapon"); w != u.end()) {
             WeaponDef wd;
             wd.damage = w->value("damage", wd.damage);
@@ -194,9 +201,17 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         d.units_.push_back(std::move(def));
     }
 
+    for (const auto& [i, name] : produceNames) {
+        d.units_[i].produces = d.find(name);
+        if (d.units_[i].produces == kInvalidUnitDef)
+            throw std::runtime_error("unknown produced unit: " + name);
+    }
+
     for (std::size_t i = 0; i < d.units_.size(); ++i) {
         auto& def = d.units_[i];
-        if (def.cost > 0.0f)
+        if (def.buildable)
+            d.buildable_.push_back(static_cast<UnitDefId>(i));
+        else if (def.cost > 0.0f && !def.structure)
             d.recruitable_.push_back(static_cast<UnitDefId>(i));
         if (!def.boss)
             continue;

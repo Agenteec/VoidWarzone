@@ -3,6 +3,7 @@
 #include "core/Movement.h"
 
 #include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -137,6 +138,8 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     if (def.structure) {
         registry_.emplace<Structure>(e);
         navDirty_ = true;
+        if (def.produces != kInvalidUnitDef)
+            registry_.emplace<Producer>(e, Producer{def.produces, def.produceInterval, def.produceInterval, def.produceMax, {}});
     } else {
         registry_.emplace<Order>(e);
         registry_.emplace<Progress>(e, Progress{pos});
@@ -275,7 +278,10 @@ void World::step() {
         last = now;
     };
     run([&] { rebuildSpatial(); });
-    run([&] { updateSpawners(); });
+    run([&] {
+        updateSpawners();
+        updateProducers();
+    });
     run([&] { updateHeroes(); });
     run([&] { updateUnits(); });
     run([&] { updateBosses(); });
@@ -319,6 +325,8 @@ void World::rebuildNav() {
                 if (nav_->inside(x, y) && (glm::ivec2(x, y) == c || glm::distance(Map::center({x, y}), pos.value) < r))
                     nav_->setBlocked(x, y, true);
     }
+    if (mode_ == GameMode::Arena)
+        flowFields_.clear();
     for (auto [e, nav] : registry_.view<Navigator>().each()) {
         nav.repath = 0;
         nav.path.clear();
@@ -458,12 +466,13 @@ glm::vec2 World::lanePoint(const LaneFollower& lane, int i) const {
 }
 
 const FlowField& World::flowField(glm::vec2 goal) {
-    const Map& nav = navMap();
+    const bool soft = mode_ == GameMode::Arena;
+    const Map& nav = soft ? *map_ : navMap();
     const int key = nav.index(nearestFree(nav, Map::cellOf(goal)));
     auto it = flowFields_.find(key);
     if (it == flowFields_.end()) {
         const auto t0 = std::chrono::steady_clock::now();
-        it = flowFields_.emplace(key, FlowField(nav, goal)).first;
+        it = flowFields_.emplace(key, soft ? FlowField(nav, goal, &navMap(), 300) : FlowField(nav, goal)).first;
         times_.worstField = std::max(times_.worstField, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
         ++times_.fields;
     }

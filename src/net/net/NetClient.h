@@ -54,6 +54,7 @@ public:
     void update(double now);
     std::uint32_t sendCommand(const Command& command);
     void sendReady(bool ready);
+    void sendPlayerSetup(std::uint8_t color, std::uint8_t team);
     void sendSettings(const std::string& map, std::uint8_t mode, std::uint8_t difficulty, std::uint8_t maxPlayers);
     void sendStart();
     void sendReturnToLobby();

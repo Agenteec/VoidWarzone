@@ -89,6 +89,8 @@ void App::drawDesktopHud() {
     hudBottom_ = panelH + pad;
     drawMinimap(panelH - 16.0f * s);
     drawCommandCard();
+    drawGroupBar();
+    drawBuildBar();
     drawSelection();
     drawSidePanel();
     drawChat();
@@ -189,10 +191,10 @@ void App::drawMinimap(float size) {
             continue;
         const bool structure = data_->unit(e.def).structure;
         ImU32 c = e.team == 1 ? kVoid : IM_COL32(70, 160, 255, 255);
-        if (isOwn(e))
-            c = kGood;
-        else if (e.owner != net::kNoOwner)
-            c = IM_COL32(240, 210, 70, 255);
+        if (e.owner != net::kNoOwner) {
+            const glm::vec4 pc = playerColor(e.owner);
+            c = IM_COL32(static_cast<int>(pc.r * 255.0f), static_cast<int>(pc.g * 255.0f), static_cast<int>(pc.b * 255.0f), 255);
+        }
         const ImVec2 p = toMini(e.pos);
         const float r = structure ? unitR * 1.8f : unitR;
         dl->AddRectFilled({p.x - r, p.y - r}, {p.x + r, p.y + r}, c);
@@ -408,7 +410,7 @@ void App::drawCommandCard() {
     }
 
     const auto& recruitable = data_->recruitable();
-    static constexpr const char* kDigits[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9"};
+    static constexpr const char* kDigits[] = {"Z", "X"};
     for (std::size_t i = 0; i < 2; ++i) {
         if (i > 0)
             ImGui::SameLine();
@@ -422,7 +424,7 @@ void App::drawCommandCard() {
         if (cardButton(kDigits[i], def.name.substr(0, 6).c_str(), cost, kDigits[i], energy >= def.cost, false, size))
             net_.sendCommand(RecruitCommand{0, recruitable[i]});
         if (ImGui::BeginItemTooltip()) {
-            ImGui::Text("Recruit %s  [%d]", def.name.c_str(), static_cast<int>(i) + 1);
+            ImGui::Text("Recruit %s  [%s]", def.name.c_str(), kDigits[i]);
             ImGui::TextDisabled("HP %.0f  armor %.0f  speed %.1f", def.maxHp, def.armor, def.speed);
             if (def.weapon)
                 ImGui::TextDisabled("damage %.0f  range %.1f  every %.1fs", def.weapon->damage, def.weapon->range, def.weapon->cooldown);

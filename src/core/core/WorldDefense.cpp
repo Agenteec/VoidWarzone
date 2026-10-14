@@ -56,11 +56,11 @@ bool parseDifficulty(std::string_view text, Difficulty& out) {
 }
 
 const char* gameModeName(GameMode m) {
-    return m == GameMode::Endless ? "endless" : "defense";
+    return m == GameMode::Endless ? "endless" : m == GameMode::Arena ? "arena" : "defense";
 }
 
 bool parseGameMode(std::string_view text, GameMode& out) {
-    for (const auto m : {GameMode::Defense, GameMode::Endless})
+    for (const auto m : {GameMode::Defense, GameMode::Endless, GameMode::Arena})
         if (text == gameModeName(m)) {
             out = m;
             return true;
@@ -111,6 +111,66 @@ void World::handle(const RecruitCommand& cmd) {
     const glm::vec2 offset{static_cast<float>(slot % 3 - 1) * 1.5f, static_cast<float>(slot / 3 - 1) * 1.5f};
     const glm::vec2 pos = Map::center(nearestFree(*map_, Map::cellOf(playerBase(cmd.player) + offset)));
     spawn(cmd.unit, 0, pos, cmd.player);
+}
+
+bool World::canBuild(UnitDefId id, glm::vec2 pos) const {
+    if (!map_ || id >= data_->units().size())
+        return false;
+    const auto& def = data_->unit(id);
+    if (!def.buildable)
+        return false;
+    const Map& nav = navMap();
+    const float r = std::max(def.radius - 0.25f, 0.5f);
+    const glm::ivec2 c = Map::cellOf(pos);
+    const int span = static_cast<int>(std::ceil(r)) + 1;
+    for (int y = c.y - span; y <= c.y + span; ++y)
+        for (int x = c.x - span; x <= c.x + span; ++x)
+            if ((glm::ivec2(x, y) == c || glm::distance(Map::center({x, y}), pos) < r) && nav.blocked(x, y))
+                return false;
+    for (auto [e, p, unit] : registry_.view<const Position, const Unit>().each())
+        if (glm::distance(p.value, pos) < def.radius + unit.radius - 0.1f && alive(e))
+            return false;
+    return true;
+}
+
+void World::handle(const BuildCommand& cmd) {
+    if (!buildingAllowed() || cmd.player >= kMaxPlayers || cmd.unit >= data_->units().size() || defense_.state != MatchState::Playing)
+        return;
+    auto& player = players_[cmd.player];
+    const auto& def = data_->unit(cmd.unit);
+    const glm::vec2 pos = snapBuild(cmd.pos);
+    if (!player.active || player.energy < def.cost || !canBuild(cmd.unit, pos))
+        return;
+    player.energy -= def.cost;
+    spawn(cmd.unit, 0, pos, cmd.player);
+}
+
+void World::updateProducers() {
+    struct Pending {
+        entt::entity producer;
+        UnitDefId unit;
+        glm::vec2 pos;
+        int owner;
+    };
+    std::vector<Pending> pending;
+    for (auto [e, producer, pos, unit] : registry_.view<Producer, const Position, const Unit>().each()) {
+        if (!alive(e))
+            continue;
+        std::erase_if(producer.spawned, [&](entt::entity s) { return !alive(s); });
+        producer.timer -= kTickDt;
+        if (producer.timer > 0.0f || static_cast<int>(producer.spawned.size()) >= producer.max)
+            continue;
+        producer.timer = producer.interval;
+        const auto* owner = registry_.try_get<Owner>(e);
+        const float angle = static_cast<float>(producer.spawned.size()) * 1.3f;
+        const glm::vec2 at = pos.value + glm::vec2(std::cos(angle), std::sin(angle)) * (unit.radius + 1.2f);
+        pending.push_back({e, producer.unit, at, owner ? static_cast<int>(owner->player) : -1});
+    }
+    for (const auto& p : pending) {
+        const glm::vec2 at = map_ ? Map::center(nearestFree(navMap(), Map::cellOf(p.pos))) : p.pos;
+        const auto spawned = spawn(p.unit, 0, at, p.owner);
+        registry_.get<Producer>(p.producer).spawned.push_back(spawned);
+    }
 }
 
 void World::updateBosses() {

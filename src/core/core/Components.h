@@ -60,6 +60,14 @@ struct Turret {
 
 struct Structure {};
 
+struct Producer {
+    UnitDefId unit = kInvalidUnitDef;
+    float interval = 20.0f;
+    float timer = 0.0f;
+    int max = 4;
+    std::vector<entt::entity> spawned;
+};
+
 struct Invulnerable {};
 
 struct Target {

@@ -75,6 +75,10 @@ struct UnitDef {
     float sight = 8.0f;
     float income = 0.0f;
     bool structure = false;
+    bool buildable = false;
+    UnitDefId produces = kInvalidUnitDef;
+    float produceInterval = 20.0f;
+    int produceMax = 4;
     std::optional<WeaponDef> weapon;
     std::optional<BossDef> boss;
     std::vector<SkillId> skills;
@@ -125,6 +129,7 @@ public:
     UnitDefId find(std::string_view id) const;
     const std::vector<UnitDef>& units() const { return units_; }
     const std::vector<UnitDefId>& recruitable() const { return recruitable_; }
+    const std::vector<UnitDefId>& buildable() const { return buildable_; }
 
     const SkillDef& skill(SkillId id) const { return skills_[id]; }
     const std::vector<SkillDef>& skills() const { return skills_; }
@@ -142,6 +147,7 @@ private:
     std::vector<UnitDef> units_;
     std::unordered_map<std::string, UnitDefId> index_;
     std::vector<UnitDefId> recruitable_;
+    std::vector<UnitDefId> buildable_;
     std::vector<SkillDef> skills_;
     std::vector<ItemDef> items_;
     std::vector<ItemId> shop_;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -14,7 +15,13 @@ struct LobbyPlayer {
     std::uint8_t id = 0;
     std::string name;
     bool ready = false;
+    std::uint8_t color = 0;
+    std::uint8_t team = 0;
 };
+
+inline constexpr std::array<std::uint32_t, 8> kPlayerColors{0x4ce06a, 0x3f8cff, 0xf2d53c, 0xff8a2a,
+                                                            0xc85cff, 0x30e0e0, 0xff5ca8, 0xf0f0f0};
+inline constexpr std::uint8_t kLobbyTeams = 4;
 
 struct LobbyInfo {
     LobbyPhase phase = LobbyPhase::Lobby;

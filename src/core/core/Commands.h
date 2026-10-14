@@ -64,8 +64,14 @@ struct UnequipCommand {
     std::uint8_t slot = 0;
 };
 
+struct BuildCommand {
+    std::uint8_t player = 0;
+    std::uint16_t unit = 0;
+    glm::vec2 pos{};
+};
+
 using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand, PromoteCommand, CastCommand, LearnCommand, BuyCommand,
-                             EquipCommand, UnequipCommand>;
+                             EquipCommand, UnequipCommand, BuildCommand>;
 
 template <class T>
 concept UnitCommand = requires(T t) { t.units; };

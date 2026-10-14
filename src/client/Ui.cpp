@@ -72,7 +72,17 @@ void App::drawHud() {
         fg->AddText(ui_.bold(), size, p, IM_COL32(255, 214, 90, static_cast<int>(255 * alpha)), banner_.c_str());
     }
 
-    if (attackMoveArmed_ || armedSkill_ >= 0) {
+    if (buildArmed_ >= 0) {
+        ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.7f}, ImGuiCond_Always, {0.5f, 0.5f});
+        ImGui::SetNextWindowBgAlpha(0.8f);
+        ImGui::Begin("##armedBuild", nullptr, kHudFlags);
+        ImGui::TextColored(toVec(kEnergy), ICON_FA_WRENCH "  Place %s", data_->unit(static_cast<UnitDefId>(buildArmed_)).name.c_str());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Cancel"))
+            buildArmed_ = -1;
+        trackWindow();
+        ImGui::End();
+    } else if (attackMoveArmed_ || armedSkill_ >= 0) {
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.7f}, ImGuiCond_Always, {0.5f, 0.5f});
         ImGui::SetNextWindowBgAlpha(0.8f);
         ImGui::Begin("##armed", nullptr, kHudFlags);
@@ -97,6 +107,8 @@ void App::drawTouchHud() {
     drawUnitPanel();
     drawCommandBar();
     drawSidePanel();
+    drawGroupBar();
+    drawBuildBar();
     drawChat();
 }
 

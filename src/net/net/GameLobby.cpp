@@ -16,6 +16,8 @@ void writeLobby(Writer& w, const LobbyInfo& info) {
         w.u8(p.id);
         w.str(p.name);
         w.u8(p.ready ? 1 : 0);
+        w.u8(p.color);
+        w.u8(p.team);
     }
 }
 
@@ -33,6 +35,8 @@ bool readLobby(Reader& r, LobbyInfo& info) {
         p.id = r.u8();
         p.name = r.str(32);
         p.ready = r.u8() != 0;
+        p.color = static_cast<std::uint8_t>(r.u8() % kPlayerColors.size());
+        p.team = static_cast<std::uint8_t>(r.u8() % kLobbyTeams);
     }
     return r.ok();
 }

@@ -13,14 +13,18 @@ void Camera::update(int width, int height, bool homogeneousDepth) {
     height_ = std::max(height, 1);
 
     const float pitch = bx::toRad(pitchDeg);
-    eye_ = {target.x, distance * std::sin(pitch), target.y - distance * std::cos(pitch)};
+    eye_ = {target.x, distance * std::sin(pitch), target.y + distance * std::cos(pitch)};
     const glm::vec3 at{target.x, 0.0f, target.y};
 
     forward_ = glm::normalize(at - eye_);
-    right_ = glm::normalize(glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), forward_));
-    up_ = glm::cross(forward_, right_);
+    const glm::vec3 side = glm::normalize(glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), forward_));
+    up_ = glm::cross(forward_, side);
+    right_ = -side;
 
+    // map y grows down the screen: mirror view-space x so +x stays on the right
     bx::mtxLookAt(view_, {eye_.x, eye_.y, eye_.z}, {at.x, at.y, at.z});
+    for (const int i : {0, 4, 8, 12})
+        view_[i] = -view_[i];
     bx::mtxProj(proj_, fovDeg, static_cast<float>(width_) / static_cast<float>(height_), 0.5f, 500.0f, homogeneousDepth);
     bx::mtxMul(viewProj_, view_, proj_);
 }

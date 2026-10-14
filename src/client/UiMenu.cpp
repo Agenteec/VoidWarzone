@@ -439,7 +439,50 @@ void App::drawLobby() {
         if (slot < static_cast<int>(info.players.size())) {
             const auto& p = info.players[static_cast<std::size_t>(slot)];
             const bool me = p.id == net_.player();
+            if (me && !setupSent_) {
+                setupSent_ = true;
+                if (preferredColor_ >= 0 && preferredColor_ != p.color)
+                    net_.sendPlayerSetup(static_cast<std::uint8_t>(preferredColor_), p.team);
+            }
             ImGui::TextColored(toVec(p.id == info.leader ? kEnergy : kDim), p.id == info.leader ? ICON_FA_STAR : ICON_FA_USERS);
+            ImGui::SameLine();
+            const std::uint32_t rgb = net::kPlayerColors[p.color];
+            const ImVec4 col{static_cast<float>((rgb >> 16) & 0xff) / 255.0f, static_cast<float>((rgb >> 8) & 0xff) / 255.0f,
+                             static_cast<float>(rgb & 0xff) / 255.0f, 1.0f};
+            const float sw = ImGui::GetFrameHeight() * 0.8f;
+            if (ImGui::ColorButton("##color", col, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoBorder, {sw, sw}) && me)
+                ImGui::OpenPopup("palette");
+            if (ImGui::BeginPopup("palette")) {
+                for (std::size_t i = 0; i < net::kPlayerColors.size(); ++i) {
+                    const std::uint32_t c = net::kPlayerColors[i];
+                    const bool taken = std::any_of(info.players.begin(), info.players.end(),
+                                                   [&](const auto& o) { return o.id != p.id && o.color == i; });
+                    if (i > 0)
+                        ImGui::SameLine();
+                    ImGui::PushID(static_cast<int>(i));
+                    ImGui::BeginDisabled(taken);
+                    if (ImGui::ColorButton("##c", {static_cast<float>((c >> 16) & 0xff) / 255.0f, static_cast<float>((c >> 8) & 0xff) / 255.0f,
+                                                   static_cast<float>(c & 0xff) / 255.0f, taken ? 0.25f : 1.0f},
+                                           ImGuiColorEditFlags_NoTooltip, {sw * 1.4f, sw * 1.4f})) {
+                        preferredColor_ = static_cast<int>(i);
+                        saveSettings();
+                        net_.sendPlayerSetup(static_cast<std::uint8_t>(i), p.team);
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::PopID();
+                }
+                ImGui::EndPopup();
+            }
+            ImGui::SameLine();
+            char teamLabel[16];
+            std::snprintf(teamLabel, sizeof(teamLabel), "T%d##team", p.team + 1);
+            ImGui::BeginDisabled(!me);
+            if (ImGui::SmallButton(teamLabel))
+                net_.sendPlayerSetup(p.color, static_cast<std::uint8_t>((p.team + 1) % net::kLobbyTeams));
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                ImGui::SetTooltip("Team (click to change)");
             ImGui::SameLine();
             ImGui::TextColored(toVec(me ? kGood : kText), "%s%s", p.name.c_str(), me ? "  (you)" : "");
             if (p.id != info.leader) {
@@ -481,7 +524,7 @@ void App::drawLobby() {
     auto send = [&](const std::string& map, int mode, int difficulty, int maxPlayers) {
         net_.sendSettings(map, static_cast<std::uint8_t>(mode), static_cast<std::uint8_t>(difficulty), static_cast<std::uint8_t>(maxPlayers));
         options_.map = map;
-        options_.mode = mode == 1 ? GameMode::Endless : GameMode::Defense;
+        options_.mode = static_cast<GameMode>(std::clamp(mode, 0, 2));
         options_.difficulty = static_cast<Difficulty>(difficulty);
         saveSettings();
     };

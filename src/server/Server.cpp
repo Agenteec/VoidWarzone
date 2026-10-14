@@ -110,6 +110,9 @@ void Server::handleConnect(const Address& from, Reader& r, double now) {
     client->salt = salt;
     client->player = player;
     client->name = name.empty() ? "Player " + std::to_string(player + 1) : std::move(name);
+    while (std::any_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c->color == client->color; }) &&
+           client->color + 1u < kPlayerColors.size())
+        ++client->color;
     if (world_) {
         world_->spawnPlayer(player);
         if (config_.cheats)
@@ -174,7 +177,7 @@ void Server::broadcastLobby() {
     info.maxPlayers = static_cast<std::uint8_t>(config_.maxPlayers);
     info.leader = leader();
     for (const auto& c : clients_)
-        info.players.push_back({c->player, c->name, c->ready});
+        info.players.push_back({c->player, c->name, c->ready, c->color, c->team});
     std::sort(info.players.begin(), info.players.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::Lobby));
@@ -235,9 +238,21 @@ void Server::handleSettings(Client& client, Reader& r) {
             spdlog::warn("map '{}': {}", mapName, e.what());
         }
     }
-    config_.mode = mode == 1 ? GameMode::Endless : GameMode::Defense;
+    config_.mode = static_cast<GameMode>(std::min<int>(mode, 2));
     config_.difficulty = static_cast<Difficulty>(std::min<int>(difficulty, 3));
     config_.maxPlayers = std::clamp(static_cast<int>(maxPlayers), std::max(1, playerCount()), 64);
+    lobbyDirty_ = true;
+}
+
+void Server::handlePlayerSetup(Client& client, Reader& r) {
+    const std::uint8_t color = r.u8();
+    const std::uint8_t team = r.u8();
+    if (!r.ok() || color >= kPlayerColors.size() || team >= kLobbyTeams)
+        return;
+    if (std::none_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c.get() != &client && c->color == color; }))
+        client.color = color;
+    if (!world_)
+        client.team = team;
     lobbyDirty_ = true;
 }
 
@@ -255,6 +270,9 @@ void Server::handleMessages(Client& client) {
             break;
         case MessageType::Settings:
             handleSettings(client, r);
+            break;
+        case MessageType::PlayerSetup:
+            handlePlayerSetup(client, r);
             break;
         case MessageType::Start:
             if (!world_ && client.player == leader())

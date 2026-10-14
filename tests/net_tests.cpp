@@ -123,6 +123,31 @@ TEST_CASE("command roundtrip") {
     CHECK(m->attack);
 }
 
+TEST_CASE("build command roundtrip and arena map") {
+    Writer w;
+    writeCommand(w, 7, BuildCommand{3, 11, {20.5f, 31.5f}});
+    Reader r(w.data().data(), w.size());
+    r.u8();
+    std::uint32_t seq = 0;
+    Command decoded;
+    REQUIRE(readCommand(r, seq, decoded));
+    const auto* b = std::get_if<BuildCommand>(&decoded);
+    REQUIRE(b);
+    CHECK(b->unit == 11);
+    CHECK(b->pos.y == 31.5f);
+
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
+    const auto map = Map::parse(readData("maps/void_arena.json"));
+    CHECK(data.buildable().size() == 5);
+    World world(data, map, Difficulty::Normal, GameMode::Arena);
+    world.spawnPlayer(0);
+    CHECK(world.canBuild(data.find("wall"), {52.5f, 20.5f}));
+    for (int i = 0; i < 70 * kTickRate; ++i)
+        world.step();
+    CHECK(world.defense().wave == 1);
+    CHECK(world.defense().state == MatchState::Playing);
+}
+
 TEST_CASE("server and client over loopback") {
     NetLibrary lib;
     const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));

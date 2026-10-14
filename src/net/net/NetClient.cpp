@@ -279,6 +279,14 @@ void NetClient::sendReady(bool ready) {
     sendMessage(w);
 }
 
+void NetClient::sendPlayerSetup(std::uint8_t color, std::uint8_t team) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::PlayerSetup));
+    w.u8(color);
+    w.u8(team);
+    sendMessage(w);
+}
+
 void NetClient::sendSettings(const std::string& map, std::uint8_t mode, std::uint8_t difficulty, std::uint8_t maxPlayers) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::Settings));

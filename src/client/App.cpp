@@ -107,7 +107,7 @@ void App::loadSettings() {
             if (options_.map == LaunchOptions{}.map)
                 options_.map = j.value("map", options_.map);
             if (options_.mode == LaunchOptions{}.mode)
-                options_.mode = j.value("mode", 0) == 1 ? GameMode::Endless : GameMode::Defense;
+                options_.mode = static_cast<GameMode>(std::clamp(j.value("mode", 0), 0, 2));
             windowMode_ = std::clamp(j.value("window", windowMode_), 0, 2);
             resWidth_ = j.value("resWidth", resWidth_);
             resHeight_ = j.value("resHeight", resHeight_);
@@ -116,6 +116,7 @@ void App::loadSettings() {
             uiScaleUser_ = std::clamp(j.value("uiScale", uiScaleUser_), 0.6f, 2.0f);
             renderScale_ = std::clamp(j.value("renderScale", renderScale_), 25, 100);
             layout_ = std::clamp(j.value("layout", layout_), 0, 2);
+            preferredColor_ = std::clamp(j.value("color", preferredColor_), -1, 7);
         }
     }
     if (options_.shadows >= 0)
@@ -147,7 +148,8 @@ void App::saveSettings() const {
                                             {"msaa", msaa_},
                                             {"uiScale", uiScaleUser_},
                                             {"renderScale", renderScale_},
-                                            {"layout", layout_}}
+                                            {"layout", layout_},
+                                            {"color", preferredColor_}}
                                  .dump(2);
     SDL_SaveFile(path.c_str(), text.data(), text.size());
 }
@@ -396,11 +398,9 @@ bool App::onConnected() {
     if (!host_)
         lobby_.close();
     chatLog_.clear();
+    setupSent_ = false;
     if (net_.inLobby()) {
         setScreen(Screen::Lobby);
-        if (autoStart_ && net_.lobby().leader == net_.player())
-            net_.sendStart();
-        autoStart_ = false;
         return true;
     }
     enterGame();
@@ -446,6 +446,9 @@ void App::returnToLobby() {
     panel_ = Panel::None;
     attackMoveArmed_ = false;
     armedSkill_ = -1;
+    buildArmed_ = -1;
+    for (auto& g : groups_)
+        g.clear();
     setScreen(Screen::Lobby);
 }
 
@@ -642,6 +645,10 @@ void App::tap(glm::vec2 p) {
     if (screen_ != Screen::Game)
         return;
     const auto ground = camera_.screenToGround(p.x, p.y);
+    if (buildArmed_ >= 0) {
+        placeBuild(p, false);
+        return;
+    }
     if (armedSkill_ >= 0) {
         castSlot(static_cast<std::uint8_t>(armedSkill_), ground);
         armedSkill_ = -1;
@@ -727,7 +734,9 @@ void App::handleGameEvent(const SDL_Event& e) {
         const glm::vec2 p = glm::vec2(e.button.x, e.button.y) * pixelDensity_;
         mouse_ = p;
         if (e.button.button == SDL_BUTTON_LEFT) {
-            if (attackMoveArmed_) {
+            if (buildArmed_ >= 0) {
+                placeBuild(p, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
+            } else if (attackMoveArmed_) {
                 issueCommand(p, true);
                 attackMoveArmed_ = false;
             } else {
@@ -736,7 +745,10 @@ void App::handleGameEvent(const SDL_Event& e) {
             }
         } else if (e.button.button == SDL_BUTTON_RIGHT) {
             attackMoveArmed_ = false;
-            issueCommand(p, false);
+            if (buildArmed_ >= 0)
+                buildArmed_ = -1;
+            else
+                issueCommand(p, false);
         }
         break;
     }
@@ -757,6 +769,7 @@ void App::handleGameEvent(const SDL_Event& e) {
 }
 
 void App::handleGameKey(SDL_Keycode key, bool shift) {
+    const bool ctrl = (SDL_GetModState() & SDL_KMOD_CTRL) != 0;
     if (key == SDLK_A && !selected_.empty()) {
         attackMoveArmed_ = true;
         armedSkill_ = -1;
@@ -766,9 +779,10 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
     } else if (key == SDLK_ESCAPE) {
         if (pauseOpen_) {
             pauseOpen_ = false;
-        } else if (attackMoveArmed_ || armedSkill_ >= 0) {
+        } else if (attackMoveArmed_ || armedSkill_ >= 0 || buildArmed_ >= 0) {
             attackMoveArmed_ = false;
             armedSkill_ = -1;
+            buildArmed_ = -1;
         } else if (panel_ != Panel::None) {
             panel_ = Panel::None;
         } else if (!selected_.empty()) {
@@ -792,12 +806,16 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         cycleShadows();
     } else if (key == SDLK_F6) {
         cycleLight();
+    } else if (key >= SDLK_0 && key <= SDLK_9 && (ctrl || panel_ == Panel::None)) {
+        controlGroup(static_cast<int>(key - SDLK_0), ctrl, shift);
     } else if (panel_ != Panel::None && ((key >= SDLK_1 && key <= SDLK_9) || key == SDLK_0)) {
         handlePanelKey(key, shift);
-    } else if (key >= SDLK_1 && key <= SDLK_9) {
-        const auto index = static_cast<std::size_t>(key - SDLK_1);
+    } else if (key == SDLK_Z || key == SDLK_X) {
+        const auto index = static_cast<std::size_t>(key == SDLK_Z ? 0 : 1);
         if (index < data_->recruitable().size())
             net_.sendCommand(RecruitCommand{0, data_->recruitable()[index]});
+    } else if (buildKeyIndex(key) >= 0) {
+        armBuild(static_cast<std::size_t>(buildKeyIndex(key)));
     } else if (key == SDLK_B || key == SDLK_I || key == SDLK_L) {
         const Panel p = key == SDLK_B ? Panel::Shop : key == SDLK_I ? Panel::Stash : Panel::Learn;
         panel_ = panel_ == p ? Panel::None : p;
@@ -924,9 +942,9 @@ void App::updateCamera(float dt) {
     const bool* keys = SDL_GetKeyboardState(nullptr);
     glm::vec2 move{};
     if (keys[SDL_SCANCODE_UP])
-        move.y += 1.0f;
-    if (keys[SDL_SCANCODE_DOWN])
         move.y -= 1.0f;
+    if (keys[SDL_SCANCODE_DOWN])
+        move.y += 1.0f;
     if (keys[SDL_SCANCODE_RIGHT])
         move.x += 1.0f;
     if (keys[SDL_SCANCODE_LEFT])
@@ -939,9 +957,9 @@ void App::updateCamera(float dt) {
         if (mouse_.x >= static_cast<float>(renderer_.width()) - edge)
             move.x += 1.0f;
         if (mouse_.y <= edge)
-            move.y += 1.0f;
-        if (mouse_.y >= static_cast<float>(renderer_.height()) - edge)
             move.y -= 1.0f;
+        if (mouse_.y >= static_cast<float>(renderer_.height()) - edge)
+            move.y += 1.0f;
     }
 
     camera_.target += move * camera_.distance * 1.2f * dt;
@@ -993,6 +1011,11 @@ void App::frame(double dt) {
     if (host_)
         host_->update(now_);
     net_.update(now_);
+    if (autoStart_ && screen_ == Screen::Lobby && !net_.lobby().players.empty()) {
+        autoStart_ = false;
+        if (net_.lobby().leader == net_.player())
+            net_.sendStart();
+    }
     updateLobby();
     if (screen_ == Screen::Lan)
         lan_.update(now_);
@@ -1021,11 +1044,19 @@ void App::frame(double dt) {
         render();
 }
 
+glm::vec4 App::playerColor(std::uint8_t owner) const {
+    for (const auto& p : net_.lobby().players)
+        if (p.id == owner) {
+            const std::uint32_t c = net::kPlayerColors[p.color];
+            return {static_cast<float>((c >> 16) & 0xff) / 255.0f, static_cast<float>((c >> 8) & 0xff) / 255.0f,
+                    static_cast<float>(c & 0xff) / 255.0f, 1.0f};
+        }
+    return owner == net_.player() ? kOwnColor : kAllyColor;
+}
+
 glm::vec4 App::unitColor(const net::InterpolatedEntity& e) const {
-    if (isOwn(e))
-        return kOwnColor;
     if (e.owner != net::kNoOwner)
-        return kAllyColor;
+        return playerColor(e.owner);
     glm::vec4 c = kTeamColors[e.team & 1];
     if (data_->unit(e.def).structure)
         c = glm::vec4(glm::vec3(c) * 0.7f, 1.0f);
@@ -1152,6 +1183,8 @@ void App::renderWorld() {
         else
             renderer_.draw(fx.mesh, fx.pos, glm::vec3(s), 0.0f, c, Unlit | Alpha);
     }
+
+    renderBuildGhost();
 
     if (dragging_ && glm::distance(mouse_, dragStart_) >= kDragThreshold) {
         const glm::vec2 lo = glm::min(mouse_, dragStart_);
