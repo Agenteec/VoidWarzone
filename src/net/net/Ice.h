@@ -12,6 +12,7 @@
 
 #include "net/Connection.h"
 #include "net/PacketSink.h"
+#include "net/PortMapper.h"
 
 struct juice_agent;
 
@@ -30,7 +31,7 @@ class IceAgent : public PacketSink {
 public:
     enum class State { Gathering, Connecting, Connected, Failed };
 
-    explicit IceAgent(const IceServers& servers);
+    explicit IceAgent(const IceServers& servers, const PortMapper* mapper = nullptr);
     ~IceAgent() override;
     IceAgent(const IceAgent&) = delete;
     IceAgent& operator=(const IceAgent&) = delete;
@@ -58,6 +59,7 @@ private:
     static void onRecv(juice_agent* agent, const char* data, std::size_t size, void* user);
 
     IceServers servers_;
+    const PortMapper* mapper_ = nullptr;
     juice_agent* agent_ = nullptr;
     std::atomic<State> state_{State::Gathering};
     mutable std::mutex mutex_;
@@ -71,7 +73,7 @@ public:
     static Address addressOf(std::uint32_t peer) { return {0xf0000000u | (peer & 0x0fffffffu), 1}; }
     static bool isVirtual(const Address& a) { return (a.ip & 0xf0000000u) == 0xf0000000u && a.port == 1; }
 
-    IceAgent& create(std::uint32_t peer, const IceServers& servers);
+    IceAgent& create(std::uint32_t peer, const IceServers& servers, const PortMapper* mapper = nullptr);
     IceAgent* find(std::uint32_t peer);
     IceAgent* find(const Address& address);
     void remove(std::uint32_t peer);

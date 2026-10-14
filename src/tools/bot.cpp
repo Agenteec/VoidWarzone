@@ -13,6 +13,7 @@
 
 #include "core/GameData.h"
 #include "net/MasterClient.h"
+#include "net/PortMapper.h"
 #include "net/NetClient.h"
 #include "net/NetLibrary.h"
 #include "net/Protocol.h"
@@ -46,6 +47,7 @@ int main(int argc, char** argv) {
     bool relayOnly = false;
     bool noHost = false;
     bool noRelay = false;
+    bool upnp = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
         const bool hasValue = i + 1 < argc;
@@ -69,6 +71,8 @@ int main(int argc, char** argv) {
             noHost = true;
         else if (arg == "--no-relay")
             noRelay = true;
+        else if (arg == "--upnp")
+            upnp = true;
         else if (arg == "--verbose")
             juice_set_log_level(JUICE_LOG_LEVEL_DEBUG);
     }
@@ -80,7 +84,21 @@ int main(int argc, char** argv) {
     juice_set_log_level(logLevel);
     const auto data = vw::GameData::parse(readFile(dataDir / "units.json"), readFile(dataDir / "skills.json"), readFile(dataDir / "items.json"));
 
+    vw::net::PortMapper mapper;
+    if (upnp) {
+        std::vector<std::uint16_t> ports;
+        for (std::uint16_t i = 0; i < vw::net::kIcePortCount; ++i)
+            ports.push_back(static_cast<std::uint16_t>(vw::net::kIcePortBase + i));
+        mapper.start(ports);
+        while (mapper.state() == vw::net::PortMapper::State::Discovering)
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        spdlog::info("upnp: {}", mapper.status());
+        if (code.empty() && address.empty() && !list)
+            return mapper.state() == vw::net::PortMapper::State::Ready ? 0 : 1;
+    }
+
     vw::net::MasterClient lobby;
+    lobby.setPortMapper(upnp ? &mapper : nullptr);
     lobby.setRelayOnly(relayOnly);
     lobby.setNoHostCandidates(noHost);
     lobby.setNoRelay(noRelay);

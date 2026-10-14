@@ -23,6 +23,7 @@ public:
     void setRelayOnly(bool relayOnly) { relayOnly_ = relayOnly; }
     void setNoHostCandidates(bool noHost) { noHost_ = noHost; }
     void setNoRelay(bool noRelay) { noRelay_ = noRelay; }
+    void setPortMapper(const PortMapper* mapper) { mapper_ = mapper; }
     int relayCandidates() const { return relayCandidates_; }
     void close();
 
@@ -57,6 +58,7 @@ private:
     bool relayOnly_ = false;
     bool noHost_ = false;
     bool noRelay_ = false;
+    const PortMapper* mapper_ = nullptr;
     bool keep(const std::string& candidate) const;
     int relayCandidates_ = 0;
 };

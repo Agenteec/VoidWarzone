@@ -16,7 +16,7 @@ IceAgent* self(void* user) {
 
 }
 
-IceAgent::IceAgent(const IceServers& servers) : servers_(servers) {
+IceAgent::IceAgent(const IceServers& servers, const PortMapper* mapper) : servers_(servers), mapper_(mapper) {
     juice_config_t config{};
     config.concurrency_mode = JUICE_CONCURRENCY_MODE_POLL;
     if (!servers_.stunHost.empty()) {
@@ -37,7 +37,16 @@ IceAgent::IceAgent(const IceServers& servers) : servers_(servers) {
     config.cb_gathering_done = [](juice_agent_t* a, void* u) { onGatheringDone(a, u); };
     config.cb_recv = [](juice_agent_t* a, const char* d, std::size_t n, void* u) { onRecv(a, d, n, u); };
     config.user_ptr = this;
+    if (mapper_ && mapper_->state() == PortMapper::State::Ready) {
+        config.local_port_range_begin = kIcePortBase;
+        config.local_port_range_end = static_cast<std::uint16_t>(kIcePortBase + kIcePortCount - 1);
+    }
     agent_ = juice_create(&config);
+    if (!agent_ && config.local_port_range_begin != 0) {
+        config.local_port_range_begin = 0;
+        config.local_port_range_end = 0;
+        agent_ = juice_create(&config);
+    }
     if (!agent_)
         state_ = State::Failed;
 }
@@ -71,8 +80,14 @@ void IceAgent::remoteGatheringDone() {
 }
 
 void IceAgent::gather() {
-    if (agent_)
-        juice_gather_candidates(agent_);
+    if (!agent_)
+        return;
+    if (mapper_)
+        if (auto candidate = mapper_->candidateFor(localDescription()); !candidate.empty()) {
+            std::lock_guard lock(mutex_);
+            candidates_.push_back(std::move(candidate));
+        }
+    juice_gather_candidates(agent_);
 }
 
 std::vector<std::string> IceAgent::takeCandidates() {
@@ -158,9 +173,9 @@ void IceAgent::onRecv(juice_agent*, const char* data, std::size_t size, void* us
         self(user)->inbox_.emplace_back(reinterpret_cast<const std::uint8_t*>(data), reinterpret_cast<const std::uint8_t*>(data) + size);
 }
 
-IceAgent& IceHub::create(std::uint32_t peer, const IceServers& servers) {
+IceAgent& IceHub::create(std::uint32_t peer, const IceServers& servers, const PortMapper* mapper) {
     auto& slot = agents_[peer & 0x0fffffffu];
-    slot = std::make_unique<IceAgent>(servers);
+    slot = std::make_unique<IceAgent>(servers, mapper);
     return *slot;
 }
 

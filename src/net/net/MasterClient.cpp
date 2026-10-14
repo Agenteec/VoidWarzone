@@ -123,7 +123,7 @@ void MasterClient::handle(const Bytes& message) {
             writeRoom(w, room_);
             send(w);
         } else if (mode_ == Mode::Join) {
-            agent_ = std::make_shared<IceAgent>(servers_);
+            agent_ = std::make_shared<IceAgent>(servers_, mapper_);
             if (!agent_->valid())
                 return fail("cannot create ICE agent");
             auto w = lobbyMessage(LobbyMsg::JoinRoom);
@@ -151,7 +151,7 @@ void MasterClient::handle(const Bytes& message) {
         const std::string offer = r.str(8192);
         if (!r.ok() || !hub_)
             break;
-        IceAgent& agent = hub_->create(peer, servers_);
+        IceAgent& agent = hub_->create(peer, servers_, mapper_);
         agent.setRemoteDescription(offer);
         auto w = lobbyMessage(LobbyMsg::PeerAnswer);
         w.u32(peer);

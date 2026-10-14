@@ -113,6 +113,12 @@ int main(int argc, char** argv) {
                 const std::uint64_t now = SDL_GetTicksNS();
                 app.frame(static_cast<double>(now - last) * 1e-9);
                 last = now;
+                if (const double budget = app.frameBudget(); budget > 0.0) {
+                    const auto target = now + static_cast<std::uint64_t>(budget * 1e9);
+                    const auto after = SDL_GetTicksNS();
+                    if (after < target)
+                        SDL_DelayPrecise(target - after);
+                }
             }
         } else {
             code = 1;

@@ -23,6 +23,7 @@
 #include "net/MasterClient.h"
 #include "net/NetClient.h"
 #include "net/NetLibrary.h"
+#include "net/PortMapper.h"
 #include "net/Protocol.h"
 #include "render/Camera.h"
 #include "render/Renderer.h"
@@ -183,6 +184,7 @@ private:
     SDL_Window* window_ = nullptr;
     LaunchOptions options_;
     net::NetLibrary netLibrary_;
+    net::PortMapper mapper_;
     Renderer renderer_;
     Camera camera_;
     std::unique_ptr<GameData> data_;
@@ -277,6 +279,15 @@ private:
     int renderScale_ = 45;
     int layout_ = 0;
     int preferredColor_ = -1;
+    bool upnp_ = true;
+    int fpsLimit_ = 0;
+    bool limitBackground_ = true;
+    void startUpnp();
+
+public:
+    double frameBudget() const;
+
+private:
     bool setupSent_ = false;
     bool endDismissed_ = false;
     std::set<std::uint8_t> lobbySelected_;

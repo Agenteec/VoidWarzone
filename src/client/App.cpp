@@ -117,6 +117,9 @@ void App::loadSettings() {
             renderScale_ = std::clamp(j.value("renderScale", renderScale_), 25, 100);
             layout_ = std::clamp(j.value("layout", layout_), 0, 2);
             preferredColor_ = std::clamp(j.value("color", preferredColor_), -1, 7);
+            upnp_ = j.value("upnp", upnp_);
+            fpsLimit_ = std::clamp(j.value("fpsLimit", fpsLimit_), 0, 1000);
+            limitBackground_ = j.value("limitBackground", limitBackground_);
         }
     }
     if (options_.shadows >= 0)
@@ -149,7 +152,10 @@ void App::saveSettings() const {
                                             {"uiScale", uiScaleUser_},
                                             {"renderScale", renderScale_},
                                             {"layout", layout_},
-                                            {"color", preferredColor_}}
+                                            {"color", preferredColor_},
+                                            {"upnp", upnp_},
+                                            {"fpsLimit", fpsLimit_},
+                                            {"limitBackground", limitBackground_}}
                                  .dump(2);
     SDL_SaveFile(path.c_str(), text.data(), text.size());
 }
@@ -256,6 +262,7 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
     now_ = nowSeconds();
     spdlog::info("Void Warzone {} | {} | content loaded in {:.2f}s", kVersion, renderer_.name(), now_ - start);
 
+    startUpnp();
     if (options_.host) {
         autoStart_ = true;
         startHost(true);
@@ -269,6 +276,24 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
             status_ = "bad address: " + options_.connect;
     }
     return true;
+}
+
+void App::startUpnp() {
+    lobby_.setPortMapper(&mapper_);
+    if (!upnp_)
+        return;
+    std::vector<std::uint16_t> ports;
+    for (std::uint16_t i = 0; i < net::kIcePortCount; ++i)
+        ports.push_back(static_cast<std::uint16_t>(net::kIcePortBase + i));
+    ports.push_back(options_.port);
+    mapper_.start(std::move(ports));
+}
+
+double App::frameBudget() const {
+    int limit = fpsLimit_;
+    if (limitBackground_ && window_ && !(SDL_GetWindowFlags(window_) & SDL_WINDOW_INPUT_FOCUS))
+        limit = limit > 0 ? std::min(limit, 30) : 30;
+    return limit > 0 ? 1.0 / static_cast<double>(limit) : 0.0;
 }
 
 void App::loadContent() {
@@ -291,6 +316,7 @@ void App::shutdown() {
     if (host_)
         host_->stop();
     host_.reset();
+    mapper_.stop();
     ui_.shutdown();
     if (initialized_)
         renderer_.shutdown();

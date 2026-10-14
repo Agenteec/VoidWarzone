@@ -352,6 +352,20 @@ void App::drawSettings() {
             applyVideo();
             saveSettings();
         }
+        static constexpr int kFpsValues[] = {0, 30, 60, 90, 120, 144, 165, 240};
+        static constexpr const char* kFpsNames[] = {"Unlimited", "30", "60", "90", "120", "144", "165", "240"};
+        int fpsIndex = 0;
+        for (int i = 0; i < 8; ++i)
+            if (kFpsValues[i] == fpsLimit_)
+                fpsIndex = i;
+        ImGui::SetNextItemWidth(labelW);
+        if (ImGui::Combo("FPS limit", &fpsIndex, kFpsNames, 8)) {
+            fpsLimit_ = kFpsValues[fpsIndex];
+            saveSettings();
+        }
+        ImGui::SetItemTooltip("Caps the frame rate (on top of vertical sync). Saves power and heat on laptops and phones.");
+        if (ImGui::Checkbox("Limit to 30 FPS when the window is in the background", &limitBackground_))
+            saveSettings();
         static constexpr const char* kAa[] = {"Off", "2x MSAA", "4x MSAA", "8x MSAA"};
         int aa = msaa_ >= 8 ? 3 : msaa_ >= 4 ? 2 : msaa_ >= 2 ? 1 : 0;
         ImGui::SetNextItemWidth(labelW);
@@ -399,6 +413,21 @@ void App::drawSettings() {
         if (ImGui::IsItemDeactivatedAfterEdit())
             saveSettings();
         ImGui::TextDisabled("Lobby and NAT relay server used for room codes");
+        ImGui::Spacing();
+        if (ImGui::Checkbox("UPnP port mapping", &upnp_)) {
+            saveSettings();
+            if (upnp_)
+                startUpnp();
+            else
+                mapper_.stop();
+        }
+        ImGui::SetItemTooltip("Asks the router to open UDP ports so players can connect directly instead of through the relay");
+        if (upnp_) {
+            ImGui::SameLine();
+            const auto st = mapper_.state();
+            ImGui::TextColored(toVec(st == net::PortMapper::State::Ready ? kGood : st == net::PortMapper::State::Discovering ? kDim : kBad), "%s",
+                               mapper_.status().c_str());
+        }
         ImGui::EndTabItem();
     }
     ImGui::EndTabBar();
@@ -437,6 +466,13 @@ void App::drawLobby() {
     } else if (host_ && multiplayer) {
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * s);
         ImGui::TextDisabled("registering room...");
+    }
+    if (host_ && multiplayer && upnp_) {
+        ImGui::SameLine();
+        if (const auto ext = mapper_.external(options_.port))
+            ImGui::TextColored(toVec(kGood), "  UPnP: direct %s:%u", mapper_.externalIp().c_str(), static_cast<unsigned>(*ext));
+        else
+            ImGui::TextDisabled("  UPnP: %s", mapper_.status().c_str());
     }
     ImGui::Separator();
 
