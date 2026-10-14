@@ -268,11 +268,20 @@ void World::apply(const Command& command) {
                 if (!alive(cmd.target))
                     return;
                 const std::uint8_t targetTeam = registry_.get<Team>(cmd.target).id;
+                const bool structure = registry_.all_of<Structure>(cmd.target);
+                const bool unfinished = registry_.all_of<Construction>(cmd.target);
+                const glm::vec2 site = registry_.get<Position>(cmd.target).value;
+                const auto siteDef = static_cast<std::uint16_t>(registry_.get<Unit>(cmd.target).def);
                 for (const auto e : units) {
                     if (e == cmd.target)
                         continue;
                     const bool ally = registry_.get<Team>(e).id == targetTeam;
-                    give(e, {ally ? OrderType::Follow : OrderType::Attack, {}, cmd.target, {}});
+                    if (ally && unfinished && data_->unit(registry_.get<Unit>(e).def).builder)
+                        give(e, {OrderType::Build, site, entt::null, site, siteDef});
+                    else if (!ally)
+                        give(e, {OrderType::Attack, {}, cmd.target, {}});
+                    else if (!structure)
+                        give(e, {OrderType::Follow, {}, cmd.target, {}});
                 }
             } else if constexpr (std::is_same_v<T, BuildCommand>) {
                 if (cmd.unit >= data_->units().size() || !data_->unit(cmd.unit).buildable)
@@ -281,7 +290,7 @@ void World::apply(const Command& command) {
                 for (const auto e : units) {
                     if (!data_->unit(registry_.get<Unit>(e).def).builder)
                         continue;
-                    const SiteStatus status = checkSite(cmd.unit, pos, registry_.get<Team>(e).id);
+                    const SiteStatus status = checkSite(cmd.unit, pos, registry_.get<Team>(e).id, true);
                     if (status == SiteStatus::Blocked || status == SiteStatus::NearEnemy)
                         return;
                     give(e, {OrderType::Build, pos, entt::null, pos, cmd.unit});

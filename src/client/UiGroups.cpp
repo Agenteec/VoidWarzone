@@ -58,6 +58,14 @@ bool App::buildValid(UnitDefId id, glm::vec2 pos) const {
             continue;
         around.push_back({e.pos, other.radius, other.structure, other.wall, e.team});
     }
+    std::vector<PendingBuild> phantoms;
+    collectPhantoms(phantoms);
+    for (const auto& ph : phantoms) {
+        if (ph.def == id && glm::distance(ph.pos, pos) < 0.3f)
+            continue;
+        const auto& other = data_->unit(ph.def);
+        around.push_back({ph.pos, other.radius, true, other.wall, 0});
+    }
     const SiteStatus status = checkSite(*map_, def, pos, 0, around);
     return status == SiteStatus::Ok || status == SiteStatus::Occupied;
 }
@@ -71,6 +79,7 @@ void App::placeBuild(glm::vec2 screen, bool keep) {
         if (buildValid(def, pos)) {
             const bool queue = !touchLayout() && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
             net_.sendCommand(BuildCommand{selectedBuilders(), def, pos, queue});
+            pendingBuilds_.push_back({def, pos, now_});
             addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.y}, {0.35f, 1.0f, 0.55f, 0.8f}, 0.4f, data_->unit(def).radius * 2.5f, 0.35f);
         }
     }
@@ -78,7 +87,37 @@ void App::placeBuild(glm::vec2 screen, bool keep) {
         buildArmed_ = -1;
 }
 
+void App::collectPhantoms(std::vector<PendingBuild>& out) const {
+    std::erase_if(pendingBuilds_, [&](const PendingBuild& p) { return now_ - p.time > 1.0; });
+    out = pendingBuilds_;
+    const auto* latest = net_.latest();
+    if (!latest)
+        return;
+    for (const auto& u : latest->view.units)
+        for (const auto& o : u.orders)
+            if (static_cast<OrderType>(o.type) == OrderType::Build && o.unit < data_->units().size()) {
+                const glm::vec2 p{net::dequantizePos(o.x), net::dequantizePos(o.y)};
+                const bool built = std::any_of(entities_.begin(), entities_.end(), [&](const auto& e) {
+                    return e.kind == net::EntityKind::Unit && e.def == o.unit && glm::distance(e.pos, p) < 0.3f;
+                });
+                const bool dup = std::any_of(out.begin(), out.end(), [&](const auto& q) { return q.def == o.unit && glm::distance(q.pos, p) < 0.3f; });
+                if (!built && !dup)
+                    out.push_back({static_cast<UnitDefId>(o.unit), p, now_});
+            }
+}
+
+void App::renderPhantoms() {
+    std::vector<PendingBuild> phantoms;
+    collectPhantoms(phantoms);
+    for (const auto& ph : phantoms) {
+        const float d = data_->unit(ph.def).radius * 2.0f;
+        const float h = std::max(visuals_[ph.def].height, 0.8f) * 0.6f;
+        renderer_.draw(Mesh::Cube, {ph.pos.x, h * 0.5f, ph.pos.y}, {d, h, d}, 0.0f, glm::vec4{0.85f, 0.55f, 1.0f, 0.22f}, Unlit | Alpha);
+    }
+}
+
 void App::renderBuildGhost() {
+    renderPhantoms();
     if (buildArmed_ < 0 || dragging_)
         return;
     const auto ground = camera_.screenToGround(mouse_.x, mouse_.y);

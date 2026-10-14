@@ -65,6 +65,7 @@ struct OwnSkill {
 
 struct OwnOrder {
     std::uint8_t type = 0;
+    std::uint16_t unit = 0xffff;
     std::uint16_t x = 0;
     std::uint16_t y = 0;
 };

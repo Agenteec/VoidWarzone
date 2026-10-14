@@ -69,6 +69,7 @@ void writeView(Writer& w, const ClientView& v) {
         w.u8(static_cast<std::uint8_t>(u.orders.size()));
         for (const auto& o : u.orders) {
             w.u8(o.type);
+            w.u16(o.unit);
             w.u16(o.x);
             w.u16(o.y);
         }
@@ -104,6 +105,7 @@ bool readView(Reader& r, ClientView& v) {
         u.orders.resize(r.u8());
         for (auto& o : u.orders) {
             o.type = r.u8();
+            o.unit = r.u16();
             o.x = r.u16();
             o.y = r.u16();
         }

@@ -113,7 +113,7 @@ void World::handle(const RecruitCommand& cmd) {
     spawn(cmd.unit, 0, pos, cmd.player);
 }
 
-SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team) const {
+SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team, bool phantoms) const {
     if (!map_ || id >= data_->units().size() || !data_->unit(id).buildable)
         return SiteStatus::Blocked;
     const auto& def = data_->unit(id);
@@ -125,7 +125,58 @@ SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team) cons
         const auto& other = data_->unit(unit.def);
         around.push_back({p.value, unit.radius, registry_.all_of<Structure>(e), other.wall, t.id});
     }
+    if (phantoms) {
+        auto addPhantom = [&](const Order& o, std::uint8_t t) {
+            if (o.type != OrderType::Build || o.build >= data_->units().size() || glm::distance(o.point, pos) > reach)
+                return;
+            if (o.build == id && glm::distance(o.point, pos) < 0.3f)
+                return;
+            const auto& other = data_->unit(o.build);
+            around.push_back({o.point, other.radius, true, other.wall, t});
+        };
+        for (auto [e, order, t] : registry_.view<const Order, const Team>().each()) {
+            if (t.id != team)
+                continue;
+            addPhantom(order, t.id);
+            if (const auto* q = registry_.try_get<OrderQueue>(e))
+                for (const auto& o : q->items)
+                    addPhantom(o, t.id);
+        }
+    }
     return vw::checkSite(*map_, def, pos, team, around);
+}
+
+void World::clearSite(UnitDefId id, glm::vec2 pos, std::uint8_t team) {
+    const auto& def = data_->unit(id);
+    for (auto [e, p, unit, t, order] : registry_.view<const Position, const Unit, const Team, Order>().each()) {
+        if (t.id != team || (order.type != OrderType::None && order.type != OrderType::Hold) || data_->unit(unit.def).builder)
+            continue;
+        const glm::vec2 d = p.value - pos;
+        const float dist = glm::length(d);
+        const float need = def.radius + unit.radius + 0.8f;
+        if (dist >= need)
+            continue;
+        const glm::vec2 dir = dist > 1e-3f ? d / dist : glm::vec2(1.0f, 0.0f);
+        glm::vec2 to = pos + dir * (need + 0.5f);
+        if (map_)
+            to = Map::center(nearestFree(navMap(), Map::cellOf(to)));
+        order = {OrderType::Move, to, entt::null, to};
+        registry_.remove<Navigator>(e);
+    }
+}
+
+void World::assistConstruction() {
+    if (tick_ % 15 != 0)
+        return;
+    for (auto [b, order, bp, bu, bt] : registry_.view<Order, const Position, const Unit, const Team>().each()) {
+        if (order.type != OrderType::None || !data_->unit(bu.def).builder || registry_.all_of<OrderQueue>(b))
+            continue;
+        for (auto [s, construction, sp, su, st] : registry_.view<const Construction, const Position, const Unit, const Team>().each())
+            if (st.id == bt.id && alive(s) && glm::distance(sp.value, bp.value) < 8.0f + su.radius) {
+                order = {OrderType::Build, sp.value, entt::null, sp.value, static_cast<std::uint16_t>(su.def)};
+                break;
+            }
+    }
 }
 
 entt::entity World::structureAt(glm::vec2 pos, UnitDefId def) const {
@@ -157,8 +208,10 @@ glm::vec2 World::builderStep(entt::entity e, glm::vec2 pos, const Unit& unit, st
         finishOrder(e, order);
         return {};
     }
-    if (status == SiteStatus::Occupied)
+    if (status == SiteStatus::Occupied) {
+        clearSite(order.build, order.point, team);
         return {};
+    }
     auto& player = players_[owner->player];
     if (player.energy < def.cost) {
         finishOrder(e, order);
@@ -173,6 +226,7 @@ glm::vec2 World::builderStep(entt::entity e, glm::vec2 pos, const Unit& unit, st
 }
 
 void World::updateConstruction() {
+    assistConstruction();
     for (auto [s, construction, pos, unit] : registry_.view<Construction, const Position, const Unit>().each()) {
         if (!alive(s))
             continue;

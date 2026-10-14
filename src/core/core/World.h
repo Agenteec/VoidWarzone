@@ -105,7 +105,9 @@ public:
 
     Difficulty difficulty() const { return difficulty_; }
     GameMode mode() const { return mode_; }
-    SiteStatus checkSite(UnitDefId def, glm::vec2 pos, std::uint8_t team) const;
+    SiteStatus checkSite(UnitDefId def, glm::vec2 pos, std::uint8_t team, bool phantoms = false) const;
+    void clearSite(UnitDefId def, glm::vec2 pos, std::uint8_t team);
+    void assistConstruction();
     bool canBuild(UnitDefId def, glm::vec2 pos) const { return checkSite(def, pos, 0) == SiteStatus::Ok; }
     const PlayerState& player(std::uint8_t p) const { return players_[p]; }
     int activePlayers() const;

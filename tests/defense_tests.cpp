@@ -215,3 +215,39 @@ TEST_CASE("arena creeps break through a walled gate") {
     run(world, 20.0f);
     CHECK(countDef(world, data, "wall") < 4);
 }
+
+TEST_CASE("queued builds respect phantoms and resume after interruption") {
+    const auto data = GameData::parse(kArenaUnits);
+    const auto map = Map::parse(kArenaMap);
+    World world(data, map);
+    world.spawnPlayer(0);
+    world.devBoost(0);
+    const auto eng = world.spawn(data.find("engineer"), 0, {20.5f, 20.5f}, 0);
+    for (int x = 0; x < 3; ++x)
+        world.apply(BuildCommand{{eng}, data.find("wall"), {18.5f + static_cast<float>(x), 8.5f}, true});
+    world.apply(BuildCommand{{eng}, data.find("factory"), {22.5f, 10.5f}, true});
+    world.apply(BuildCommand{{eng}, data.find("factory"), {23.5f, 10.5f}, true});
+    CHECK(world.registry().get<OrderQueue>(eng).items.size() == 3);
+    run(world, 20.0f);
+    CHECK(countDef(world, data, "wall") == 3);
+    CHECK(countDef(world, data, "factory") == 1);
+    CHECK(world.registry().view<Construction>().size() == 0);
+
+    world.apply(BuildCommand{{eng}, data.find("factory"), {8.5f, 20.5f}});
+    run(world, 7.0f);
+    REQUIRE(countDef(world, data, "factory") == 2);
+    CHECK(world.registry().view<Construction>().size() == 1);
+    world.apply(MoveCommand{{eng}, {25.5f, 25.5f}});
+    run(world, 4.0f);
+    const auto site = *world.registry().view<Construction>().begin();
+    world.apply(AttackCommand{{eng}, site});
+    CHECK(world.registry().get<Order>(eng).type == OrderType::Build);
+    run(world, 12.0f);
+    CHECK(world.registry().view<Construction>().size() == 0);
+
+    const auto blocker = world.spawn(data.find("soldier"), 0, {14.5f, 20.5f}, 0);
+    world.apply(BuildCommand{{eng}, data.find("wall"), {14.5f, 20.5f}});
+    run(world, 8.0f);
+    CHECK(glm::distance(world.registry().get<Position>(blocker).value, glm::vec2{14.5f, 20.5f}) > 1.0f);
+    CHECK(countDef(world, data, "wall") == 4);
+}

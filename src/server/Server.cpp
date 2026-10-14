@@ -406,9 +406,9 @@ ClientView Server::buildView(const Client& client) const {
             glm::vec2 p = o.point;
             if ((o.type == OrderType::Attack || o.type == OrderType::Follow) && reg.valid(o.target) && reg.all_of<Position>(o.target))
                 p = reg.get<Position>(o.target).value;
-            u.orders.push_back({static_cast<std::uint8_t>(o.type), quantizePos(p.x), quantizePos(p.y)});
+            u.orders.push_back({static_cast<std::uint8_t>(o.type), o.build, quantizePos(p.x), quantizePos(p.y)});
             if (o.type == OrderType::Patrol)
-                u.orders.push_back({static_cast<std::uint8_t>(o.type), quantizePos(o.origin.x), quantizePos(o.origin.y)});
+                u.orders.push_back({static_cast<std::uint8_t>(o.type), o.build, quantizePos(o.origin.x), quantizePos(o.origin.y)});
         };
         if (const auto* order = reg.try_get<Order>(e))
             addOrder(*order);

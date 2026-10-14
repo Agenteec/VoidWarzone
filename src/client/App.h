@@ -117,6 +117,14 @@ private:
     static glm::vec4 orderColor(std::uint8_t type);
     std::vector<entt::entity> selectedBuilders() const;
     std::uint32_t inspected_ = 0;
+    struct PendingBuild {
+        UnitDefId def;
+        glm::vec2 pos;
+        double time;
+    };
+    mutable std::vector<PendingBuild> pendingBuilds_;
+    void collectPhantoms(std::vector<PendingBuild>& out) const;
+    void renderPhantoms();
     void drawInspect();
     void pruneSelection();
     const net::InterpolatedEntity* entityAt(glm::vec2 p, float pad) const;

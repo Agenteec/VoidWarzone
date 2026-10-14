@@ -985,9 +985,11 @@ void App::issueCommandAt(glm::vec2 point, bool attackMove, bool patrol) {
         ownTeam = first->team;
 
     const auto* target = entityAt(*ground, 0.4f);
+    const bool resumable = target && target->team == ownTeam && data_->unit(target->def).structure && target->hp < target->maxHp &&
+                           !selectedBuilders().empty();
     const bool followable = target && !data_->unit(target->def).structure &&
                             std::find(selected_.begin(), selected_.end(), target->id) == selected_.end();
-    if (target && !patrol && (target->team != ownTeam || followable)) {
+    if (target && !patrol && (target->team != ownTeam || followable || resumable)) {
         const bool enemy = target->team != ownTeam;
         if (!queue)
             prediction_.cancel(selected_);
