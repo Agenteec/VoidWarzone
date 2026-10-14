@@ -412,10 +412,12 @@ glm::vec2 World::avoid(entt::entity e, glm::vec2 pos, glm::vec2 vel, float radiu
     });
     if (glm::dot(steer, steer) < 1e-6f)
         return vel;
-    const glm::vec2 turned = glm::normalize(dir + steer * 2.0f);
-    if (map_ && navMap().blocked(Map::cellOf(pos + turned * (radius + 0.6f))))
-        return vel;
-    return turned * speed;
+    for (const float sign : {1.0f, -1.0f}) {
+        const glm::vec2 turned = glm::normalize(dir + steer * (2.0f * sign));
+        if (!map_ || !navMap().blocked(Map::cellOf(pos + turned * (radius + 0.6f))))
+            return turned * speed;
+    }
+    return vel;
 }
 
 glm::vec2 World::navigate(entt::entity e, glm::vec2 pos, glm::vec2 goal, float speed) {
@@ -455,11 +457,12 @@ glm::vec2 World::lanePoint(const LaneFollower& lane, int i) const {
 }
 
 const FlowField& World::flowField(glm::vec2 goal) {
-    const int key = map_->index(nearestFree(*map_, Map::cellOf(goal)));
+    const Map& nav = navMap();
+    const int key = nav.index(nearestFree(nav, Map::cellOf(goal)));
     auto it = flowFields_.find(key);
     if (it == flowFields_.end()) {
         const auto t0 = std::chrono::steady_clock::now();
-        it = flowFields_.emplace(key, FlowField(*map_, goal)).first;
+        it = flowFields_.emplace(key, FlowField(nav, goal)).first;
         times_.worstField = std::max(times_.worstField, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
         ++times_.fields;
     }

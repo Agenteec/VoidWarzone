@@ -282,6 +282,22 @@ float FlowField::cost(glm::ivec2 cell) const {
 glm::vec2 FlowField::direction(glm::vec2 pos) const {
     const glm::ivec2 c = Map::cellOf(pos);
     const float here = cost(c);
+    if (here == kInf && c != goalCell_) {
+        glm::ivec2 best = c;
+        float bestCost = kInf;
+        for (const auto& s : kSteps) {
+            const glm::ivec2 n = c + s.d;
+            if (!map_->inside(n.x, n.y))
+                continue;
+            const float nc = cost(n) + s.cost;
+            if (nc < bestCost) {
+                bestCost = nc;
+                best = n;
+            }
+        }
+        if (best != c)
+            return glm::normalize(Map::center(best) - pos);
+    }
     if (c == goalCell_ || here == kInf) {
         const glm::vec2 d = goal_ - pos;
         const float len = glm::length(d);

@@ -176,6 +176,22 @@ TEST_CASE("spawner stops with its building") {
         "spawners":[{"unit":"soldier","lane":"m","building":"none"}]})")));
 }
 
+TEST_CASE("lane creeps pass a structure standing on the lane") {
+    const auto data = vw::GameData::parse(kUnits);
+    const auto map = vw::Map::parse(R"({"width":60,"height":20,
+        "walls":[[0,0,60,6],[0,14,60,6]],
+        "lanes":[{"name":"mid","points":[[2,10],[58,10]]}],
+        "units":[{"unit":"wall","team":0,"pos":[20,10]}],
+        "spawners":[{"unit":"soldier","team":0,"lane":"mid","interval":100,"count":5,"offset":2}]})");
+    vw::World world(data, map);
+    for (int i = 0; i < vw::kTickRate * 20; ++i)
+        world.step();
+    int passed = 0;
+    for (auto [e, pos, unit] : world.registry().view<const vw::Position, const vw::Unit>().each())
+        passed += unit.def == data.find("soldier") && pos.value.x > 40.0f;
+    CHECK(passed == 5);
+}
+
 TEST_CASE("units separate") {
     const auto data = vw::GameData::parse(kUnits);
     vw::Map map(30, 30);
