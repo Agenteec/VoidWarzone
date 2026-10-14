@@ -8,7 +8,24 @@ set(VW_CLIENT_SOURCES
     render/Pie.cpp
     render/Renderer.cpp
     render/Shaders.cpp
+    ui/ImGuiLayer.cpp
+    Ui.cpp
 )
+
+# bgfx ships Dear ImGui with an imconfig.h tied to its own allocators, so build a copy with a plain config
+set(VW_IMGUI_SOURCE ${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui)
+set(VW_IMGUI_DIR ${CMAKE_CURRENT_BINARY_DIR}/imgui)
+foreach(file imgui.cpp imgui_draw.cpp imgui_tables.cpp imgui_widgets.cpp imgui.h imgui_internal.h imstb_rectpack.h imstb_textedit.h imstb_truetype.h)
+    configure_file(${VW_IMGUI_SOURCE}/${file} ${VW_IMGUI_DIR}/${file} COPYONLY)
+endforeach()
+foreach(file vs_ocornut_imgui.bin.h fs_ocornut_imgui.bin.h roboto_regular.ttf.h icons_font_awesome.ttf.h)
+    configure_file(${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui/${file} ${CMAKE_CURRENT_BINARY_DIR}/imgui_assets/${file} COPYONLY)
+endforeach()
+file(CONFIGURE OUTPUT ${VW_IMGUI_DIR}/imconfig.h CONTENT "#pragma once
+#define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+")
+add_library(vw_imgui STATIC ${VW_IMGUI_DIR}/imgui.cpp ${VW_IMGUI_DIR}/imgui_draw.cpp ${VW_IMGUI_DIR}/imgui_tables.cpp ${VW_IMGUI_DIR}/imgui_widgets.cpp)
+target_include_directories(vw_imgui PUBLIC ${VW_IMGUI_DIR} PRIVATE ${bgfx_SOURCE_DIR}/bgfx/3rdparty)
 
 if(ANDROID)
     add_library(vw_client SHARED ${VW_CLIENT_SOURCES})
@@ -38,8 +55,9 @@ if(TARGET bgfx::shaderc)
         DEPENDS ${VW_VS_FILES} ${VW_FS_FILES})
 endif()
 
-target_include_directories(vw_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${VW_SHADER_DIR})
-target_link_libraries(vw_client PRIVATE vw_core vw_net vw_host SDL3::SDL3 bgfx bimg_decode bimg bx nlohmann_json::nlohmann_json spdlog::spdlog)
+target_include_directories(vw_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${VW_SHADER_DIR} ${CMAKE_CURRENT_BINARY_DIR}/imgui_assets
+                                              ${bgfx_SOURCE_DIR}/bgfx/3rdparty/iconfontheaders)
+target_link_libraries(vw_client PRIVATE vw_imgui vw_core vw_net vw_host SDL3::SDL3 bgfx bimg_decode bimg bx nlohmann_json::nlohmann_json spdlog::spdlog)
 if(ANDROID)
     target_link_libraries(vw_client PRIVATE EGL GLESv3 android log)
 endif()

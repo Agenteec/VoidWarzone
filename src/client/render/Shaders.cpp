@@ -32,6 +32,8 @@
 #include "spirv/fs_shadow.sc.bin.h"
 #include "spirv/vs_shadow_tex.sc.bin.h"
 #include "spirv/fs_shadow_tex.sc.bin.h"
+#include "fs_ocornut_imgui.bin.h"
+#include "vs_ocornut_imgui.bin.h"
 #if defined(_WIN32)
 #include "dxbc/vs_mesh.sc.bin.h"
 #include "dxbc/fs_mesh.sc.bin.h"
@@ -136,6 +138,10 @@ bgfx::ProgramHandle createShadowProgram() {
 
 bgfx::ProgramHandle createShadowTexProgram() {
     return VW_PROGRAM(vs_shadow_tex, fs_shadow_tex);
+}
+
+bgfx::ProgramHandle createImguiProgram() {
+    return VW_PROGRAM(vs_ocornut_imgui, fs_ocornut_imgui);
 }
 
 }

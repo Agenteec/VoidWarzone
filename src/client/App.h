@@ -1,10 +1,12 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -24,6 +26,7 @@
 #include "net/Protocol.h"
 #include "render/Camera.h"
 #include "render/Renderer.h"
+#include "ui/ImGuiLayer.h"
 #include "server/Server.h"
 
 namespace vw::client {
@@ -85,12 +88,8 @@ private:
     void handleGameKey(SDL_Keycode key, bool shift);
     void handleFinger(const SDL_Event& e);
     void tap(glm::vec2 p);
-    bool hitButton(glm::vec2 p);
     void pressKey(SDL_Keycode key, bool shift);
     void castSlot(std::uint8_t slot, std::optional<glm::vec2> ground);
-    void button(int col, int row, int width, int height, SDL_Keycode key, bool shift, bool active, const std::string& label, bool center = true);
-    int menuItem(int row, SDL_Keycode key, const std::string& label);
-    void renderTouchControls();
     void updateInputScale();
     void updateGame(float dt);
     void updateCamera(float dt);
@@ -111,9 +110,6 @@ private:
     void handleNetEvent(const net::NetEvent& ev);
     void showBanner(std::string text, float seconds);
     void renderResourcePoints();
-    void renderGameHud();
-    void renderUnitPanel(int row);
-    void renderSidePanel();
     void handlePanelKey(SDL_Keycode key, bool shift);
     const net::OwnUnit* focusedOwn() const;
     std::string modsText(const StatMods& m) const;
@@ -127,8 +123,22 @@ private:
     void render();
     void renderWorld();
     glm::vec4 visibleRect(float margin) const;
-    void renderHud();
-    void renderMenu();
+
+    void drawUi();
+    void drawMenu();
+    void drawSettings();
+    void drawHud();
+    void drawTopBar();
+    void drawBossBar();
+    void drawUnitPanel();
+    void drawCommandBar();
+    void drawSidePanel();
+    void drawStats();
+    void drawPauseMenu();
+    void drawEndScreen();
+    void trackWindow();
+    bool overUi(glm::vec2 p) const;
+    float uiScale() const;
 
     SDL_Window* window_ = nullptr;
     LaunchOptions options_;
@@ -166,8 +176,10 @@ private:
 
     Screen screen_ = Screen::Menu;
     std::string status_;
-    std::string addressInput_;
-    std::string codeInput_;
+    std::array<char, 64> addressBuf_{};
+    std::array<char, 24> codeBuf_{};
+    std::array<char, 32> nameBuf_{};
+    std::array<char, 96> masterBuf_{};
     bool running_ = true;
     bool initialized_ = false;
     bool cameraPlaced_ = false;
@@ -186,19 +198,18 @@ private:
     enum class Panel { None, Shop, Stash, Learn };
     Panel panel_ = Panel::None;
 
-    struct UiButton {
-        int col;
-        int row;
-        int width;
-        int height;
-        SDL_Keycode key;
-        bool shift;
-    };
     struct Finger {
         glm::vec2 start;
         glm::vec2 pos;
     };
-    std::vector<UiButton> buttons_;
+    ImGuiLayer ui_;
+    std::vector<glm::vec4> uiRects_;
+    std::set<SDL_FingerID> uiFingers_;
+    bool showStats_ = false;
+    bool pauseOpen_ = false;
+    bool settingsOpen_ = false;
+    float topBarHeight_ = 0.0f;
+    float frameDt_ = 0.0f;
     std::map<SDL_FingerID, Finger> fingers_;
     bool touchUi_ = false;
     bool gesture_ = false;

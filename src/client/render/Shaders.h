@@ -9,5 +9,6 @@ bgfx::ProgramHandle createTexProgram();
 bgfx::ProgramHandle createTerrainProgram();
 bgfx::ProgramHandle createShadowProgram();
 bgfx::ProgramHandle createShadowTexProgram();
+bgfx::ProgramHandle createImguiProgram();
 
 }
