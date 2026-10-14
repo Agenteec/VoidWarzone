@@ -75,9 +75,12 @@ void writeCommand(Writer& w, std::uint32_t seq, const Command& command) {
             if constexpr (std::is_same_v<T, MoveCommand>) {
                 w.f32(c.point.x);
                 w.f32(c.point.y);
-                w.u8(c.attack ? 1 : 0);
+                w.u8((c.attack ? 1 : 0) | (c.queue ? 2 : 0) | (c.patrol ? 4 : 0));
             } else if constexpr (std::is_same_v<T, AttackCommand>) {
                 w.u32(entt::to_integral(c.target));
+                w.u8(c.queue ? 1 : 0);
+            } else if constexpr (std::is_same_v<T, StopCommand>) {
+                w.u8(c.hold ? 1 : 0);
             }
         },
         command);
@@ -92,7 +95,10 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
         if (!readUnits(r, c.units))
             return false;
         c.point = {r.f32(), r.f32()};
-        c.attack = r.u8() != 0;
+        const auto flags = r.u8();
+        c.attack = (flags & 1) != 0;
+        c.queue = (flags & 2) != 0;
+        c.patrol = (flags & 4) != 0;
         if (!std::isfinite(c.point.x) || !std::isfinite(c.point.y))
             return false;
         command = std::move(c);
@@ -103,6 +109,7 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
         if (!readUnits(r, c.units))
             return false;
         c.target = static_cast<entt::entity>(r.u32());
+        c.queue = r.u8() != 0;
         command = std::move(c);
         break;
     }
@@ -110,6 +117,7 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
         StopCommand c;
         if (!readUnits(r, c.units))
             return false;
+        c.hold = r.u8() != 0;
         command = std::move(c);
         break;
     }

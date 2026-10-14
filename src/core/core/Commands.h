@@ -13,15 +13,19 @@ struct MoveCommand {
     std::vector<entt::entity> units;
     glm::vec2 point{};
     bool attack = false;
+    bool queue = false;
+    bool patrol = false;
 };
 
 struct AttackCommand {
     std::vector<entt::entity> units;
     entt::entity target = entt::null;
+    bool queue = false;
 };
 
 struct StopCommand {
     std::vector<entt::entity> units;
+    bool hold = false;
 };
 
 struct RecruitCommand {

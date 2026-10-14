@@ -82,14 +82,17 @@ void App::drawHud() {
             buildArmed_ = -1;
         trackWindow();
         ImGui::End();
-    } else if (attackMoveArmed_ || armedSkill_ >= 0) {
+    } else if ((orderArm_ != Arm::None) || armedSkill_ >= 0) {
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.7f}, ImGuiCond_Always, {0.5f, 0.5f});
         ImGui::SetNextWindowBgAlpha(0.8f);
         ImGui::Begin("##armed", nullptr, kHudFlags);
-        ImGui::TextColored(toVec(kEnergy), ICON_FA_CROSSHAIRS "  %s", attackMoveArmed_ ? "Pick a point to attack-move" : "Pick the skill target");
+        ImGui::TextColored(toVec(kEnergy), ICON_FA_CROSSHAIRS "  %s", orderArm_ == Arm::Attack   ? "Pick a point to attack-move"
+                           : orderArm_ == Arm::Patrol ? "Pick the patrol point"
+                           : orderArm_ == Arm::Move   ? "Pick a point to move"
+                                                      : "Pick the skill target");
         ImGui::SameLine();
         if (ImGui::SmallButton("Cancel")) {
-            attackMoveArmed_ = false;
+            orderArm_ = Arm::None;
             armedSkill_ = -1;
         }
         trackWindow();
@@ -105,10 +108,9 @@ void App::drawTouchHud() {
     hudBottom_ = 82.0f * uiScale();
     drawMinimap(110.0f * uiScale());
     drawUnitPanel();
-    drawCommandBar();
+    drawDock();
     drawSidePanel();
     drawGroupBar();
-    drawBuildBar();
     drawChat();
 }
 
@@ -279,12 +281,9 @@ void App::drawUnitPanel() {
         ImGui::SameLine();
         ImGui::TextDisabled("lvl %d", own->level);
     }
-    if (selected_.size() > 1) {
-        ImGui::SameLine();
-        ImGui::TextDisabled("+%d more", static_cast<int>(selected_.size()) - 1);
-    }
-
     const float w = ImGui::GetContentRegionAvail().x;
+    if (selected_.size() > 1)
+        drawSelectionTiles(w, 6, true);
     char label[64];
     const float hpFrac = static_cast<float>(entity->hp) / static_cast<float>(std::max<std::uint16_t>(entity->maxHp, 1));
     std::snprintf(label, sizeof(label), ICON_FA_HEART " %u / %u", entity->hp, entity->maxHp);
@@ -403,63 +402,6 @@ void App::drawUnitPanel() {
             }
             ImGui::PopID();
         }
-    }
-    trackWindow();
-    ImGui::End();
-}
-
-void App::drawCommandBar() {
-    const auto* latest = net_.latest();
-    const float s = uiScale();
-    const ImVec2 display = ImGui::GetIO().DisplaySize;
-    const float pad = 10.0f * s;
-    const ImVec2 cell{(touchUi_ ? 82.0f : 74.0f) * s, (touchUi_ ? 58.0f : 52.0f) * s};
-
-    ImGui::SetNextWindowPos({display.x - pad, display.y - pad}, ImGuiCond_Always, {1.0f, 1.0f});
-    ImGui::Begin("##commands", nullptr, kHudFlags);
-    const auto& recruitable = data_->recruitable();
-    for (std::size_t i = 0; i < recruitable.size() && i < 9; ++i) {
-        const auto& def = data_->unit(recruitable[i]);
-        ImGui::PushID(static_cast<int>(i));
-        char label[64];
-        std::snprintf(label, sizeof(label), "%s\n" ICON_FA_BOLT "%.0f", def.name.c_str(), def.cost);
-        ImGui::BeginDisabled(static_cast<float>(latest->view.energy) < def.cost);
-        if (ImGui::Button(label, cell))
-            net_.sendCommand(RecruitCommand{0, recruitable[i]});
-        ImGui::EndDisabled();
-        if (ImGui::BeginItemTooltip()) {
-            ImGui::Text("Recruit %s  [%d]", def.name.c_str(), static_cast<int>(i) + 1);
-            ImGui::TextDisabled("HP %.0f  armor %.0f  speed %.1f", def.maxHp, def.armor, def.speed);
-            if (def.weapon)
-                ImGui::TextDisabled("damage %.0f  range %.1f  every %.1fs", def.weapon->damage, def.weapon->range, def.weapon->cooldown);
-            ImGui::EndTooltip();
-        }
-        ImGui::PopID();
-        ImGui::SameLine();
-    }
-    ImGui::SameLine(0.0f, 14.0f * s);
-    if (toggleButton(ICON_FA_SHOPPING_CART "\nShop", panel_ == Panel::Shop, cell))
-        panel_ = panel_ == Panel::Shop ? Panel::None : Panel::Shop;
-    ImGui::SetItemTooltip("Shop [B]");
-    ImGui::SameLine();
-    if (toggleButton(ICON_FA_ARCHIVE "\nStash", panel_ == Panel::Stash, cell))
-        panel_ = panel_ == Panel::Stash ? Panel::None : Panel::Stash;
-    ImGui::SetItemTooltip("Stash [I]");
-    ImGui::SameLine();
-    if (toggleButton(ICON_FA_BOOK "\nSkills", panel_ == Panel::Learn, cell))
-        panel_ = panel_ == Panel::Learn ? Panel::None : Panel::Learn;
-    ImGui::SetItemTooltip("Learn hero skills [L]");
-    if (!selected_.empty()) {
-        ImGui::SameLine(0.0f, 14.0f * s);
-        if (toggleButton(ICON_FA_CROSSHAIRS "\nAttack", attackMoveArmed_, cell)) {
-            attackMoveArmed_ = !attackMoveArmed_;
-            armedSkill_ = -1;
-        }
-        ImGui::SetItemTooltip("Attack-move: units fight everything on the way [A]");
-        ImGui::SameLine();
-        if (ImGui::Button(ICON_FA_STOP "\nStop", cell))
-            pressKey(SDLK_S, false);
-        ImGui::SetItemTooltip("Stop [S]");
     }
     trackWindow();
     ImGui::End();

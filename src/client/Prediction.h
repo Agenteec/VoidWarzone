@@ -30,6 +30,9 @@ private:
         std::size_t next = 0;
         float speed = 0.0f;
         float radius = 0.5f;
+        float current = 0.0f;
+        float accel = 10.0f;
+        float turnRate = 8.0f;
     };
 
     std::unordered_map<std::uint32_t, Unit> units_;

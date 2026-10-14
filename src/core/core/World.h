@@ -140,6 +140,8 @@ private:
     void handle(const EquipCommand& cmd);
     void handle(const UnequipCommand& cmd);
     void handle(const BuildCommand& cmd);
+    void finishOrder(entt::entity e, Order& order);
+    void applyMotion(entt::entity e, const Unit& unit, glm::vec2& vel, float& facing);
     void updateProducers();
     Progression* ownedProgression(std::uint8_t player, entt::entity e);
     void updateHeroes();

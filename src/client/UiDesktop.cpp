@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <map>
 
 #include <SDL3/SDL.h>
 #include <glm/common.hpp>
@@ -12,39 +13,6 @@
 namespace vw::client {
 
 using namespace ui;
-
-namespace {
-
-bool cardButton(const char* id, const char* label, const char* sub, const char* key, bool enabled, bool active, ImVec2 size) {
-    ImGui::PushID(id);
-    ImGui::BeginDisabled(!enabled);
-    if (active)
-        ImGui::PushStyleColor(ImGuiCol_Button, toVec(IM_COL32(40, 110, 160, 255)));
-    const bool pressed = ImGui::Button("##card", size);
-    if (active)
-        ImGui::PopStyleColor();
-    ImGui::EndDisabled();
-    const ImVec2 a = ImGui::GetItemRectMin();
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImU32 text = enabled ? kText : kDim;
-    const ImVec2 ls = ImGui::CalcTextSize(label);
-    const float labelY = sub && *sub ? a.y + size.y * 0.42f - ls.y * 0.5f : a.y + (size.y - ls.y) * 0.5f;
-    dl->AddText({a.x + (size.x - ls.x) * 0.5f, labelY}, text, label);
-    if (sub && *sub) {
-        ImFont* font = ImGui::GetFont();
-        const float fs = ImGui::GetFontSize() * 0.78f;
-        const ImVec2 ss = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, sub);
-        dl->AddText(font, fs, {a.x + (size.x - ss.x) * 0.5f, a.y + size.y - ss.y - 3.0f}, enabled ? kEnergy : kDim, sub);
-    }
-    if (key && *key) {
-        ImFont* font = ImGui::GetFont();
-        dl->AddText(font, ImGui::GetFontSize() * 0.72f, {a.x + 4.0f, a.y + 2.0f}, enabled ? IM_COL32(255, 210, 80, 200) : kDim, key);
-    }
-    ImGui::PopID();
-    return pressed && enabled;
-}
-
-}
 
 void App::drawDesktopHud() {
     const auto* latest = net_.latest();
@@ -88,9 +56,8 @@ void App::drawDesktopHud() {
     const float panelH = 170.0f * s;
     hudBottom_ = panelH + pad;
     drawMinimap(panelH - 16.0f * s);
-    drawCommandCard();
+    drawDock();
     drawGroupBar();
-    drawBuildBar();
     drawSelection();
     drawSidePanel();
     drawChat();
@@ -169,7 +136,10 @@ void App::drawMinimap(float size) {
     if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         camera_.target = glm::clamp(toMap(ImGui::GetIO().MousePos), glm::vec2(0.0f), glm::vec2(mapW, mapH));
     if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
-        issueCommandAt(toMap(ImGui::GetIO().MousePos), attackMoveArmed_);
+        {
+        issueCommandAt(toMap(ImGui::GetIO().MousePos), orderArm_ == Arm::Attack, orderArm_ == Arm::Patrol);
+        orderArm_ = Arm::None;
+    }
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const bgfx::TextureHandle tex = renderer_.textureHandle(minimap_);
@@ -214,6 +184,66 @@ void App::drawMinimap(float size) {
     trackWindow();
     minimapRight_ = ImGui::GetWindowPos().x + ImGui::GetWindowSize().x;
     ImGui::End();
+}
+
+void App::drawSelectionTiles(float width, int perRow, bool horizontal) {
+    const float s = uiScale();
+    std::map<UnitDefId, int> counts;
+    for (const auto id : selected_)
+        if (const auto* e = findEntity(id))
+            ++counts[e->def];
+    ImGui::Text("%d selected", static_cast<int>(selected_.size()));
+    for (const auto& [def, n] : counts) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s x%d", data_->unit(def).name.c_str(), n);
+    }
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    const float tile = std::min(48.0f * s, (width - spacing * static_cast<float>(perRow - 1) - (horizontal ? 0.0f : 14.0f * s)) /
+                                               static_cast<float>(perRow));
+    const float height = horizontal ? tile + ImGui::GetStyle().ScrollbarSize + 4.0f * s : ImGui::GetContentRegionAvail().y;
+    ImGui::BeginChild("tiles", {width, height}, ImGuiChildFlags_None, horizontal ? ImGuiWindowFlags_HorizontalScrollbar : 0);
+    int index = 0;
+    std::uint32_t pick = 0;
+    std::uint32_t drop = 0;
+    UnitDefId type = kInvalidUnitDef;
+    for (const auto id : selected_) {
+        const auto* e = findEntity(id);
+        if (!e)
+            continue;
+        if (horizontal ? index > 0 : index % perRow != 0)
+            ImGui::SameLine();
+        ++index;
+        ImGui::PushID(static_cast<int>(id));
+        const auto& def = data_->unit(e->def);
+        const int rank = e->rank > 0 ? e->rank - 1 : 0;
+        ImGui::PushStyleColor(ImGuiCol_Text, toVec(kRankColors[std::min(rank, 3)]));
+        if (ImGui::Button(def.name.substr(0, 2).c_str(), {tile, tile})) {
+            const SDL_Keymod mod = SDL_GetModState();
+            if (mod & SDL_KMOD_SHIFT)
+                drop = id;
+            else if (mod & SDL_KMOD_CTRL)
+                type = e->def;
+            else
+                pick = id;
+        }
+        ImGui::PopStyleColor();
+        const ImVec2 a = ImGui::GetItemRectMin();
+        const ImVec2 b = ImGui::GetItemRectMax();
+        const float frac = static_cast<float>(e->hp) / static_cast<float>(std::max<std::uint16_t>(e->maxHp, 1));
+        ImGui::GetWindowDrawList()->AddRectFilled({a.x + 3.0f, b.y - 5.0f}, {a.x + 3.0f + (b.x - a.x - 6.0f) * frac, b.y - 2.0f}, hpColor(frac));
+        ImGui::SetItemTooltip("%s  %u/%u\nclick: select only, shift: remove, ctrl: all of this type", def.name.c_str(), e->hp, e->maxHp);
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+    if (pick != 0)
+        selected_ = {pick};
+    else if (drop != 0)
+        std::erase(selected_, drop);
+    else if (type != kInvalidUnitDef)
+        std::erase_if(selected_, [&](std::uint32_t id) {
+            const auto* e = findEntity(id);
+            return !e || e->def != type;
+        });
 }
 
 void App::drawSelection() {
@@ -291,156 +321,9 @@ void App::drawSelection() {
             ImGui::TextColored(toVec(kGood), "%d skill point%s [L]", own->skillPoints, own->skillPoints > 1 ? "s" : "");
         }
     } else {
-        ImGui::Text("%d units selected", static_cast<int>(selected_.size()));
-        const float tile = 36.0f * s;
-        const int perRow = std::max(1, static_cast<int>((w + ImGui::GetStyle().ItemSpacing.x) / (tile + ImGui::GetStyle().ItemSpacing.x)));
-        int index = 0;
-        std::uint32_t pick = 0;
-        for (const auto id : selected_) {
-            const auto* e = findEntity(id);
-            if (!e)
-                continue;
-            if (index % perRow != 0)
-                ImGui::SameLine();
-            ImGui::PushID(static_cast<int>(id));
-            const auto& def = data_->unit(e->def);
-            const int rank = e->rank > 0 ? e->rank - 1 : 0;
-            ImGui::PushStyleColor(ImGuiCol_Text, toVec(kRankColors[std::min(rank, 3)]));
-            if (ImGui::Button(def.name.substr(0, 2).c_str(), {tile, tile}))
-                pick = id;
-            ImGui::PopStyleColor();
-            const ImVec2 a = ImGui::GetItemRectMin();
-            const ImVec2 b = ImGui::GetItemRectMax();
-            const float frac = static_cast<float>(e->hp) / static_cast<float>(std::max<std::uint16_t>(e->maxHp, 1));
-            ImGui::GetWindowDrawList()->AddRectFilled({a.x + 3.0f, b.y - 5.0f}, {a.x + 3.0f + (b.x - a.x - 6.0f) * frac, b.y - 2.0f}, hpColor(frac));
-            ImGui::SetItemTooltip("%s  %u/%u", def.name.c_str(), e->hp, e->maxHp);
-            ImGui::PopID();
-            if (++index >= perRow * 3)
-                break;
-        }
-        if (pick != 0)
-            selected_ = {pick};
+        drawSelectionTiles(w, 9, false);
     }
     trackWindow();
-    ImGui::End();
-}
-
-void App::drawCommandCard() {
-    const auto* latest = net_.latest();
-    const float s = uiScale();
-    const ImVec2 display = ImGui::GetIO().DisplaySize;
-    const float pad = 8.0f * s;
-    const float cell = (hudBottom_ - pad - 2.0f * 8.0f * s - 2.0f * ImGui::GetStyle().ItemSpacing.y) / 3.0f;
-    const ImVec2 size{cell * 1.05f, cell};
-
-    ImGui::SetNextWindowPos({display.x - pad, display.y - pad}, ImGuiCond_Always, {1.0f, 1.0f});
-    ImGui::SetNextWindowBgAlpha(0.8f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{8.0f * s, 8.0f * s});
-    ImGui::Begin("##card", nullptr, kHudFlags);
-    ImGui::PopStyleVar();
-
-    const bool hasSelection = !selected_.empty();
-    const auto* own = focusedOwn();
-    const auto* entity = hasSelection ? findEntity(selected_.front()) : nullptr;
-    const auto rank = own ? static_cast<Rank>(std::min<int>(own->rank, 3)) : Rank::Recruit;
-    const float energy = static_cast<float>(latest->view.energy);
-
-    if (cardButton("attack", ICON_FA_CROSSHAIRS, "Attack", "A", hasSelection, attackMoveArmed_, size)) {
-        attackMoveArmed_ = !attackMoveArmed_;
-        armedSkill_ = -1;
-    }
-    ImGui::SetItemTooltip("Attack-move: fight everything on the way [A]");
-    ImGui::SameLine();
-    if (cardButton("stop", ICON_FA_STOP, "Stop", "S", hasSelection, false, size))
-        pressKey(SDLK_S, false);
-    ImGui::SetItemTooltip("Stop [S]");
-    ImGui::SameLine();
-    bool canPromote = false;
-    char promoteSub[24] = "Promote";
-    const char* promoteTip = "Select a unit to promote it";
-    if (own && entity) {
-        if (rank == Rank::Recruit || rank == Rank::Veteran) {
-            canPromote = static_cast<float>(own->xp) >= kEliteXp && energy >= kEliteCost;
-            std::snprintf(promoteSub, sizeof(promoteSub), ICON_FA_BOLT "%.0f", kEliteCost);
-            promoteTip = "Promote to Elite: 200 XP and energy. Elites carry items.";
-        } else if (rank == Rank::Elite && !data_->unit(entity->def).skills.empty()) {
-            canPromote = static_cast<float>(own->xp) >= kHeroXp && latest->view.shards >= kHeroShards;
-            std::snprintf(promoteSub, sizeof(promoteSub), ICON_FA_DIAMOND "%d", kHeroShards);
-            promoteTip = "Raise a Hero: 400 XP and shards. Heroes learn skills.";
-        } else {
-            promoteTip = rank == Rank::Hero ? "Already a hero" : "This unit cannot become a hero";
-        }
-    }
-    if (cardButton("promote", rank == Rank::Elite ? ICON_FA_TROPHY : ICON_FA_ARROW_UP, promoteSub, "P", canPromote, false, size))
-        pressKey(SDLK_P, false);
-    ImGui::SetItemTooltip("%s [P]", promoteTip);
-    ImGui::SameLine();
-    if (cardButton("learn", ICON_FA_BOOK, "Skills", "L", true, panel_ == Panel::Learn, size))
-        panel_ = panel_ == Panel::Learn ? Panel::None : Panel::Learn;
-    ImGui::SetItemTooltip("Learn hero skills [L]");
-
-    for (std::size_t i = 0; i < 4; ++i) {
-        if (i > 0)
-            ImGui::SameLine();
-        const bool has = own && rank == Rank::Hero && i < own->skills.size();
-        if (!has) {
-            cardButton(kSkillKeys[i], "", "", kSkillKeys[i], false, false, size);
-            ImGui::SetItemTooltip("Hero skill slot [%s]", kSkillKeys[i]);
-            continue;
-        }
-        const auto& slot = own->skills[i];
-        const auto& skill = data_->skill(slot.skill);
-        std::string shortName = skill.name.substr(0, 6);
-        char lvl[8];
-        std::snprintf(lvl, sizeof(lvl), "lvl %d", slot.level);
-        if (cardButton(kSkillKeys[i], shortName.c_str(), lvl, kSkillKeys[i], !skill.passive, armedSkill_ == static_cast<int>(i), size))
-            pressKey(i == 0 ? SDLK_Q : i == 1 ? SDLK_W : i == 2 ? SDLK_E : SDLK_R, false);
-        skillTooltip(skill, slot.level);
-        if (slot.cooldown > 0) {
-            const ImVec2 a = ImGui::GetItemRectMin();
-            const ImVec2 b = ImGui::GetItemRectMax();
-            const float frac = std::clamp(static_cast<float>(slot.cooldown) / 10.0f / std::max(skill.cooldown, 0.1f), 0.0f, 1.0f);
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-            dl->AddRectFilled({a.x, b.y - (b.y - a.y) * frac}, b, IM_COL32(0, 0, 0, 160), 4.0f);
-            char cd[8];
-            std::snprintf(cd, sizeof(cd), "%d", (slot.cooldown + 9) / 10);
-            const ImVec2 cs = ImGui::CalcTextSize(cd);
-            dl->AddText({a.x + (b.x - a.x - cs.x) * 0.5f, a.y + (b.y - a.y - cs.y) * 0.5f}, IM_COL32(255, 255, 255, 255), cd);
-        }
-    }
-
-    const auto& recruitable = data_->recruitable();
-    static constexpr const char* kDigits[] = {"Z", "X"};
-    for (std::size_t i = 0; i < 2; ++i) {
-        if (i > 0)
-            ImGui::SameLine();
-        if (i >= recruitable.size()) {
-            cardButton(kDigits[i], "", "", "", false, false, size);
-            continue;
-        }
-        const auto& def = data_->unit(recruitable[i]);
-        char cost[16];
-        std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
-        if (cardButton(kDigits[i], def.name.substr(0, 6).c_str(), cost, kDigits[i], energy >= def.cost, false, size))
-            net_.sendCommand(RecruitCommand{0, recruitable[i]});
-        if (ImGui::BeginItemTooltip()) {
-            ImGui::Text("Recruit %s  [%s]", def.name.c_str(), kDigits[i]);
-            ImGui::TextDisabled("HP %.0f  armor %.0f  speed %.1f", def.maxHp, def.armor, def.speed);
-            if (def.weapon)
-                ImGui::TextDisabled("damage %.0f  range %.1f  every %.1fs", def.weapon->damage, def.weapon->range, def.weapon->cooldown);
-            ImGui::EndTooltip();
-        }
-    }
-    ImGui::SameLine();
-    if (cardButton("shop", ICON_FA_SHOPPING_CART, "Shop", "B", true, panel_ == Panel::Shop, size))
-        panel_ = panel_ == Panel::Shop ? Panel::None : Panel::Shop;
-    ImGui::SetItemTooltip("Shop [B]");
-    ImGui::SameLine();
-    if (cardButton("stash", ICON_FA_ARCHIVE, "Stash", "I", true, panel_ == Panel::Stash, size))
-        panel_ = panel_ == Panel::Stash ? Panel::None : Panel::Stash;
-    ImGui::SetItemTooltip("Stash [I]");
-    trackWindow();
-    commandCardLeft_ = ImGui::GetWindowPos().x;
     ImGui::End();
 }
 

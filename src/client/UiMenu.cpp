@@ -16,6 +16,18 @@ using namespace ui;
 
 namespace {
 
+constexpr const char* kColorNames[] = {"Green", "Blue", "Yellow", "Orange", "Purple", "Cyan", "Pink", "White"};
+
+ImVec4 colorVec(std::size_t i, float alpha) {
+    const std::uint32_t c = net::kPlayerColors[i];
+    return {static_cast<float>((c >> 16) & 0xff) / 255.0f, static_cast<float>((c >> 8) & 0xff) / 255.0f, static_cast<float>(c & 0xff) / 255.0f,
+            alpha};
+}
+
+}
+
+namespace {
+
 constexpr const char* kDifficultyNames[] = {"Easy", "Normal", "Hard", "Nightmare"};
 
 void spinner(float width, float s, double now) {
@@ -430,10 +442,13 @@ void App::drawLobby() {
 
     const float footer = 52.0f * s;
     const float bodyH = ImGui::GetContentRegionAvail().y - footer;
-    const float leftW = ImGui::GetContentRegionAvail().x * 0.4f;
+    const float leftW = ImGui::GetContentRegionAvail().x * 0.46f;
 
     ImGui::BeginChild("players", {leftW, bodyH}, ImGuiChildFlags_Borders);
     ImGui::TextDisabled("PLAYERS  %d / %d", static_cast<int>(info.players.size()), info.maxPlayers);
+    float nameCol = 0.0f;
+    for (const auto& p : info.players)
+        nameCol = std::max(nameCol, ImGui::CalcTextSize((p.name + " (you)").c_str()).x);
     for (int slot = 0; slot < info.maxPlayers; ++slot) {
         ImGui::PushID(slot);
         if (slot < static_cast<int>(info.players.size())) {
@@ -442,59 +457,108 @@ void App::drawLobby() {
             if (me && !setupSent_) {
                 setupSent_ = true;
                 if (preferredColor_ >= 0 && preferredColor_ != p.color)
-                    net_.sendPlayerSetup(static_cast<std::uint8_t>(preferredColor_), p.team);
+                    net_.sendPlayerSetup(p.id, static_cast<std::uint8_t>(preferredColor_), p.team);
             }
+            const bool editable = me || leader;
+            bool picked = lobbySelected_.contains(p.id);
+            if (ImGui::Checkbox("##pick", &picked)) {
+                if (picked)
+                    lobbySelected_.insert(p.id);
+                else
+                    lobbySelected_.erase(p.id);
+            }
+            ImGui::SetItemTooltip("Select for group actions");
+            ImGui::SameLine();
             ImGui::TextColored(toVec(p.id == info.leader ? kEnergy : kDim), p.id == info.leader ? ICON_FA_STAR : ICON_FA_USERS);
             ImGui::SameLine();
-            const std::uint32_t rgb = net::kPlayerColors[p.color];
-            const ImVec4 col{static_cast<float>((rgb >> 16) & 0xff) / 255.0f, static_cast<float>((rgb >> 8) & 0xff) / 255.0f,
-                             static_cast<float>(rgb & 0xff) / 255.0f, 1.0f};
-            const float sw = ImGui::GetFrameHeight() * 0.8f;
-            if (ImGui::ColorButton("##color", col, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoBorder, {sw, sw}) && me)
-                ImGui::OpenPopup("palette");
-            if (ImGui::BeginPopup("palette")) {
+            const float nameX = ImGui::GetCursorPosX();
+            ImGui::TextColored(toVec(me ? kGood : kText), "%s%s", p.name.c_str(), me ? " (you)" : "");
+            const float colorW = 96.0f * s;
+            const float teamW = 86.0f * s;
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(nameX + nameCol + ImGui::GetStyle().ItemSpacing.x);
+            ImGui::BeginDisabled(!editable);
+            ImGui::SetNextItemWidth(colorW);
+            if (ImGui::BeginCombo("##color", kColorNames[p.color])) {
                 for (std::size_t i = 0; i < net::kPlayerColors.size(); ++i) {
-                    const std::uint32_t c = net::kPlayerColors[i];
                     const bool taken = std::any_of(info.players.begin(), info.players.end(),
                                                    [&](const auto& o) { return o.id != p.id && o.color == i; });
-                    if (i > 0)
-                        ImGui::SameLine();
                     ImGui::PushID(static_cast<int>(i));
-                    ImGui::BeginDisabled(taken);
-                    if (ImGui::ColorButton("##c", {static_cast<float>((c >> 16) & 0xff) / 255.0f, static_cast<float>((c >> 8) & 0xff) / 255.0f,
-                                                   static_cast<float>(c & 0xff) / 255.0f, taken ? 0.25f : 1.0f},
-                                           ImGuiColorEditFlags_NoTooltip, {sw * 1.4f, sw * 1.4f})) {
-                        preferredColor_ = static_cast<int>(i);
-                        saveSettings();
-                        net_.sendPlayerSetup(static_cast<std::uint8_t>(i), p.team);
-                        ImGui::CloseCurrentPopup();
+                    ImGui::ColorButton("##c", colorVec(i, taken ? 0.3f : 1.0f), ImGuiColorEditFlags_NoTooltip,
+                                       {ImGui::GetFontSize(), ImGui::GetFontSize()});
+                    ImGui::SameLine();
+                    if (ImGui::Selectable(kColorNames[i], p.color == i, taken ? ImGuiSelectableFlags_Disabled : 0)) {
+                        if (me) {
+                            preferredColor_ = static_cast<int>(i);
+                            saveSettings();
+                        }
+                        net_.sendPlayerSetup(p.id, static_cast<std::uint8_t>(i), p.team);
                     }
-                    ImGui::EndDisabled();
                     ImGui::PopID();
                 }
-                ImGui::EndPopup();
+                ImGui::EndCombo();
+            }
+            {
+                const ImVec2 a = ImGui::GetItemRectMin();
+                const float h = ImGui::GetItemRectSize().y;
+                ImGui::GetWindowDrawList()->AddRectFilled({a.x + 3.0f, a.y + 3.0f}, {a.x + 7.0f * s, a.y + h - 3.0f},
+                                                          ImGui::ColorConvertFloat4ToU32(colorVec(p.color, 1.0f)), 2.0f);
             }
             ImGui::SameLine();
+            ImGui::SetNextItemWidth(teamW);
             char teamLabel[16];
-            std::snprintf(teamLabel, sizeof(teamLabel), "T%d##team", p.team + 1);
-            ImGui::BeginDisabled(!me);
-            if (ImGui::SmallButton(teamLabel))
-                net_.sendPlayerSetup(p.color, static_cast<std::uint8_t>((p.team + 1) % net::kLobbyTeams));
-            ImGui::EndDisabled();
-            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                ImGui::SetTooltip("Team (click to change)");
-            ImGui::SameLine();
-            ImGui::TextColored(toVec(me ? kGood : kText), "%s%s", p.name.c_str(), me ? "  (you)" : "");
-            if (p.id != info.leader) {
-                ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - 70.0f * s);
-                ImGui::TextColored(toVec(p.ready ? kGood : kDim), p.ready ? "ready" : "not ready");
+            std::snprintf(teamLabel, sizeof(teamLabel), "Team %d", p.team + 1);
+            if (ImGui::BeginCombo("##team", teamLabel)) {
+                for (int t = 0; t < net::kLobbyTeams; ++t) {
+                    char label[16];
+                    std::snprintf(label, sizeof(label), "Team %d", t + 1);
+                    if (ImGui::Selectable(label, p.team == t))
+                        net_.sendPlayerSetup(p.id, p.color, static_cast<std::uint8_t>(t));
+                }
+                ImGui::EndCombo();
             }
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            if (p.id != info.leader)
+                ImGui::TextColored(toVec(p.ready ? kGood : kDim), p.ready ? ICON_FA_CHECK : ICON_FA_TIMES);
+            else
+                ImGui::TextUnformatted("");
+            if (p.id != info.leader)
+                ImGui::SetItemTooltip(p.ready ? "ready" : "not ready");
         } else {
             ImGui::TextDisabled(ICON_FA_USERS "  open slot");
         }
         ImGui::PopID();
         if (slot > 10)
             break;
+    }
+    std::erase_if(lobbySelected_, [&](std::uint8_t id) {
+        return std::none_of(info.players.begin(), info.players.end(), [&](const auto& p) { return p.id == id; });
+    });
+    if (!lobbySelected_.empty()) {
+        ImGui::TextDisabled("%d selected:", static_cast<int>(lobbySelected_.size()));
+        auto mayEdit = [&](std::uint8_t id) { return leader || id == net_.player(); };
+        for (int t = 0; t < net::kLobbyTeams; ++t) {
+            ImGui::SameLine();
+            char label[16];
+            std::snprintf(label, sizeof(label), "Team %d", t + 1);
+            if (ImGui::SmallButton(label))
+                for (const auto& p : info.players)
+                    if (lobbySelected_.contains(p.id) && mayEdit(p.id))
+                        net_.sendPlayerSetup(p.id, p.color, static_cast<std::uint8_t>(t));
+        }
+        if (leader) {
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Text, toVec(kBad));
+            if (ImGui::SmallButton(ICON_FA_USER_TIMES " Kick"))
+                for (const auto id : lobbySelected_)
+                    if (id != net_.player())
+                        net_.sendKick(id);
+            ImGui::PopStyleColor();
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Clear"))
+            lobbySelected_.clear();
     }
     if (multiplayer) {
         ImGui::Separator();

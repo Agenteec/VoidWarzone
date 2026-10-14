@@ -279,9 +279,17 @@ void NetClient::sendReady(bool ready) {
     sendMessage(w);
 }
 
-void NetClient::sendPlayerSetup(std::uint8_t color, std::uint8_t team) {
+void NetClient::sendKick(std::uint8_t target) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Kick));
+    w.u8(target);
+    sendMessage(w);
+}
+
+void NetClient::sendPlayerSetup(std::uint8_t target, std::uint8_t color, std::uint8_t team) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::PlayerSetup));
+    w.u8(target);
     w.u8(color);
     w.u8(team);
     sendMessage(w);

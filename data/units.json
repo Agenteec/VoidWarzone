@@ -116,6 +116,8 @@
       "radius": 0.45,
       "speed": 3.0,
       "sight": 7,
+      "accel": 8.0,
+      "turnRate": 6.0,
       "weapon": {
         "damage": 13,
         "range": 0.4,
@@ -139,6 +141,8 @@
       "radius": 0.4,
       "speed": 3.0,
       "sight": 8,
+      "accel": 8.0,
+      "turnRate": 6.0,
       "weapon": {
         "damage": 11,
         "range": 5,
@@ -165,6 +169,8 @@
       "radius": 0.45,
       "speed": 3.0,
       "sight": 7,
+      "accel": 8.0,
+      "turnRate": 6.0,
       "weapon": {
         "damage": 12,
         "range": 0.4,
@@ -189,6 +195,8 @@
       "radius": 0.4,
       "speed": 3.0,
       "sight": 8,
+      "accel": 8.0,
+      "turnRate": 6.0,
       "weapon": {
         "damage": 11,
         "range": 5,
@@ -216,6 +224,8 @@
       "radius": 0.75,
       "speed": 2.4,
       "sight": 7,
+      "accel": 3.5,
+      "turnRate": 2.6,
       "weapon": {
         "damage": 34,
         "range": 0.5,
@@ -247,6 +257,8 @@
       "radius": 1.3,
       "speed": 2.4,
       "sight": 9,
+      "accel": 2.2,
+      "turnRate": 1.8,
       "weapon": {
         "damage": 45,
         "range": 1.0,
@@ -294,6 +306,8 @@
       "radius": 1.7,
       "speed": 2.1,
       "sight": 10,
+      "accel": 1.8,
+      "turnRate": 1.5,
       "weapon": {
         "damage": 70,
         "range": 1.2,
@@ -343,6 +357,8 @@
       "radius": 0.7,
       "speed": 4.0,
       "sight": 9,
+      "accel": 5.0,
+      "turnRate": 3.2,
       "skills": [
         "siege_shot",
         "fortify",
@@ -376,6 +392,8 @@
       "radius": 0.45,
       "speed": 6.5,
       "sight": 10,
+      "accel": 9.0,
+      "turnRate": 6.0,
       "skills": [
         "blink",
         "rapid_fire",
@@ -407,6 +425,8 @@
       "radius": 0.35,
       "speed": 6.0,
       "sight": 8,
+      "accel": 12.0,
+      "turnRate": 9.0,
       "weapon": {
         "damage": 14,
         "range": 4,

@@ -41,6 +41,7 @@ enum class MessageType : std::uint8_t {
     Chat,
     ReturnToLobby,
     PlayerSetup,
+    Kick,
 };
 
 enum class NetEventType : std::uint8_t {

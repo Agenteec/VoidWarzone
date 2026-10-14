@@ -29,6 +29,8 @@ inline constexpr ImU32 kRarityColors[] = {IM_COL32(210, 215, 225, 255), IM_COL32
                                           IM_COL32(255, 170, 40, 255)};
 inline constexpr const char* kRarityNames[] = {"Common", "Rare", "Epic", "Legendary"};
 inline constexpr const char* kSkillKeys[] = {"Q", "W", "E", "R"};
+inline constexpr const char* kBuildKeyNames[] = {"D", "F", "G", "J", "K"};
+inline constexpr const char* kRecruitKeyNames[] = {"Z", "X"};
 
 inline ImVec4 toVec(ImU32 c) {
     return ImGui::ColorConvertU32ToFloat4(c);

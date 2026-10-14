@@ -444,7 +444,7 @@ void App::returnToLobby() {
     entities_.clear();
     prediction_.clear();
     panel_ = Panel::None;
-    attackMoveArmed_ = false;
+    orderArm_ = Arm::None;
     armedSkill_ = -1;
     buildArmed_ = -1;
     for (auto& g : groups_)
@@ -654,9 +654,8 @@ void App::tap(glm::vec2 p) {
         armedSkill_ = -1;
         return;
     }
-    if (attackMoveArmed_) {
-        issueCommand(p, true);
-        attackMoveArmed_ = false;
+    if (orderArm_ != Arm::None) {
+        issueArmed(p);
         return;
     }
     if (ground)
@@ -736,15 +735,14 @@ void App::handleGameEvent(const SDL_Event& e) {
         if (e.button.button == SDL_BUTTON_LEFT) {
             if (buildArmed_ >= 0) {
                 placeBuild(p, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
-            } else if (attackMoveArmed_) {
-                issueCommand(p, true);
-                attackMoveArmed_ = false;
+            } else if (orderArm_ != Arm::None) {
+                issueArmed(p);
             } else {
                 dragging_ = true;
                 dragStart_ = p;
             }
         } else if (e.button.button == SDL_BUTTON_RIGHT) {
-            attackMoveArmed_ = false;
+            orderArm_ = Arm::None;
             if (buildArmed_ >= 0)
                 buildArmed_ = -1;
             else
@@ -771,16 +769,21 @@ void App::handleGameEvent(const SDL_Event& e) {
 void App::handleGameKey(SDL_Keycode key, bool shift) {
     const bool ctrl = (SDL_GetModState() & SDL_KMOD_CTRL) != 0;
     if (key == SDLK_A && !selected_.empty()) {
-        attackMoveArmed_ = true;
-        armedSkill_ = -1;
-    } else if (key == SDLK_S && !selected_.empty()) {
+        armOrder(Arm::Attack);
+    } else if (key == SDLK_M && !selected_.empty()) {
+        armOrder(Arm::Move);
+    } else if (key == SDLK_T && !selected_.empty()) {
+        armOrder(Arm::Patrol);
+    } else if ((key == SDLK_S || key == SDLK_H) && !selected_.empty()) {
         prediction_.cancel(selected_);
-        net_.sendCommand(StopCommand{selectedEntities()});
+        for (const auto id : selected_)
+            waypoints_.erase(id);
+        net_.sendCommand(StopCommand{selectedEntities(), key == SDLK_H});
     } else if (key == SDLK_ESCAPE) {
         if (pauseOpen_) {
             pauseOpen_ = false;
-        } else if (attackMoveArmed_ || armedSkill_ >= 0 || buildArmed_ >= 0) {
-            attackMoveArmed_ = false;
+        } else if ((orderArm_ != Arm::None) || armedSkill_ >= 0 || buildArmed_ >= 0) {
+            orderArm_ = Arm::None;
             armedSkill_ = -1;
             buildArmed_ = -1;
         } else if (panel_ != Panel::None) {
@@ -832,7 +835,7 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
                 castSlot(slot, std::nullopt);
             else
                 armedSkill_ = slot;
-            attackMoveArmed_ = false;
+            orderArm_ = Arm::None;
         } else {
             castSlot(slot, camera_.screenToGround(mouse_.x, mouse_.y));
         }
@@ -900,14 +903,46 @@ void App::boxSelect(glm::vec2 a, glm::vec2 b, bool add) {
         if (s.x >= lo.x && s.x <= hi.x && s.y >= lo.y && s.y <= hi.y && std::find(selected_.begin(), selected_.end(), e.id) == selected_.end())
             selected_.push_back(e.id);
     }
+    int best = 3;
+    for (const auto id : selected_)
+        if (const auto* e = findEntity(id))
+            best = std::min(best, selectPriority(*e));
+    std::erase_if(selected_, [&](std::uint32_t id) {
+        const auto* e = findEntity(id);
+        return !e || selectPriority(*e) > best;
+    });
 }
 
-void App::issueCommand(glm::vec2 screen, bool attackMove) {
+int App::selectPriority(const net::InterpolatedEntity& e) const {
+    const auto& def = data_->unit(e.def);
+    if (def.structure)
+        return 3;
+    if (e.rank >= 4 || def.weapon)
+        return 1;
+    return 2;
+}
+
+void App::armOrder(Arm arm) {
+    orderArm_ = orderArm_ == arm ? Arm::None : arm;
+    armedSkill_ = -1;
+    buildArmed_ = -1;
+}
+
+void App::issueArmed(glm::vec2 screen) {
+    const Arm arm = orderArm_;
+    const bool keep = !touchLayout() && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
+    if (!keep)
+        orderArm_ = Arm::None;
+    issueCommand(screen, arm == Arm::Attack, arm == Arm::Patrol);
+}
+
+void App::issueCommand(glm::vec2 screen, bool attackMove, bool patrol) {
     if (const auto ground = camera_.screenToGround(screen.x, screen.y))
-        issueCommandAt(*ground, attackMove);
+        issueCommandAt(*ground, attackMove, patrol);
 }
 
-void App::issueCommandAt(glm::vec2 point, bool attackMove) {
+void App::issueCommandAt(glm::vec2 point, bool attackMove, bool patrol) {
+    const bool queue = !touchLayout() && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
     pruneSelection();
     const std::optional<glm::vec2> ground = point;
     if (selected_.empty())
@@ -917,15 +952,27 @@ void App::issueCommandAt(glm::vec2 point, bool attackMove) {
         ownTeam = first->team;
 
     const auto* target = entityAt(*ground, 0.4f);
-    if (target && target->team != ownTeam) {
-        prediction_.cancel(selected_);
-        net_.sendCommand(AttackCommand{selectedEntities(), static_cast<entt::entity>(target->id)});
+    auto remember = [&](glm::vec2 p) {
+        for (const auto id : selected_) {
+            auto& list = waypoints_[id];
+            if (!queue)
+                list.clear();
+            list.push_back(p);
+        }
+    };
+    if (target && target->team != ownTeam && !patrol) {
+        if (!queue)
+            prediction_.cancel(selected_);
+        remember(target->pos);
+        net_.sendCommand(AttackCommand{selectedEntities(), static_cast<entt::entity>(target->id), queue});
         addEffect(Mesh::Cylinder, {ground->x, 0.1f, ground->y}, {1.0f, 0.3f, 0.3f, 0.8f}, 0.4f, 1.4f, 0.35f);
         return;
     }
 
-    const auto seq = net_.sendCommand(MoveCommand{selectedEntities(), *ground, attackMove});
-    if (attackMove) {
+    remember(*ground);
+    const auto seq = net_.sendCommand(MoveCommand{selectedEntities(), *ground, attackMove, queue, patrol});
+    if (queue) {
+    } else if (attackMove || patrol) {
         prediction_.cancel(selected_);
     } else {
         std::vector<net::InterpolatedEntity> units;
@@ -934,7 +981,9 @@ void App::issueCommandAt(glm::vec2 point, bool attackMove) {
                 units.push_back(*e);
         prediction_.onMove(units, *ground, seq, *data_, *map_);
     }
-    const glm::vec4 color = attackMove ? glm::vec4{1.0f, 0.6f, 0.2f, 0.8f} : glm::vec4{0.35f, 1.0f, 0.55f, 0.8f};
+    const glm::vec4 color = patrol       ? glm::vec4{0.4f, 0.7f, 1.0f, 0.8f}
+                            : attackMove ? glm::vec4{1.0f, 0.6f, 0.2f, 0.8f}
+                                         : glm::vec4{0.35f, 1.0f, 0.55f, 0.8f};
     addEffect(Mesh::Cylinder, {ground->x, 0.1f, ground->y}, color, 0.4f, 1.4f, 0.35f);
 }
 
@@ -1185,6 +1234,7 @@ void App::renderWorld() {
     }
 
     renderBuildGhost();
+    renderWaypoints();
 
     if (dragging_ && glm::distance(mouse_, dragStart_) >= kDragThreshold) {
         const glm::vec2 lo = glm::min(mouse_, dragStart_);

@@ -142,6 +142,7 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
             registry_.emplace<Producer>(e, Producer{def.produces, def.produceInterval, def.produceInterval, def.produceMax, {}});
     } else {
         registry_.emplace<Order>(e);
+        registry_.emplace<Motion>(e);
         registry_.emplace<Progress>(e, Progress{pos});
     }
     if (owner >= 0)
@@ -219,33 +220,59 @@ void World::apply(const Command& command) {
             if (units.empty())
                 return;
 
+            auto queued = [&](entt::entity e) {
+                if constexpr (requires { cmd.queue; }) {
+                    const auto& order = registry_.get<Order>(e);
+                    return cmd.queue && order.type != OrderType::None && order.type != OrderType::Hold;
+                } else {
+                    static_cast<void>(e);
+                    return false;
+                }
+            };
+            auto lastPoint = [&](entt::entity e) {
+                if (const auto* q = registry_.try_get<OrderQueue>(e); q && !q->items.empty())
+                    return q->items.back().point;
+                const auto& order = registry_.get<Order>(e);
+                if (order.type == OrderType::Attack && alive(order.target))
+                    return registry_.get<Position>(order.target).value;
+                return order.point;
+            };
+            auto give = [&](entt::entity e, const Order& next) {
+                if (queued(e)) {
+                    registry_.get_or_emplace<OrderQueue>(e).items.push_back(next);
+                    return;
+                }
+                registry_.get<Order>(e) = next;
+                registry_.remove<OrderQueue>(e);
+                registry_.get<Target>(e).value = entt::null;
+                registry_.remove<Navigator>(e);
+                registry_.remove<LaneFollower>(e);
+            };
+
             if constexpr (std::is_same_v<T, MoveCommand>) {
                 float spacing = 0.0f;
                 std::vector<glm::vec2> positions;
                 for (const auto e : units) {
                     spacing = std::max(spacing, registry_.get<Unit>(e).radius * 2.0f + 0.3f);
-                    positions.push_back(registry_.get<Position>(e).value);
+                    positions.push_back(queued(e) ? lastPoint(e) : registry_.get<Position>(e).value);
                 }
                 const auto goals = assignFormation(map_ ? &navMap() : nullptr, positions, spacing, cmd.point);
-                for (std::size_t i = 0; i < units.size(); ++i) {
-                    auto& order = registry_.get<Order>(units[i]);
-                    order = {cmd.attack ? OrderType::AttackMove : OrderType::Move, goals[i], entt::null};
-                    registry_.get<Target>(units[i]).value = entt::null;
-                    registry_.remove<Navigator>(units[i]);
-                    registry_.remove<LaneFollower>(units[i]);
-                }
+                const OrderType type = cmd.patrol ? OrderType::Patrol : cmd.attack ? OrderType::AttackMove : OrderType::Move;
+                for (std::size_t i = 0; i < units.size(); ++i)
+                    give(units[i], {type, goals[i], entt::null, positions[i]});
             } else if constexpr (std::is_same_v<T, AttackCommand>) {
                 if (!alive(cmd.target))
                     return;
-                for (const auto e : units) {
-                    registry_.get<Order>(e) = {OrderType::Attack, {}, cmd.target};
-                    registry_.remove<LaneFollower>(e);
-                }
+                for (const auto e : units)
+                    give(e, {OrderType::Attack, {}, cmd.target, {}});
             } else {
                 for (const auto e : units) {
-                    registry_.get<Order>(e) = {};
+                    const glm::vec2 pos = registry_.get<Position>(e).value;
+                    registry_.get<Order>(e) = cmd.hold ? Order{OrderType::Hold, pos, entt::null, pos} : Order{};
+                    registry_.remove<OrderQueue>(e);
                     registry_.get<Target>(e).value = entt::null;
                     registry_.remove<Navigator>(e);
+                    registry_.remove<LaneFollower>(e);
                 }
             }
             }
@@ -499,13 +526,14 @@ void World::updateUnits() {
             if (alive(order->target)) {
                 target.value = order->target;
             } else {
-                *order = {};
+                finishOrder(e, *order);
                 target.value = entt::null;
             }
         } else if (order && order->type == OrderType::Move) {
             target.value = entt::null;
         } else if (weapon) {
-            const float acquire = order ? unit.sight : weapon->def.range + unit.radius;
+            const bool hold = !order || order->type == OrderType::Hold;
+            const float acquire = hold ? weapon->def.range + unit.radius : unit.sight;
             if (target.value != entt::null) {
                 const auto& tp = registry_.get<Position>(target.value).value;
                 if (glm::distance(tp, pos.value) - registry_.get<Unit>(target.value).radius > acquire * kLeashFactor)
@@ -519,12 +547,11 @@ void World::updateUnits() {
             const glm::vec2 tp = registry_.get<Position>(target.value).value;
             const float reach = weapon->def.range + unit.radius + registry_.get<Unit>(target.value).radius;
             const glm::vec2 d = tp - pos.value;
-            if (glm::dot(d, d) > reach * reach && unit.speed > 0.0f)
+            if (glm::dot(d, d) > reach * reach && unit.speed > 0.0f && !(order && order->type == OrderType::Hold))
                 vel.value = navigate(e, pos.value, tp, unit.speed);
-        } else if (order && (order->type == OrderType::Move || order->type == OrderType::AttackMove)) {
+        } else if (order && (order->type == OrderType::Move || order->type == OrderType::AttackMove || order->type == OrderType::Patrol)) {
             if (glm::distance(pos.value, order->point) < kArriveDistance) {
-                *order = {};
-                registry_.remove<Navigator>(e);
+                finishOrder(e, *order);
             } else {
                 vel.value = navigate(e, pos.value, order->point, unit.speed);
             }
@@ -544,11 +571,12 @@ void World::updateUnits() {
                         vel.value = turned;
                 } else if (++progress->ticks >= kStuckTicks) {
                     const float expected = unit.speed * static_cast<float>(kStuckTicks) * kTickDt;
-                    const bool nearGoal = order && (order->type == OrderType::Move || order->type == OrderType::AttackMove) &&
+                    const bool nearGoal = order &&
+                                          (order->type == OrderType::Move || order->type == OrderType::AttackMove ||
+                                           order->type == OrderType::Patrol) &&
                                           glm::distance(pos.value, order->point) < unit.radius * 2.0f + 1.0f;
                     if (glm::distance(pos.value, progress->anchor) < expected * 0.2f && nearGoal) {
-                        *order = {};
-                        registry_.remove<Navigator>(e);
+                        finishOrder(e, *order);
                     } else if (glm::distance(pos.value, progress->anchor) < expected * 0.2f) {
                         progress->detour = kDetourTicks;
                         progress->side = -progress->side;
@@ -565,9 +593,46 @@ void World::updateUnits() {
             }
         }
 
-        if (glm::dot(vel.value, vel.value) > 1e-6f)
-            facing.angle = std::atan2(vel.value.y, vel.value.x);
+        applyMotion(e, unit, vel.value, facing.angle);
     }
+}
+
+void World::finishOrder(entt::entity e, Order& order) {
+    registry_.remove<Navigator>(e);
+    if (order.type == OrderType::Patrol) {
+        std::swap(order.point, order.origin);
+        return;
+    }
+    if (auto* q = registry_.try_get<OrderQueue>(e); q && !q->items.empty()) {
+        order = q->items.front();
+        q->items.erase(q->items.begin());
+        if (order.type == OrderType::Patrol)
+            order.origin = registry_.get<Position>(e).value;
+        return;
+    }
+    registry_.remove<OrderQueue>(e);
+    order = {};
+}
+
+void World::applyMotion(entt::entity e, const Unit& unit, glm::vec2& vel, float& facing) {
+    auto* motion = registry_.try_get<Motion>(e);
+    if (!motion) {
+        if (glm::dot(vel, vel) > 1e-6f)
+            facing = std::atan2(vel.y, vel.x);
+        return;
+    }
+    const auto& def = data_->unit(unit.def);
+    const float want = glm::length(vel);
+    float target = 0.0f;
+    if (want > 1e-3f) {
+        const float goal = std::atan2(vel.y, vel.x);
+        facing = approach(facing, goal, def.turnRate * kTickDt);
+        const float off = std::abs(wrapAngle(goal - facing));
+        target = off < 1.2f ? want * std::cos(off) : 0.0f;
+    }
+    const float rate = (target > motion->speed ? def.accel : def.accel * 1.6f) * kTickDt;
+    motion->speed = motion->speed < target ? std::min(target, motion->speed + rate) : std::max(target, motion->speed - rate);
+    vel = motion->speed > 1e-4f ? glm::vec2(std::cos(facing), std::sin(facing)) * motion->speed : glm::vec2{};
 }
 
 void World::integrate() {

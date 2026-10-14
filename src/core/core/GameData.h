@@ -73,6 +73,8 @@ struct UnitDef {
     float radius = 0.5f;
     float speed = 0.0f;
     float sight = 8.0f;
+    float accel = 0.0f;
+    float turnRate = 8.0f;
     float income = 0.0f;
     bool structure = false;
     bool buildable = false;

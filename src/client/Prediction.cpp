@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <numbers>
 
 #include <glm/geometric.hpp>
 
@@ -42,6 +43,12 @@ void Prediction::onMove(const std::vector<net::InterpolatedEntity>& units, glm::
         p.path = findPath(map, p.pos, p.goal);
         p.speed = def.speed;
         p.radius = def.radius;
+        p.accel = def.accel;
+        p.turnRate = def.turnRate;
+        if (const auto it = units_.find(units[i].id); it != units_.end()) {
+            p.current = it->second.current;
+            p.facing = it->second.facing;
+        }
         units_[units[i].id] = std::move(p);
     }
 }
@@ -73,11 +80,19 @@ void Prediction::update(float dt, double now, const net::NetClient& net, const G
         while (p.next < p.path.size() && glm::distance(p.pos, p.path[p.next]) < 0.4f)
             ++p.next;
         const glm::vec2 waypoint = p.next < p.path.size() ? p.path[p.next] : p.goal;
-        const glm::vec2 vel = seek(p.pos, waypoint, p.speed, dt);
-        p.pos += vel * dt;
+        const glm::vec2 want = seek(p.pos, waypoint, p.speed, dt);
+        float target = 0.0f;
+        if (glm::dot(want, want) > 1e-6f) {
+            const float goal = std::atan2(want.y, want.x);
+            float d = std::remainder(goal - p.facing, 2.0f * std::numbers::pi_v<float>);
+            p.facing += std::clamp(d, -p.turnRate * dt, p.turnRate * dt);
+            d = std::abs(std::remainder(goal - p.facing, 2.0f * std::numbers::pi_v<float>));
+            target = d < 1.2f ? glm::length(want) * std::cos(d) : 0.0f;
+        }
+        const float rate = (target > p.current ? p.accel : p.accel * 1.6f) * dt;
+        p.current = p.current < target ? std::min(target, p.current + rate) : std::max(target, p.current - rate);
+        p.pos += glm::vec2(std::cos(p.facing), std::sin(p.facing)) * p.current * dt;
         pushOutOfWalls(map, p.pos, p.radius);
-        if (glm::dot(vel, vel) > 1e-6f)
-            p.facing = std::atan2(vel.y, vel.x);
 
         bool done = false;
         if (acked >= p.seq) {

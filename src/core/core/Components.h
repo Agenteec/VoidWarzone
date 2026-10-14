@@ -74,12 +74,21 @@ struct Target {
     entt::entity value = entt::null;
 };
 
-enum class OrderType : std::uint8_t { None, Move, AttackMove, Attack };
+enum class OrderType : std::uint8_t { None, Move, AttackMove, Attack, Patrol, Hold };
 
 struct Order {
     OrderType type = OrderType::None;
     glm::vec2 point{};
     entt::entity target = entt::null;
+    glm::vec2 origin{};
+};
+
+struct OrderQueue {
+    std::vector<Order> items;
+};
+
+struct Motion {
+    float speed = 0.0f;
 };
 
 struct Navigator {

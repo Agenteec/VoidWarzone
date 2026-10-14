@@ -135,6 +135,8 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         def.radius = u.value("radius", def.radius);
         def.speed = u.value("speed", def.speed);
         def.sight = u.value("sight", def.sight);
+        def.accel = u.value("accel", std::max(def.speed * 4.0f, 1.0f));
+        def.turnRate = u.value("turnRate", def.turnRate);
         def.structure = u.value("structure", def.structure);
         def.income = u.value("income", def.income);
         def.buildable = u.value("buildable", def.buildable);

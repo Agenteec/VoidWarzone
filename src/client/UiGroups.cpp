@@ -16,8 +16,7 @@ using namespace ui;
 
 namespace {
 
-constexpr SDL_Keycode kBuildKeys[] = {SDLK_D, SDLK_F, SDLK_G, SDLK_H, SDLK_J};
-constexpr const char* kBuildKeyNames[] = {"D", "F", "G", "H", "J"};
+constexpr SDL_Keycode kBuildKeys[] = {SDLK_D, SDLK_F, SDLK_G, SDLK_J, SDLK_K};
 
 }
 
@@ -38,7 +37,7 @@ void App::armBuild(std::size_t index) {
         return;
     const int def = static_cast<int>(list[index]);
     buildArmed_ = buildArmed_ == def ? -1 : def;
-    attackMoveArmed_ = false;
+    orderArm_ = Arm::None;
     armedSkill_ = -1;
 }
 
@@ -180,57 +179,38 @@ void App::drawGroupBar() {
     ImGui::End();
 }
 
-void App::drawBuildBar() {
-    if (!arenaMode())
-        return;
-    const auto* latest = net_.latest();
-    if (!latest)
-        return;
-    const auto& list = data_->buildable();
-    if (list.empty())
-        return;
-    const float s = uiScale();
-    const bool touch = touchLayout();
-    const ImVec2 display = ImGui::GetIO().DisplaySize;
-    const float energy = static_cast<float>(latest->view.energy);
+}
 
-    ImGui::SetNextWindowPos({display.x - 8.0f * s, display.y - hudBottom_ - 6.0f * s}, ImGuiCond_Always, {1.0f, 1.0f});
-    ImGui::SetNextWindowBgAlpha(0.7f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{6.0f * s, 6.0f * s});
-    ImGui::Begin("##build", nullptr, kHudFlags);
-    ImGui::PopStyleVar();
-    ImGui::TextDisabled(ICON_FA_WRENCH " BUILD");
-    const ImVec2 size{(touch ? 132.0f : 124.0f) * s, (touch ? 44.0f : 36.0f) * s};
-    for (std::size_t i = 0; i < list.size() && i < 5; ++i) {
-        const auto& def = data_->unit(list[i]);
-        const bool armed = buildArmed_ == static_cast<int>(list[i]);
-        char label[80];
-        if (touch)
-            std::snprintf(label, sizeof(label), "%s\n" ICON_FA_BOLT "%.0f##b%zu", def.name.c_str(), def.cost, i);
+namespace vw::client {
+
+void App::renderWaypoints() {
+    for (auto it = waypoints_.begin(); it != waypoints_.end();) {
+        const auto* e = findEntity(it->first);
+        auto& list = it->second;
+        if (e && !list.empty() && glm::distance(e->pos, list.front()) < data_->unit(e->def).radius + 1.0f)
+            list.erase(list.begin());
+        if (!e || list.empty())
+            it = waypoints_.erase(it);
         else
-            std::snprintf(label, sizeof(label), "[%s] %s\n" ICON_FA_BOLT "%.0f##b%zu", kBuildKeyNames[i], def.name.c_str(), def.cost, i);
-        ImGui::PushStyleColor(ImGuiCol_Button, armed ? ImVec4{0.2f, 0.5f, 0.3f, 1.0f} : ImVec4{0.14f, 0.16f, 0.2f, 0.9f});
-        ImGui::BeginDisabled(energy < def.cost && !armed);
-        if (ImGui::Button(label, size))
-            armBuild(i);
-        ImGui::EndDisabled();
-        ImGui::PopStyleColor();
-        if (ImGui::BeginItemTooltip()) {
-            ImGui::Text("%s", def.name.c_str());
-            ImGui::TextDisabled("HP %.0f  armor %.0f", def.maxHp, def.armor);
-            if (def.weapon)
-                ImGui::TextDisabled("damage %.0f  range %.1f  every %.1fs", def.weapon->damage, def.weapon->range, def.weapon->cooldown);
-            if (def.income > 0.0f)
-                ImGui::TextDisabled("+%.1f energy/s", def.income);
-            if (def.produces != kInvalidUnitDef)
-                ImGui::TextDisabled("makes a %s every %.0fs (up to %d)", data_->unit(def.produces).name.c_str(), def.produceInterval,
-                                    def.produceMax);
-            ImGui::TextDisabled(touch ? "then tap the ground" : "click to place, Shift keeps placing, right click cancels");
-            ImGui::EndTooltip();
+            ++it;
+    }
+    const glm::vec4 color{0.35f, 1.0f, 0.55f, 0.55f};
+    for (const auto id : selected_) {
+        const auto it = waypoints_.find(id);
+        const auto* e = findEntity(id);
+        if (it == waypoints_.end() || !e || it->second.size() < 2)
+            continue;
+        glm::vec2 from = e->pos;
+        for (const auto& p : it->second) {
+            const float len = glm::distance(from, p);
+            for (float t = 0.8f; t < len; t += 0.8f) {
+                const glm::vec2 q = from + (p - from) * (t / len);
+                renderer_.draw(Mesh::Sphere, {q.x, 0.12f, q.y}, glm::vec3(0.12f), 0.0f, color, Unlit | Alpha);
+            }
+            renderer_.draw(Mesh::Cylinder, {p.x, 0.04f, p.y}, {0.7f, 0.04f, 0.7f}, 0.0f, color, Unlit | Alpha);
+            from = p;
         }
     }
-    trackWindow();
-    ImGui::End();
 }
 
 }

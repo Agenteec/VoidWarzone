@@ -243,3 +243,37 @@ TEST_CASE("bench pathing" * doctest::skip()) {
     MESSAGE("field ms " << std::chrono::duration<double, std::milli>(t1 - t0).count() / 20 << " path ms "
                         << std::chrono::duration<double, std::milli>(t2 - t1).count() / 20);
 }
+
+TEST_CASE("queued orders, patrol, hold and inertia") {
+    const auto data = vw::GameData::parse(kUnits);
+    vw::Map map(40, 40);
+    vw::World world(data, map);
+    auto& reg = world.registry();
+    const auto u = world.spawn(data.find("soldier"), 0, {5.5f, 5.5f}, 0);
+    auto pos = [&] { return reg.get<vw::Position>(u).value; };
+    auto run = [&](float s) {
+        for (int i = 0; i < static_cast<int>(s * vw::kTickRate); ++i)
+            world.step();
+    };
+
+    world.apply(vw::MoveCommand{{u}, {15.5f, 5.5f}});
+    world.step();
+    CHECK(reg.get<vw::Motion>(u).speed < 1.0f);
+    world.apply(vw::MoveCommand{{u}, {15.5f, 15.5f}, false, true});
+    world.apply(vw::MoveCommand{{u}, {5.5f, 15.5f}, false, true});
+    CHECK(reg.get<vw::OrderQueue>(u).items.size() == 2);
+    run(12.0f);
+    CHECK(glm::distance(pos(), glm::vec2{5.5f, 15.5f}) < 0.6f);
+    CHECK(reg.get<vw::Order>(u).type == vw::OrderType::None);
+
+    world.apply(vw::MoveCommand{{u}, {15.5f, 15.5f}, false, false, true});
+    run(4.0f);
+    CHECK(reg.get<vw::Order>(u).type == vw::OrderType::Patrol);
+    CHECK(glm::distance(reg.get<vw::Order>(u).point, glm::vec2{5.5f, 15.5f}) < 0.6f);
+
+    world.apply(vw::StopCommand{{u}, true});
+    const auto enemy = world.spawn(data.find("soldier"), 1, {pos().x + 6.0f, pos().y}, -1);
+    run(2.0f);
+    CHECK(reg.get<vw::Order>(u).type == vw::OrderType::Hold);
+    CHECK(glm::distance(reg.get<vw::Position>(enemy).value, pos()) < 3.0f);
+}

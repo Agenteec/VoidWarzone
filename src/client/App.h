@@ -105,8 +105,14 @@ private:
 
     void clickSelect(glm::vec2 screen, bool add);
     void boxSelect(glm::vec2 a, glm::vec2 b, bool add);
-    void issueCommand(glm::vec2 screen, bool attackMove);
-    void issueCommandAt(glm::vec2 ground, bool attackMove);
+    int selectPriority(const net::InterpolatedEntity& e) const;
+    enum class Arm { None, Move, Attack, Patrol };
+    void issueCommand(glm::vec2 screen, bool attackMove, bool patrol = false);
+    void issueCommandAt(glm::vec2 ground, bool attackMove, bool patrol = false);
+    void issueArmed(glm::vec2 screen);
+    void armOrder(Arm arm);
+    void renderWaypoints();
+    std::unordered_map<std::uint32_t, std::vector<glm::vec2>> waypoints_;
     void pruneSelection();
     const net::InterpolatedEntity* entityAt(glm::vec2 p, float pad) const;
     const net::InterpolatedEntity* findEntity(std::uint32_t id) const;
@@ -147,9 +153,11 @@ private:
     void drawResourceBar();
     void drawMinimap(float size);
     void drawSelection();
-    void drawCommandCard();
+    void drawSelectionTiles(float width, int perRow, bool horizontal);
+    void drawDock();
+    enum class Dock { None, Orders, Production, Skills, Build };
+    Dock dock_ = Dock::None;
     void drawGroupBar();
-    void drawBuildBar();
     void renderBuildGhost();
     bool arenaMode() const;
     int buildKeyIndex(SDL_Keycode key) const;
@@ -161,7 +169,6 @@ private:
     void drawTopBar();
     void drawBossBar();
     void drawUnitPanel();
-    void drawCommandBar();
     void drawSidePanel();
     void drawStats();
     void drawPauseMenu();
@@ -223,7 +230,7 @@ private:
     glm::vec2 mouse_{};
     glm::vec2 dragStart_{};
     bool dragging_ = false;
-    bool attackMoveArmed_ = false;
+    Arm orderArm_ = Arm::None;
 
     enum class Panel { None, Shop, Stash, Learn };
     Panel panel_ = Panel::None;
@@ -268,6 +275,7 @@ private:
     int layout_ = 0;
     int preferredColor_ = -1;
     bool setupSent_ = false;
+    std::set<std::uint8_t> lobbySelected_;
     int settingsTab_ = 0;
     bool autoStart_ = false;
     TextureId minimap_ = 0;

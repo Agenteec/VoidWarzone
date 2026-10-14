@@ -54,6 +54,7 @@ private:
         bool ready = false;
         std::uint8_t color = 0;
         std::uint8_t team = 0;
+        bool kicked = false;
         std::uint32_t commandSeq = 0;
         std::uint32_t ackedTick = 0;
         std::array<std::pair<std::uint16_t, std::uint32_t>, 256> sentTicks{};

@@ -245,14 +245,21 @@ void Server::handleSettings(Client& client, Reader& r) {
 }
 
 void Server::handlePlayerSetup(Client& client, Reader& r) {
+    const std::uint8_t target = r.u8();
     const std::uint8_t color = r.u8();
     const std::uint8_t team = r.u8();
     if (!r.ok() || color >= kPlayerColors.size() || team >= kLobbyTeams)
         return;
-    if (std::none_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c.get() != &client && c->color == color; }))
-        client.color = color;
+    if (target != client.player && client.player != leader())
+        return;
+    const auto it = std::find_if(clients_.begin(), clients_.end(), [&](const auto& c) { return c->player == target; });
+    if (it == clients_.end())
+        return;
+    Client& who = **it;
+    if (std::none_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c.get() != &who && c->color == color; }))
+        who.color = color;
     if (!world_)
-        client.team = team;
+        who.team = team;
     lobbyDirty_ = true;
 }
 
@@ -274,6 +281,14 @@ void Server::handleMessages(Client& client) {
         case MessageType::PlayerSetup:
             handlePlayerSetup(client, r);
             break;
+        case MessageType::Kick: {
+            const std::uint8_t target = r.u8();
+            if (r.ok() && client.player == leader() && target != client.player)
+                for (auto& c : clients_)
+                    if (c->player == target)
+                        c->kicked = true;
+            break;
+        }
         case MessageType::Start:
             if (!world_ && client.player == leader())
                 startMatch();
@@ -548,7 +563,9 @@ void Server::update(double now) {
 
     for (std::size_t i = clients_.size(); i-- > 0;) {
         clients_[i]->conn->update(now);
-        if (now - clients_[i]->conn->lastReceiveTime() > kTimeout)
+        if (clients_[i]->kicked)
+            drop(i, true);
+        else if (now - clients_[i]->conn->lastReceiveTime() > kTimeout)
             drop(i, false);
     }
 }
