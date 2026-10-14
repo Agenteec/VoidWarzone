@@ -2,8 +2,6 @@
 
 Cross-platform RTS / hero defense. Windows, Linux, Android.
 
-Spec: [docs/TZ.md](docs/TZ.md)
-
 ## Build
 
 Windows (Visual Studio 2026):
