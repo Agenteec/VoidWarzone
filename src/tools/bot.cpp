@@ -44,6 +44,8 @@ int main(int argc, char** argv) {
     double seconds = 10.0;
     bool list = false;
     bool relayOnly = false;
+    bool noHost = false;
+    bool noRelay = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
         const bool hasValue = i + 1 < argc;
@@ -63,6 +65,10 @@ int main(int argc, char** argv) {
             list = true;
         else if (arg == "--relay-only")
             relayOnly = true;
+        else if (arg == "--no-host")
+            noHost = true;
+        else if (arg == "--no-relay")
+            noRelay = true;
         else if (arg == "--verbose")
             juice_set_log_level(JUICE_LOG_LEVEL_DEBUG);
     }
@@ -76,6 +82,8 @@ int main(int argc, char** argv) {
 
     vw::net::MasterClient lobby;
     lobby.setRelayOnly(relayOnly);
+    lobby.setNoHostCandidates(noHost);
+    lobby.setNoRelay(noRelay);
     vw::net::NetClient client;
     const double start = nowSeconds();
 

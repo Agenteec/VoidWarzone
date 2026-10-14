@@ -78,10 +78,18 @@ void MasterClient::setPlayers(int players) {
     send(w);
 }
 
+bool MasterClient::keep(const std::string& candidate) const {
+    if (relayOnly_ && candidate.find("typ relay") == std::string::npos)
+        return false;
+    if (noRelay_ && candidate.find("typ relay") != std::string::npos)
+        return false;
+    return !(noHost_ && candidate.find("typ host") != std::string::npos);
+}
+
 void MasterClient::flushCandidates(std::uint32_t peer, IceAgent& agent) {
     for (const auto& c : agent.takeCandidates()) {
         relayCandidates_ += c.find("typ relay") != std::string::npos;
-        if (relayOnly_ && c.find("typ relay") == std::string::npos)
+        if (!keep(c))
             continue;
         auto w = lobbyMessage(LobbyMsg::Candidate);
         w.u32(peer);
@@ -107,6 +115,8 @@ void MasterClient::handle(const Bytes& message) {
             servers_.stunHost = masterHost_;
         if (servers_.turnHost.empty() && !servers_.turnUser.empty())
             servers_.turnHost = masterHost_;
+        if (noRelay_)
+            servers_.turnUser.clear();
         if (mode_ == Mode::Host) {
             auto w = lobbyMessage(LobbyMsg::CreateRoom);
             w.u32(kProtocolVersion);
@@ -168,7 +178,7 @@ void MasterClient::handle(const Bytes& message) {
     case LobbyMsg::Candidate: {
         const std::uint32_t peer = r.u32();
         const std::string sdp = r.str(1024);
-        if (relayOnly_ && sdp.find("typ relay") == std::string::npos)
+        if (!keep(sdp))
             break;
         if (mode_ == Mode::Join && agent_)
             agent_->addRemoteCandidate(sdp);

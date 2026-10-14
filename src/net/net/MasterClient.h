@@ -21,6 +21,8 @@ public:
     void update(double now);
     void setPlayers(int players);
     void setRelayOnly(bool relayOnly) { relayOnly_ = relayOnly; }
+    void setNoHostCandidates(bool noHost) { noHost_ = noHost; }
+    void setNoRelay(bool noRelay) { noRelay_ = noRelay; }
     int relayCandidates() const { return relayCandidates_; }
     void close();
 
@@ -53,6 +55,9 @@ private:
     std::vector<RoomInfo> rooms_;
     double started_ = 0.0;
     bool relayOnly_ = false;
+    bool noHost_ = false;
+    bool noRelay_ = false;
+    bool keep(const std::string& candidate) const;
     int relayCandidates_ = 0;
 };
 
