@@ -117,7 +117,13 @@ TEST_CASE("losing the core ends the match") {
     const auto map = Map::parse(kMap);
     World world(data, map);
     world.registry().get<Health>(entt::entity{0}).hp = 0.0f;
+    world.spawnPlayer(0);
     run(world, 0.2f);
+    CHECK(world.defense().state == MatchState::Defeat);
+
+    world.apply(RecruitCommand{0, data.find("soldier")});
+    CHECK(countDef(world, data, "soldier") == 2);
+    run(world, 1.0f);
     CHECK(world.defense().state == MatchState::Defeat);
 }
 

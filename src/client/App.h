@@ -275,6 +275,7 @@ private:
     int layout_ = 0;
     int preferredColor_ = -1;
     bool setupSent_ = false;
+    bool endDismissed_ = false;
     std::set<std::uint8_t> lobbySelected_;
     int settingsTab_ = 0;
     bool autoStart_ = false;

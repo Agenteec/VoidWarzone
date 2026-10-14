@@ -104,7 +104,7 @@ void World::handle(const RecruitCommand& cmd) {
         return;
     auto& player = players_[cmd.player];
     const auto& def = data_->unit(cmd.unit);
-    if (!player.active || def.cost <= 0.0f || player.energy < def.cost || defense_.state != MatchState::Playing)
+    if (!player.active || def.cost <= 0.0f || player.energy < def.cost)
         return;
     player.energy -= def.cost;
     const int slot = recruitCount_++ % 9;
@@ -134,7 +134,7 @@ bool World::canBuild(UnitDefId id, glm::vec2 pos) const {
 }
 
 void World::handle(const BuildCommand& cmd) {
-    if (!buildingAllowed() || cmd.player >= kMaxPlayers || cmd.unit >= data_->units().size() || defense_.state != MatchState::Playing)
+    if (!buildingAllowed() || cmd.player >= kMaxPlayers || cmd.unit >= data_->units().size())
         return;
     auto& player = players_[cmd.player];
     const auto& def = data_->unit(cmd.unit);
@@ -335,9 +335,20 @@ void World::spawnWave(const WaveDef& wave) {
 }
 
 void World::updateDefense() {
-    if (!map_ || !map_->defense().enabled || defense_.state != MatchState::Playing)
+    if (!map_ || !map_->defense().enabled)
         return;
     const auto& def = map_->defense();
+    auto grantIncome = [&] {
+        float income = def.baseIncome;
+        for (auto [e, unit, team] : registry_.view<const Unit, const Team, const Structure>().each())
+            if (team.id == 0 && alive(e))
+                income += data_->unit(unit.def).income;
+        grantTeamEnergy(income * kTickDt);
+    };
+    if (defense_.state != MatchState::Playing) {
+        grantIncome();
+        return;
+    }
 
     if (defense_.boss != entt::null && !alive(defense_.boss))
         defense_.boss = entt::null;
@@ -354,11 +365,7 @@ void World::updateDefense() {
         return;
     }
 
-    float income = def.baseIncome;
-    for (auto [e, unit, team] : registry_.view<const Unit, const Team, const Structure>().each())
-        if (team.id == 0 && alive(e))
-            income += data_->unit(unit.def).income;
-    grantTeamEnergy(income * kTickDt);
+    grantIncome();
 
     if (mode_ == GameMode::Endless && !def.waves.empty()) {
         defense_.nextWaveIn -= kTickDt;

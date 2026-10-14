@@ -60,8 +60,23 @@ void App::drawHud() {
     const float s = uiScale();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
     const auto state = static_cast<MatchState>(latest->game.state);
-    if (state != MatchState::Playing) {
+    if (state == MatchState::Playing)
+        endDismissed_ = false;
+    if (state != MatchState::Playing && !endDismissed_) {
         drawEndScreen();
+    } else if (state != MatchState::Playing) {
+        ImGui::SetNextWindowPos({display.x * 0.5f, 8.0f * s}, ImGuiCond_Always, {0.5f, 0.0f});
+        ImGui::SetNextWindowBgAlpha(0.75f);
+        ImGui::Begin("##ended", nullptr, kHudFlags);
+        const bool victory = state == MatchState::Victory;
+        ImGui::TextColored(toVec(victory ? kGood : kBad), "%s", victory ? "VICTORY" : "DEFEAT");
+        ImGui::SameLine();
+        ImGui::TextDisabled("free play");
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Results"))
+            endDismissed_ = false;
+        trackWindow();
+        ImGui::End();
     } else if (bannerTime_ > 0.0f && !banner_.empty()) {
         ImDrawList* fg = ImGui::GetForegroundDrawList();
         const float size = 46.0f * s;
@@ -637,6 +652,9 @@ void App::drawEndScreen() {
     centeredText(line, kDim);
     ImGui::Spacing();
     const float full = ImGui::GetContentRegionAvail().x;
+    if (ImGui::Button(ICON_FA_PLAY "  Keep playing", {full, 40.0f * s}))
+        endDismissed_ = true;
+    ImGui::SetItemTooltip("Stay on the map: units, energy, recruiting and building keep working");
     if (net_.lobby().leader == net_.player()) {
         if (accentButton(ICON_FA_USERS "  Return to lobby", {full, 44.0f * s}))
             net_.sendReturnToLobby();
