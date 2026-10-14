@@ -6,10 +6,16 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <spdlog/spdlog.h>
+#if defined(SDL_PLATFORM_ANDROID)
+#include <spdlog/sinks/android_sink.h>
+#endif
 
 #include "App.h"
 
 int main(int argc, char** argv) {
+#if defined(SDL_PLATFORM_ANDROID)
+    spdlog::set_default_logger(spdlog::android_logger_mt("vw", "VoidWarzone"));
+#endif
     vw::client::LaunchOptions options;
     if (const char* env = std::getenv("VW_MASTER"); env && *env)
         options.master = env;
@@ -53,13 +59,19 @@ int main(int argc, char** argv) {
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
     SDL_SetHint(SDL_HINT_ANDROID_BLOCK_ON_PAUSE, "0");
     SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
 #endif
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         spdlog::error("SDL_Init: {}", SDL_GetError());
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Void Warzone", 1280, 720, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+#if defined(SDL_PLATFORM_ANDROID)
+    constexpr SDL_WindowFlags kWindowFlags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+#else
+    constexpr SDL_WindowFlags kWindowFlags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+#endif
+    SDL_Window* window = SDL_CreateWindow("Void Warzone", 1280, 720, kWindowFlags);
     if (!window) {
         spdlog::error("SDL_CreateWindow: {}", SDL_GetError());
         SDL_Quit();

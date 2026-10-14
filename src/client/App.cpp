@@ -1085,7 +1085,10 @@ void App::renderHud() {
         text(1, 9, 0x08, "frame %.1f ms | render cpu %.1f gpu %.1f ms | draws %u | sim %.2f ms/tick | entities %d", frameMs_, cpu, gpu, st->numDraw,
              sim, static_cast<int>(entities_.size()));
     }
-    text(1, 4, 0x08, "LMB select | RMB move/attack | A+LMB attack-move | S stop | Space focus | arrows/edges/wheel camera | F5 shadows F6 light | F10 leave");
+    if (touchUi_)
+        text(1, 4, 0x08, "tap select | drag box select | tap ground/enemy to move/attack | two fingers pan/zoom | MENU leave");
+    else
+        text(1, 4, 0x08, "LMB select | RMB move/attack | A+LMB attack-move | S stop | Space focus | arrows/edges/wheel camera | F5 shadows F6 light | F10 leave");
     if (host_) {
         if (lobby_.state() == net::MasterClient::State::Hosting)
             text(1, 5, 0x0e, "Room code: %s  (players join with [4] in the menu)", lobby_.code().c_str());
