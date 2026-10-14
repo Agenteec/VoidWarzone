@@ -111,6 +111,8 @@ void NetClient::disconnect() {
     synced_ = false;
     snapshots_ = {};
     commandSeq_ = 0;
+    lobby_ = {};
+    chat_.clear();
     events_.clear();
     deaths_.clear();
 }
@@ -139,10 +141,14 @@ void NetClient::handleAccept(Reader& r, double now) {
     if (r.u64() != salt_ || state_ != ClientState::Connecting)
         return;
     player_ = r.u8();
+    lobby_ = {};
+    lobby_.phase = r.u8() == 1 ? LobbyPhase::Playing : LobbyPhase::Lobby;
     mapName_ = r.str();
     mapHash_ = r.u64();
     if (!r.ok())
         return;
+    lobby_.map = mapName_;
+    lobby_.mapHash = mapHash_;
     conn_ = std::make_unique<Connection>(sink(), server_, now, salt_);
     conn_->setUnreliableHandler([this](Reader& ur) { return onSnapshot(ur); });
     state_ = ClientState::Connected;
@@ -191,6 +197,7 @@ void NetClient::update(double now) {
             return;
         }
         conn_->update(now);
+        handleMessages();
         if (now - lastSend_ >= kSendInterval) {
             conn_->flush();
             lastSend_ = now;
@@ -221,6 +228,84 @@ void NetClient::handlePacket(const std::uint8_t* buf, int n, double now) {
     default:
         break;
     }
+}
+
+void NetClient::resetMatch() {
+    snapshots_ = {};
+    latestTick_ = 0;
+    synced_ = false;
+    commandSeq_ = 0;
+    events_.clear();
+    deaths_.clear();
+}
+
+void NetClient::handleMessages() {
+    Bytes msg;
+    while (conn_ && conn_->popMessage(msg)) {
+        Reader r(msg.data(), msg.size());
+        const auto type = static_cast<MessageType>(r.u8());
+        if (type == MessageType::Lobby) {
+            LobbyInfo info;
+            if (!readLobby(r, info))
+                continue;
+            if (info.phase == LobbyPhase::Lobby && lobby_.phase == LobbyPhase::Playing)
+                resetMatch();
+            mapName_ = info.map;
+            mapHash_ = info.mapHash;
+            lobby_ = std::move(info);
+        } else if (type == MessageType::Chat) {
+            ChatLine line;
+            line.player = r.u8();
+            line.name = r.str(32);
+            line.text = r.str(kMaxChatLength);
+            if (r.ok())
+                chat_.push_back(std::move(line));
+        }
+    }
+}
+
+void NetClient::sendMessage(const Writer& w) {
+    if (!conn_)
+        return;
+    conn_->sendReliable(w.data());
+    conn_->flush();
+    lastSend_ = now_;
+}
+
+void NetClient::sendReady(bool ready) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Ready));
+    w.u8(ready ? 1 : 0);
+    sendMessage(w);
+}
+
+void NetClient::sendSettings(const std::string& map, std::uint8_t mode, std::uint8_t difficulty, std::uint8_t maxPlayers) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Settings));
+    w.str(map);
+    w.u8(mode);
+    w.u8(difficulty);
+    w.u8(maxPlayers);
+    sendMessage(w);
+}
+
+void NetClient::sendStart() {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Start));
+    sendMessage(w);
+}
+
+void NetClient::sendReturnToLobby() {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::ReturnToLobby));
+    sendMessage(w);
+}
+
+void NetClient::sendChat(const std::string& text) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Chat));
+    w.str(text.substr(0, kMaxChatLength));
+    sendMessage(w);
 }
 
 std::uint32_t NetClient::sendCommand(const Command& command) {

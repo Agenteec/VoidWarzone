@@ -1,6 +1,7 @@
 add_library(vw_net STATIC
     net/Connection.cpp
     net/Ice.cpp
+    net/GameLobby.cpp
     net/Lobby.cpp
     net/MasterClient.cpp
     net/TcpLink.cpp

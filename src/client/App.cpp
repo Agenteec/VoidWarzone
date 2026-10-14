@@ -104,12 +104,26 @@ void App::loadSettings() {
                 options_.master = j.value("master", options_.master);
             if (options_.difficulty == LaunchOptions{}.difficulty)
                 options_.difficulty = static_cast<Difficulty>(std::clamp(j.value("difficulty", 1), 0, 3));
+            if (options_.map == LaunchOptions{}.map)
+                options_.map = j.value("map", options_.map);
+            if (options_.mode == LaunchOptions{}.mode)
+                options_.mode = j.value("mode", 0) == 1 ? GameMode::Endless : GameMode::Defense;
+            windowMode_ = std::clamp(j.value("window", windowMode_), 0, 2);
+            resWidth_ = j.value("resWidth", resWidth_);
+            resHeight_ = j.value("resHeight", resHeight_);
+            vsync_ = j.value("vsync", vsync_);
+            msaa_ = j.value("msaa", msaa_);
+            uiScaleUser_ = std::clamp(j.value("uiScale", uiScaleUser_), 0.6f, 2.0f);
+            renderScale_ = std::clamp(j.value("renderScale", renderScale_), 25, 100);
+            layout_ = std::clamp(j.value("layout", layout_), 0, 2);
         }
     }
     if (options_.shadows >= 0)
         shadowQuality_ = options_.shadows;
     if (options_.light >= 0)
         lightPreset_ = options_.light;
+    if (options_.windowMode >= 0)
+        windowMode_ = options_.windowMode;
     std::snprintf(nameBuf_.data(), nameBuf_.size(), "%s", options_.name.c_str());
     std::snprintf(masterBuf_.data(), masterBuf_.size(), "%s", options_.master.c_str());
 }
@@ -123,7 +137,17 @@ void App::saveSettings() const {
                                             {"stats", showStats_},
                                             {"name", options_.name},
                                             {"master", options_.master},
-                                            {"difficulty", static_cast<int>(options_.difficulty)}}
+                                            {"difficulty", static_cast<int>(options_.difficulty)},
+                                            {"map", options_.map},
+                                            {"mode", static_cast<int>(options_.mode)},
+                                            {"window", windowMode_},
+                                            {"resWidth", resWidth_},
+                                            {"resHeight", resHeight_},
+                                            {"vsync", vsync_},
+                                            {"msaa", msaa_},
+                                            {"uiScale", uiScaleUser_},
+                                            {"renderScale", renderScale_},
+                                            {"layout", layout_}}
                                  .dump(2);
     SDL_SaveFile(path.c_str(), text.data(), text.size());
 }
@@ -150,6 +174,42 @@ void App::applyGraphics() {
     renderer_.setShadowSize(kShadowSizes[std::clamp(shadowQuality_, 0, 3)]);
 }
 
+void App::applyVideo() {
+    renderer_.setVideo(vsync_, msaa_);
+#if defined(SDL_PLATFORM_ANDROID)
+    renderer_.setScale(100.0f / static_cast<float>(std::clamp(renderScale_, 25, 100)));
+    updateInputScale();
+#endif
+}
+
+void App::applyWindow() {
+#if !defined(SDL_PLATFORM_ANDROID)
+    const SDL_DisplayID display = SDL_GetDisplayForWindow(window_);
+    if (windowMode_ == 0) {
+        SDL_SetWindowFullscreen(window_, false);
+        if (resWidth_ > 0 && resHeight_ > 0) {
+            SDL_SetWindowSize(window_, resWidth_, resHeight_);
+            SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED_DISPLAY(display), SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+        }
+    } else if (windowMode_ == 1) {
+        SDL_SetWindowFullscreenMode(window_, nullptr);
+        SDL_SetWindowFullscreen(window_, true);
+    } else {
+        SDL_DisplayMode mode{};
+        const int w = resWidth_ > 0 ? resWidth_ : 1920;
+        const int h = resHeight_ > 0 ? resHeight_ : 1080;
+        if (SDL_GetClosestFullscreenDisplayMode(display, w, h, 0.0f, false, &mode))
+            SDL_SetWindowFullscreenMode(window_, &mode);
+        SDL_SetWindowFullscreen(window_, true);
+    }
+    SDL_SyncWindow(window_);
+#endif
+}
+
+bool App::touchLayout() const {
+    return layout_ == 2 || (layout_ == 0 && touchUi_);
+}
+
 void App::cycleShadows() {
     shadowQuality_ = (shadowQuality_ + 1) % 4;
     applyGraphics();
@@ -167,18 +227,20 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
     options_ = std::move(options);
     now_ = nowSeconds();
     const double start = now_;
-    float scale = options_.uiScale;
     touchUi_ = options_.touch;
+    loadSettings();
+    float scale = options_.uiScale;
 #if defined(SDL_PLATFORM_ANDROID)
     touchUi_ = true;
     if (scale <= 0.0f)
-        scale = std::max(1.0f, SDL_GetWindowDisplayScale(window) * 0.8f);
+        scale = 100.0f / static_cast<float>(renderScale_);
 #endif
     if (!netLibrary_.ok() || !renderer_.init(window, std::max(1.0f, scale)))
         return false;
     initialized_ = true;
+    applyWindow();
+    applyVideo();
     updateInputScale();
-    loadSettings();
     applyGraphics();
     if (!ui_.init(window_, loadText))
         return false;
@@ -193,7 +255,8 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
     spdlog::info("Void Warzone {} | {} | content loaded in {:.2f}s", kVersion, renderer_.name(), now_ - start);
 
     if (options_.host) {
-        startHost();
+        autoStart_ = true;
+        startHost(true);
     } else if (!options_.connect.empty()) {
         if (const auto addr = net::Address::parse(options_.connect, net::kGamePort))
             startConnect(*addr);
@@ -209,6 +272,13 @@ void App::loadContent() {
 
     models_ = std::make_unique<ModelLibrary>(renderer_, loadText);
     visuals_ = loadUnitVisuals(unitsText, *data_, *models_);
+    const auto catalog = nlohmann::json::parse(loadText("data/maps/maps.json"));
+    for (const char* key : {"maps", "modes"}) {
+        auto& list = std::string_view(key) == "maps" ? maps_ : modes_;
+        list.clear();
+        for (const auto& m : catalog.at(key))
+            list.push_back({m.at("id").get<std::string>(), m.value("name", ""), m.value("players", ""), m.value("description", "")});
+    }
 }
 
 void App::shutdown() {
@@ -269,7 +339,7 @@ void App::updateLobby() {
         lobby_.setPlayers(host_->playerCount());
 }
 
-void App::startHost() {
+void App::startHost(bool multiplayer) {
     simMs_ = 0.0;
     simTotal_ = 0.0;
     simSteps_ = 0;
@@ -280,19 +350,28 @@ void App::startHost() {
         return;
     }
     server::ServerConfig config;
-    config.port = options_.port;
+    config.port = multiplayer ? options_.port : 0;
     config.mapName = options_.map;
     config.name = options_.name + "'s game";
     config.difficulty = options_.difficulty;
+    config.mode = options_.mode;
     config.cheats = options_.cheats;
+    config.lobby = true;
+    config.maxPlayers = multiplayer ? 8 : 1;
+    config.loadMap = [](const std::string& name) {
+        if (name.empty() || name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_") != std::string::npos)
+            throw std::runtime_error("bad map name");
+        return loadText("data/maps/" + name + ".json");
+    };
     host_ = std::make_unique<server::Server>(*data_, *hostMap_, config);
     if (!host_->start(now_)) {
         host_.reset();
         status_ = "cannot host: port " + std::to_string(options_.port) + " is busy";
         return;
     }
-    lobby_.host(options_.master, net::RoomInfo{"", config.name, options_.map, 0, static_cast<std::uint8_t>(config.maxPlayers), true}, host_->iceHub(),
-                now_);
+    if (multiplayer)
+        lobby_.host(options_.master, net::RoomInfo{"", config.name, options_.map, 0, static_cast<std::uint8_t>(config.maxPlayers), true},
+                    host_->iceHub(), now_);
     startConnect(net::Address::loopback(host_->port()));
 }
 
@@ -307,32 +386,92 @@ void App::startConnect(const net::Address& address) {
 }
 
 bool App::onConnected() {
+    status_.clear();
+    if (!host_)
+        lobby_.close();
+    chatLog_.clear();
+    if (net_.inLobby()) {
+        setScreen(Screen::Lobby);
+        if (autoStart_ && net_.lobby().leader == net_.player())
+            net_.sendStart();
+        autoStart_ = false;
+        return true;
+    }
+    enterGame();
+    return screen_ == Screen::Game;
+}
+
+void App::enterGame() {
     try {
         map_ = std::make_unique<Map>(Map::parse(loadText("data/maps/" + net_.mapName() + ".json")));
     } catch (const std::exception& e) {
         leaveGame(e.what());
-        return false;
+        return;
     }
     if (map_->hash() != net_.mapHash()) {
         leaveGame("map '" + net_.mapName() + "' differs from server");
-        return false;
+        return;
     }
     if (mapVisualsHash_ != map_->hash()) {
         mapVisuals_ = buildMapVisuals(*map_, *data_, renderer_, *models_);
         mapVisualsHash_ = map_->hash();
     }
+    buildMinimap();
     selected_.clear();
     effects_.clear();
+    shells_.clear();
     prediction_.clear();
+    panel_ = Panel::None;
+    pauseOpen_ = false;
+    bannerTime_ = 0.0f;
     cameraPlaced_ = false;
     camera_.target = glm::vec2(map_->width(), map_->height()) * 0.5f;
-    status_.clear();
-    if (!host_)
-        lobby_.close();
     setScreen(Screen::Game);
     const std::string title = "Void Warzone - " + options_.name + " (P" + std::to_string(net_.player() + 1) + ")";
     SDL_SetWindowTitle(window_, title.c_str());
-    return true;
+}
+
+void App::returnToLobby() {
+    selected_.clear();
+    effects_.clear();
+    shells_.clear();
+    entities_.clear();
+    prediction_.clear();
+    panel_ = Panel::None;
+    attackMoveArmed_ = false;
+    armedSkill_ = -1;
+    setScreen(Screen::Lobby);
+}
+
+void App::buildMinimap() {
+    if (minimapHash_ == map_->hash())
+        return;
+    const int w = map_->width();
+    const int h = map_->height();
+    std::vector<std::uint32_t> pixels(static_cast<std::size_t>(w * h));
+    auto nearLane = [&](glm::vec2 p) {
+        for (const auto& lane : map_->lanes())
+            for (std::size_t k = 0; k + 1 < lane.points.size(); ++k) {
+                const glm::vec2 a = lane.points[k];
+                const glm::vec2 ab = lane.points[k + 1] - a;
+                const float t = std::clamp(glm::dot(p - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+                if (glm::distance(p, a + ab * t) < 3.0f)
+                    return true;
+            }
+        return false;
+    };
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            const glm::vec2 p = Map::center({x, y});
+            std::uint32_t c = 0xff4f7ca0u;
+            if (map_->blocked(x, y))
+                c = ((x * 7 + y * 13) % 5 == 0) ? 0xff2e4537u : 0xff283a30u;
+            else if (nearLane(p))
+                c = 0xff6e7880u;
+            pixels[static_cast<std::size_t>(y * w + x)] = c;
+        }
+    minimap_ = renderer_.createTextureRgba(w, h, pixels.data());
+    minimapHash_ = map_->hash();
 }
 
 void App::leaveGame(std::string status) {
@@ -563,6 +702,9 @@ void App::handleMenuKey(SDL_Keycode key) {
     case Screen::Connecting:
         leaveGame("cancelled");
         break;
+    case Screen::Lobby:
+        leaveGame("");
+        break;
     case Screen::Game:
         break;
     }
@@ -633,6 +775,8 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
                 camera_.target = u->pos;
     } else if (key == SDLK_F10) {
         pauseOpen_ = !pauseOpen_;
+    } else if ((key == SDLK_RETURN || key == SDLK_KP_ENTER) && !touchLayout()) {
+        chatOpen_ = true;
     } else if (key == SDLK_F3) {
         showStats_ = !showStats_;
         saveSettings();
@@ -733,9 +877,14 @@ void App::boxSelect(glm::vec2 a, glm::vec2 b, bool add) {
 }
 
 void App::issueCommand(glm::vec2 screen, bool attackMove) {
+    if (const auto ground = camera_.screenToGround(screen.x, screen.y))
+        issueCommandAt(*ground, attackMove);
+}
+
+void App::issueCommandAt(glm::vec2 point, bool attackMove) {
     pruneSelection();
-    const auto ground = camera_.screenToGround(screen.x, screen.y);
-    if (selected_.empty() || !ground)
+    const std::optional<glm::vec2> ground = point;
+    if (selected_.empty())
         return;
     std::uint8_t ownTeam = 0;
     if (const auto* first = findEntity(selected_.front()))
@@ -845,8 +994,17 @@ void App::frame(double dt) {
             onConnected();
         else if (net_.state() == net::ClientState::Disconnected)
             leaveGame(net_.error().empty() ? "connection failed" : net_.error());
-    } else if (screen_ == Screen::Game && net_.state() != net::ClientState::Connected) {
+    } else if ((screen_ == Screen::Game || screen_ == Screen::Lobby) && net_.state() != net::ClientState::Connected) {
         leaveGame(net_.error().empty() ? "disconnected" : net_.error());
+    } else if (screen_ == Screen::Lobby && !net_.inLobby()) {
+        enterGame();
+    } else if (screen_ == Screen::Game && net_.inLobby()) {
+        returnToLobby();
+    }
+    for (auto& line : net_.takeChat()) {
+        chatLog_.push_back({std::move(line), now_});
+        if (chatLog_.size() > 60)
+            chatLog_.erase(chatLog_.begin());
     }
 
     if (screen_ == Screen::Game)

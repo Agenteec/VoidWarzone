@@ -107,6 +107,7 @@ int main(int argc, char** argv) {
     }
 
     std::size_t snapshots = 0;
+    bool startSent = false;
     std::uint32_t lastTick = 0;
     double connectedAt = 0.0;
     while (nowSeconds() - start < seconds + 20.0) {
@@ -134,6 +135,11 @@ int main(int argc, char** argv) {
         if (client.state() == vw::net::ClientState::Disconnected && !client.error().empty()) {
             spdlog::error("connect failed: {}", client.error());
             return 1;
+        }
+        if (client.state() == vw::net::ClientState::Connected && client.inLobby() && client.lobby().leader == client.player() && !startSent) {
+            spdlog::info("in lobby as leader - starting the match");
+            client.sendStart();
+            startSent = true;
         }
         if (const auto* s = client.latest(); s && s->tick != lastTick) {
             lastTick = s->tick;

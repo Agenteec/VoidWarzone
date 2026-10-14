@@ -36,6 +36,7 @@ int itemSlots(Rank rank);
 float xpForNextLevel(int level);
 
 enum class Difficulty : std::uint8_t { Easy, Normal, Hard, Nightmare };
+enum class GameMode : std::uint8_t { Defense, Endless };
 enum class MatchState : std::uint8_t { Playing, Victory, Defeat };
 
 struct PlayerState {
@@ -75,11 +76,13 @@ struct SystemTimes {
 
 const char* difficultyName(Difficulty d);
 bool parseDifficulty(std::string_view text, Difficulty& out);
+const char* gameModeName(GameMode m);
+bool parseGameMode(std::string_view text, GameMode& out);
 
 class World {
 public:
     World();
-    World(const GameData& data, const Map& map, Difficulty difficulty = Difficulty::Normal);
+    World(const GameData& data, const Map& map, Difficulty difficulty = Difficulty::Normal, GameMode mode = GameMode::Defense);
 
     void step();
     void apply(const Command& command);
@@ -100,6 +103,7 @@ public:
     const Map* map() const { return map_; }
 
     Difficulty difficulty() const { return difficulty_; }
+    GameMode mode() const { return mode_; }
     const PlayerState& player(std::uint8_t p) const { return players_[p]; }
     int activePlayers() const;
     int heroCount(std::uint8_t player) const;
@@ -139,6 +143,7 @@ private:
     std::vector<entt::entity> unitsInRadius(glm::vec2 center, float radius, std::uint8_t team, bool sameTeam) const;
     void grantTeamEnergy(float amount);
     glm::vec2 playerBase(std::uint8_t player) const;
+    float endlessCycle() const;
     float enemyHpScale() const;
     float enemyDamageScale() const;
     float enemyCountScale() const;
@@ -173,6 +178,7 @@ private:
     std::unordered_map<int, FlowField> flowFields_;
 
     Difficulty difficulty_ = Difficulty::Normal;
+    GameMode mode_ = GameMode::Defense;
     std::array<PlayerState, kMaxPlayers> players_{};
     std::vector<ResourcePointState> points_;
     DefenseStatus defense_;

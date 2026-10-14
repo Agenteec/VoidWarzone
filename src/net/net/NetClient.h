@@ -11,6 +11,7 @@
 
 #include "core/Commands.h"
 #include "net/Connection.h"
+#include "net/GameLobby.h"
 #include "net/Ice.h"
 #include "net/Snapshot.h"
 #include "net/Socket.h"
@@ -52,12 +53,20 @@ public:
     void disconnect();
     void update(double now);
     std::uint32_t sendCommand(const Command& command);
+    void sendReady(bool ready);
+    void sendSettings(const std::string& map, std::uint8_t mode, std::uint8_t difficulty, std::uint8_t maxPlayers);
+    void sendStart();
+    void sendReturnToLobby();
+    void sendChat(const std::string& text);
 
     ClientState state() const { return state_; }
     const std::string& error() const { return error_; }
     std::uint8_t player() const { return player_; }
     const std::string& mapName() const { return mapName_; }
     std::uint64_t mapHash() const { return mapHash_; }
+    const LobbyInfo& lobby() const { return lobby_; }
+    bool inLobby() const { return lobby_.phase == LobbyPhase::Lobby; }
+    std::vector<ChatLine> takeChat() { return std::exchange(chat_, {}); }
 
     bool hasSnapshot() const { return latestTick_ != 0; }
     const Snapshot* latest() const { return snapshot(latestTick_); }
@@ -81,6 +90,9 @@ private:
     void sendConnectRequest();
     void handleAccept(Reader& r, double now);
     bool onSnapshot(Reader& r);
+    void handleMessages();
+    void sendMessage(const Writer& w);
+    void resetMatch();
     const Snapshot* snapshot(std::uint32_t tick) const;
     void fail(std::string error);
 
@@ -101,6 +113,8 @@ private:
     std::uint8_t player_ = 0;
     std::string mapName_;
     std::uint64_t mapHash_ = 0;
+    LobbyInfo lobby_;
+    std::vector<ChatLine> chat_;
 
     std::array<Snapshot, 64> snapshots_{};
     std::uint32_t latestTick_ = 0;

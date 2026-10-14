@@ -52,6 +52,8 @@ public:
     bool init(SDL_Window* window, float scale = 1.0f);
     void shutdown();
     void resize(int width, int height);
+    void setVideo(bool vsync, int msaa);
+    void setScale(float scale);
 
     float scale() const { return scale_; }
     int width() const { return width_; }
@@ -72,6 +74,8 @@ public:
     bool shadowsSupported() const { return shadowsSupported_; }
 
     TextureId createTexture(const void* data, std::uint32_t size);
+    TextureId createTextureRgba(int width, int height, const void* pixels);
+    bgfx::TextureHandle textureHandle(TextureId id) const { return id < textures_.size() ? textures_[id] : bgfx::TextureHandle{bgfx::kInvalidHandle}; }
     MeshId createMesh(const std::vector<TexVertex>& vertices, const std::vector<std::uint32_t>& indices);
     MeshId createTerrain(const std::vector<TerrainVertex>& vertices, const std::vector<std::uint32_t>& indices);
     TextureId whiteTexture() const { return white_; }
@@ -119,7 +123,10 @@ private:
 
     int width_ = 0;
     int height_ = 0;
+    int pixelWidth_ = 0;
+    int pixelHeight_ = 0;
     float scale_ = 1.0f;
+    bool vsync_ = true;
     bgfx::SwapChain swapChain_;
     bgfx::ProgramHandle program_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle params_ = BGFX_INVALID_HANDLE;

@@ -182,6 +182,85 @@ TEST_CASE("server and client over loopback") {
     CHECK(server.playerCount() == 0);
 }
 
+TEST_CASE("lobby picks map and mode, starts and returns") {
+    NetLibrary lib;
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
+    const auto map = Map::parse(readData("maps/siege_test.json"));
+
+    server::ServerConfig config;
+    config.port = 0;
+    config.lobby = true;
+    config.mapName = "siege_test";
+    config.loadMap = [](const std::string& name) { return readData("maps/" + name + ".json"); };
+    server::Server server(data, map, config);
+    double now = 0.0;
+    REQUIRE(server.start(now));
+
+    NetClient a;
+    NetClient b;
+    REQUIRE(a.connect(Address::loopback(server.port()), data.hash(), "alpha", now));
+    REQUIRE(b.connect(Address::loopback(server.port()), data.hash(), "beta", now));
+    auto pump = [&](double seconds) {
+        const double end = now + seconds;
+        while (now < end) {
+            now += 1.0 / 120.0;
+            server.update(now);
+            a.update(now);
+            b.update(now);
+            std::this_thread::yield();
+        }
+    };
+    pump(0.5);
+    REQUIRE(a.state() == ClientState::Connected);
+    REQUIRE(b.state() == ClientState::Connected);
+    CHECK(a.inLobby());
+    CHECK_FALSE(server.playing());
+    REQUIRE(a.lobby().players.size() == 2);
+    CHECK(a.lobby().leader == a.player());
+    CHECK_FALSE(a.hasSnapshot());
+
+    b.sendSettings("void_siege", 1, 3, 4);
+    b.sendStart();
+    pump(0.3);
+    CHECK_FALSE(server.playing());
+    CHECK(a.lobby().map == "siege_test");
+
+    b.sendReady(true);
+    a.sendChat("hello");
+    a.sendSettings("void_siege", 1, 2, 6);
+    pump(0.3);
+    CHECK(a.lobby().map == "void_siege");
+    CHECK(a.lobby().mode == 1);
+    CHECK(a.lobby().difficulty == 2);
+    CHECK(a.lobby().maxPlayers == 6);
+    CHECK(a.lobby().players[1].ready);
+    const auto chat = b.takeChat();
+    REQUIRE(chat.size() == 1);
+    CHECK(chat[0].text == "hello");
+    CHECK(chat[0].name == "alpha");
+
+    a.sendStart();
+    pump(0.5);
+    REQUIRE(server.playing());
+    CHECK(server.world()->mode() == GameMode::Endless);
+    CHECK(server.world()->difficulty() == Difficulty::Hard);
+    CHECK_FALSE(b.inLobby());
+    CHECK(b.mapName() == "void_siege");
+    REQUIRE(b.hasSnapshot());
+    CHECK(b.latest()->game.totalWaves == 0);
+
+    a.sendReturnToLobby();
+    pump(0.3);
+    CHECK_FALSE(server.playing());
+    CHECK(b.inLobby());
+    CHECK_FALSE(b.hasSnapshot());
+
+    a.sendStart();
+    pump(0.5);
+    CHECK(server.playing());
+    CHECK(b.hasSnapshot());
+}
+
 TEST_CASE("server denies data mismatch") {
     NetLibrary lib;
     const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));

@@ -10,6 +10,8 @@ set(VW_CLIENT_SOURCES
     render/Shaders.cpp
     ui/ImGuiLayer.cpp
     Ui.cpp
+    UiDesktop.cpp
+    UiMenu.cpp
 )
 
 # bgfx ships Dear ImGui with an imconfig.h tied to its own allocators, so build a copy with a plain config

@@ -63,6 +63,8 @@ bool Renderer::init(SDL_Window* window, float scale) {
     int pw = 0;
     int ph = 0;
     SDL_GetWindowSizeInPixels(window, &pw, &ph);
+    pixelWidth_ = pw;
+    pixelHeight_ = ph;
     width_ = std::max(1, static_cast<int>(static_cast<float>(pw) / scale_));
     height_ = std::max(1, static_cast<int>(static_cast<float>(ph) / scale_));
 #if defined(SDL_PLATFORM_ANDROID)
@@ -176,11 +178,32 @@ void Renderer::shutdown() {
 }
 
 void Renderer::resize(int width, int height) {
+    pixelWidth_ = width;
+    pixelHeight_ = height;
     width_ = std::max(1, static_cast<int>(static_cast<float>(width) / scale_));
     height_ = std::max(1, static_cast<int>(static_cast<float>(height) / scale_));
     swapChain_.width = static_cast<std::uint32_t>(width_);
     swapChain_.height = static_cast<std::uint32_t>(height_);
-    bgfx::reset(BGFX_RESET_VSYNC, &swapChain_);
+    bgfx::reset(vsync_ ? BGFX_RESET_VSYNC : BGFX_RESET_NONE, &swapChain_);
+}
+
+void Renderer::setVideo(bool vsync, int msaa) {
+    vsync_ = vsync;
+    const std::uint32_t samples = msaa >= 8 ? BGFX_SWAP_CHAIN_MSAA_X8 : msaa >= 4 ? BGFX_SWAP_CHAIN_MSAA_X4 : msaa >= 2 ? BGFX_SWAP_CHAIN_MSAA_X2 : 0;
+    swapChain_.flags = (swapChain_.flags & ~BGFX_SWAP_CHAIN_MSAA_MASK) | samples;
+    resize(pixelWidth_, pixelHeight_);
+}
+
+void Renderer::setScale(float scale) {
+    scale_ = std::max(1.0f, scale);
+    resize(pixelWidth_, pixelHeight_);
+}
+
+TextureId Renderer::createTextureRgba(int width, int height, const void* pixels) {
+    const bgfx::Memory* mem = bgfx::copy(pixels, static_cast<std::uint32_t>(width * height * 4));
+    textures_.push_back(bgfx::createTexture2D(static_cast<std::uint16_t>(width), static_cast<std::uint16_t>(height), false, 1, bgfx::TextureFormat::RGBA8,
+                                              BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP, mem));
+    return static_cast<TextureId>(textures_.size() - 1);
 }
 
 void Renderer::destroyShadowMap() {

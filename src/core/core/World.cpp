@@ -51,7 +51,8 @@ World::World() {
     structures_.reset(128.0f, 128.0f, 8.0f);
 }
 
-World::World(const GameData& data, const Map& map, Difficulty difficulty) : data_(&data), map_(&map), difficulty_(difficulty) {
+World::World(const GameData& data, const Map& map, Difficulty difficulty, GameMode mode)
+    : data_(&data), map_(&map), difficulty_(difficulty), mode_(mode) {
     spatial_.reset(static_cast<float>(map.width()), static_cast<float>(map.height()), 3.0f);
     structures_.reset(static_cast<float>(map.width()), static_cast<float>(map.height()), 8.0f);
     for (const auto& def : data.units())
@@ -76,7 +77,7 @@ World::World(const GameData& data, const Map& map, Difficulty difficulty) : data
 
     points_.assign(map.resourcePoints().size(), {});
     const auto& def = map.defense();
-    defense_.totalWaves = static_cast<int>(def.waves.size());
+    defense_.totalWaves = mode_ == GameMode::Endless ? 0 : static_cast<int>(def.waves.size());
     defense_.nextWaveIn = def.firstWaveDelay;
 
     for (const auto& s : map.spawners()) {
@@ -534,7 +535,6 @@ void World::updateUnits() {
                         vel.value = turned;
                 } else if (++progress->ticks >= kStuckTicks) {
                     const float expected = unit.speed * static_cast<float>(kStuckTicks) * kTickDt;
-                    auto* order = registry_.try_get<Order>(e);
                     const bool nearGoal = order && (order->type == OrderType::Move || order->type == OrderType::AttackMove) &&
                                           glm::distance(pos.value, order->point) < unit.radius * 2.0f + 1.0f;
                     if (glm::distance(pos.value, progress->anchor) < expected * 0.2f && nearGoal) {

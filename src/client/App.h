@@ -38,7 +38,9 @@ struct LaunchOptions {
     std::string map = "void_siege";
     std::uint16_t port = net::kGamePort;
     Difficulty difficulty = Difficulty::Normal;
+    GameMode mode = GameMode::Defense;
     bool cheats = false;
+    int windowMode = -1;
     std::string master = "77.83.86.108:27400";
     float uiScale = 0.0f;
     bool touch = false;
@@ -62,7 +64,7 @@ public:
     bool running() const { return running_; }
 
 private:
-    enum class Screen { Menu, Lan, Address, Code, Online, Joining, Connecting, Game };
+    enum class Screen { Menu, Lan, Address, Code, Online, Joining, Connecting, Lobby, Game };
 
     struct Effect {
         Mesh mesh;
@@ -76,7 +78,13 @@ private:
 
     void loadContent();
     void setScreen(Screen screen);
-    void startHost();
+    void startHost(bool multiplayer);
+    void enterGame();
+    void returnToLobby();
+    void buildMinimap();
+    void applyVideo();
+    void applyWindow();
+    bool touchLayout() const;
     void startConnect(const net::Address& address);
     void startJoin(const std::string& code);
     void updateLobby();
@@ -97,6 +105,7 @@ private:
     void clickSelect(glm::vec2 screen, bool add);
     void boxSelect(glm::vec2 a, glm::vec2 b, bool add);
     void issueCommand(glm::vec2 screen, bool attackMove);
+    void issueCommandAt(glm::vec2 ground, bool attackMove);
     void pruneSelection();
     const net::InterpolatedEntity* entityAt(glm::vec2 p, float pad) const;
     const net::InterpolatedEntity* findEntity(std::uint32_t id) const;
@@ -126,8 +135,18 @@ private:
 
     void drawUi();
     void drawMenu();
+    void drawMenuPage();
+    void drawBrowser();
+    void drawLobby();
     void drawSettings();
     void drawHud();
+    void drawDesktopHud();
+    void drawTouchHud();
+    void drawResourceBar();
+    void drawMinimap(float size);
+    void drawSelection();
+    void drawCommandCard();
+    void drawChat();
     void drawTopBar();
     void drawBossBar();
     void drawUnitPanel();
@@ -209,6 +228,9 @@ private:
     bool pauseOpen_ = false;
     bool settingsOpen_ = false;
     float topBarHeight_ = 0.0f;
+    float hudBottom_ = 0.0f;
+    float minimapRight_ = 0.0f;
+    float commandCardLeft_ = 0.0f;
     float frameDt_ = 0.0f;
     std::map<SDL_FingerID, Finger> fingers_;
     bool touchUi_ = false;
@@ -219,6 +241,36 @@ private:
     bool paused_ = false;
     int shadowQuality_ = 2;
     int lightPreset_ = 0;
+
+    int windowMode_ = 0;
+    int resWidth_ = 0;
+    int resHeight_ = 0;
+    bool vsync_ = true;
+    int msaa_ = 4;
+    float uiScaleUser_ = 1.0f;
+    int renderScale_ = 45;
+    int layout_ = 0;
+    int settingsTab_ = 0;
+    bool autoStart_ = false;
+    TextureId minimap_ = 0;
+    std::uint64_t minimapHash_ = 0;
+
+    struct ChatEntry {
+        net::ChatLine line;
+        double time;
+    };
+    std::vector<ChatEntry> chatLog_;
+
+    struct CatalogEntry {
+        std::string id;
+        std::string name;
+        std::string players;
+        std::string description;
+    };
+    std::vector<CatalogEntry> maps_;
+    std::vector<CatalogEntry> modes_;
+    std::array<char, 128> chatBuf_{};
+    bool chatOpen_ = false;
 };
 
 }

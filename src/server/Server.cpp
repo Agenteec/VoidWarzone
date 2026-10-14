@@ -17,8 +17,10 @@ namespace vw::server {
 using namespace vw::net;
 
 Server::Server(const GameData& data, const Map& map, ServerConfig config)
-    : data_(data), map_(map), config_(std::move(config)), world_(data, map, config_.difficulty) {
+    : data_(data), config_(std::move(config)), map_(std::make_unique<Map>(map)) {
     config_.maxPlayers = std::clamp(config_.maxPlayers, 1, 64);
+    if (!config_.lobby)
+        world_ = std::make_unique<World>(data_, *map_, config_.difficulty, config_.mode);
 }
 
 Server::~Server() {
@@ -32,8 +34,8 @@ bool Server::start(double now) {
     }
     nextTick_ = now;
     now_ = now;
-    spdlog::info("server '{}' on port {} | map {} | {} | max players {}", config_.name, socket_.port(), config_.mapName,
-                 difficultyName(config_.difficulty), config_.maxPlayers);
+    spdlog::info("server '{}' on port {} | map {} | {} {} | max players {}{}", config_.name, socket_.port(), config_.mapName,
+                 gameModeName(config_.mode), difficultyName(config_.difficulty), config_.maxPlayers, config_.lobby ? " | lobby" : "");
     return true;
 }
 
@@ -63,8 +65,9 @@ void Server::sendAccept(const Client& client) {
     w.u8(static_cast<std::uint8_t>(PacketType::ConnectAccept));
     w.u64(client.salt);
     w.u8(client.player);
+    w.u8(world_ ? 1 : 0);
     w.str(config_.mapName);
-    w.u64(map_.hash());
+    w.u64(map_->hash());
     sendRaw(client.conn->address(), w);
 }
 
@@ -107,9 +110,12 @@ void Server::handleConnect(const Address& from, Reader& r, double now) {
     client->salt = salt;
     client->player = player;
     client->name = name.empty() ? "Player " + std::to_string(player + 1) : std::move(name);
-    world_.spawnPlayer(player);
-    if (config_.cheats)
-        world_.devBoost(player);
+    if (world_) {
+        world_->spawnPlayer(player);
+        if (config_.cheats)
+            world_->devBoost(player);
+    }
+    lobbyDirty_ = true;
     sendAccept(*client);
     spdlog::info("player {} '{}' joined from {}", player, client->name, from.toString());
     clients_.push_back(std::move(client));
@@ -140,21 +146,144 @@ void Server::drop(std::size_t index, bool notify) {
             sendRaw(c.conn->address(), w);
     }
     spdlog::info("player {} '{}' left", c.player, c.name);
-    world_.releasePlayer(c.player);
+    if (world_)
+        world_->releasePlayer(c.player);
     ice_.remove(c.conn->address());
     clients_.erase(clients_.begin() + static_cast<std::ptrdiff_t>(index));
+    lobbyDirty_ = true;
+    if (clients_.empty() && config_.lobby && world_)
+        endMatch();
+}
+
+std::uint8_t Server::leader() const {
+    std::uint8_t best = 0xff;
+    for (const auto& c : clients_)
+        best = std::min(best, c->player);
+    return best;
+}
+
+void Server::broadcastLobby() {
+    lobbyDirty_ = false;
+    LobbyInfo info;
+    info.phase = world_ ? LobbyPhase::Playing : LobbyPhase::Lobby;
+    info.serverName = config_.name;
+    info.map = config_.mapName;
+    info.mapHash = map_->hash();
+    info.mode = static_cast<std::uint8_t>(config_.mode);
+    info.difficulty = static_cast<std::uint8_t>(config_.difficulty);
+    info.maxPlayers = static_cast<std::uint8_t>(config_.maxPlayers);
+    info.leader = leader();
+    for (const auto& c : clients_)
+        info.players.push_back({c->player, c->name, c->ready});
+    std::sort(info.players.begin(), info.players.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Lobby));
+    writeLobby(w, info);
+    for (auto& c : clients_)
+        c->conn->sendReliable(w.data());
+}
+
+void Server::broadcastChat(const Client& from, const std::string& text) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Chat));
+    w.u8(from.player);
+    w.str(from.name);
+    w.str(text);
+    for (auto& c : clients_)
+        c->conn->sendReliable(w.data());
+}
+
+void Server::startMatch() {
+    world_ = std::make_unique<World>(data_, *map_, config_.difficulty, config_.mode);
+    for (auto& c : clients_) {
+        world_->spawnPlayer(c->player);
+        if (config_.cheats)
+            world_->devBoost(c->player);
+        c->ready = false;
+        c->ackedTick = 0;
+        c->commandSeq = 0;
+        c->sentTicks = {};
+    }
+    history_ = {};
+    nextTick_ = now_;
+    lobbyDirty_ = true;
+    spdlog::info("match started | map {} | {} {} | {} players", config_.mapName, gameModeName(config_.mode), difficultyName(config_.difficulty),
+                 playerCount());
+}
+
+void Server::endMatch() {
+    world_.reset();
+    for (auto& c : clients_)
+        c->ready = false;
+    lobbyDirty_ = true;
+    spdlog::info("back to lobby");
+}
+
+void Server::handleSettings(Client& client, Reader& r) {
+    std::string mapName = r.str(64);
+    const std::uint8_t mode = r.u8();
+    const std::uint8_t difficulty = r.u8();
+    const std::uint8_t maxPlayers = r.u8();
+    if (!r.ok() || world_ || client.player != leader())
+        return;
+    if (mapName != config_.mapName && config_.loadMap) {
+        try {
+            auto map = std::make_unique<Map>(Map::parse(config_.loadMap(mapName)));
+            map_ = std::move(map);
+            config_.mapName = std::move(mapName);
+        } catch (const std::exception& e) {
+            spdlog::warn("map '{}': {}", mapName, e.what());
+        }
+    }
+    config_.mode = mode == 1 ? GameMode::Endless : GameMode::Defense;
+    config_.difficulty = static_cast<Difficulty>(std::min<int>(difficulty, 3));
+    config_.maxPlayers = std::clamp(static_cast<int>(maxPlayers), std::max(1, playerCount()), 64);
+    lobbyDirty_ = true;
 }
 
 void Server::handleMessages(Client& client) {
     Bytes msg;
     while (client.conn->popMessage(msg)) {
         Reader r(msg.data(), msg.size());
-        if (static_cast<MessageType>(r.u8()) != MessageType::Command)
-            continue;
+        switch (static_cast<MessageType>(r.u8())) {
+        case MessageType::Command:
+            handleCommand(client, r);
+            break;
+        case MessageType::Ready:
+            client.ready = r.u8() != 0;
+            lobbyDirty_ = true;
+            break;
+        case MessageType::Settings:
+            handleSettings(client, r);
+            break;
+        case MessageType::Start:
+            if (!world_ && client.player == leader())
+                startMatch();
+            break;
+        case MessageType::ReturnToLobby:
+            if (world_ && config_.lobby && client.player == leader())
+                endMatch();
+            break;
+        case MessageType::Chat: {
+            std::string text = r.str(kMaxChatLength);
+            if (r.ok() && !text.empty())
+                broadcastChat(client, text);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
+void Server::handleCommand(Client& client, Reader& r) {
+    {
+        if (!world_)
+            return;
         std::uint32_t seq = 0;
         Command command;
         if (!readCommand(r, seq, command))
-            continue;
+            return;
         std::visit(
             [&](auto& c) {
                 using T = std::decay_t<decltype(c)>;
@@ -162,13 +291,13 @@ void Server::handleMessages(Client& client) {
                     c.player = client.player;
                 } else {
                     std::erase_if(c.units, [&](entt::entity e) {
-                        const auto* owner = world_.registry().valid(e) ? world_.registry().try_get<Owner>(e) : nullptr;
+                        const auto* owner = world_->registry().valid(e) ? world_->registry().try_get<Owner>(e) : nullptr;
                         return !owner || owner->player != client.player;
                     });
                 }
             },
             command);
-        world_.apply(command);
+        world_->apply(command);
         client.commandSeq = std::max(client.commandSeq, seq);
     }
 }
@@ -219,13 +348,13 @@ void Server::handlePacket(const Address& from, const std::uint8_t* buf, int n, d
 }
 
 ClientView Server::buildView(const Client& client) const {
-    const auto& player = world_.player(client.player);
+    const auto& player = world_->player(client.player);
     ClientView v;
     v.commandSeq = client.commandSeq;
     v.energy = static_cast<std::uint32_t>(std::max(0.0f, player.energy));
     v.shards = static_cast<std::uint16_t>(std::clamp(player.shards, 0, 65535));
     v.stash.assign(player.stash.begin(), player.stash.end());
-    for (auto [e, owner, prog] : world_.registry().view<const Owner, const Progression>().each()) {
+    for (auto [e, owner, prog] : world_->registry().view<const Owner, const Progression>().each()) {
         if (owner.player != client.player)
             continue;
         OwnUnit u;
@@ -244,8 +373,8 @@ ClientView Server::buildView(const Client& client) const {
 
 Snapshot Server::buildSnapshot() const {
     Snapshot s;
-    s.tick = static_cast<std::uint32_t>(world_.tick());
-    const auto& reg = world_.registry();
+    s.tick = static_cast<std::uint32_t>(world_->tick());
+    const auto& reg = world_->registry();
 
     for (auto [e, pos, unit, team, health] : reg.view<const Position, const Unit, const Team, const Health>().each()) {
         EntityState st;
@@ -294,18 +423,18 @@ Snapshot Server::buildSnapshot() const {
     }
     std::sort(s.entities.begin(), s.entities.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
 
-    const auto& defense = world_.defense();
+    const auto& defense = world_->defense();
     s.game.state = static_cast<std::uint8_t>(defense.state);
     s.game.wave = static_cast<std::uint8_t>(defense.wave);
     s.game.totalWaves = static_cast<std::uint8_t>(defense.totalWaves);
-    s.game.difficulty = static_cast<std::uint8_t>(world_.difficulty());
+    s.game.difficulty = static_cast<std::uint8_t>(world_->difficulty());
     s.game.nextWaveIn = static_cast<std::uint16_t>(std::clamp(defense.nextWaveIn * 10.0f, 0.0f, 65535.0f));
     s.game.boss = defense.boss == entt::null ? kNoEntity : entt::to_integral(defense.boss);
-    for (const auto& p : world_.resourcePoints())
+    for (const auto& p : world_->resourcePoints())
         s.game.points.push_back({static_cast<std::int8_t>(std::lround(p.control * 127.0f)),
                                  p.owner < 0 ? std::uint8_t{0xff} : static_cast<std::uint8_t>(p.owner)});
 
-    for (const auto& ev : world_.events()) {
+    for (const auto& ev : world_->events()) {
         const auto value = static_cast<std::uint16_t>(std::clamp(ev.value * 64.0f + 64.0f, 0.0f, 65535.0f));
         auto push = [&](NetEventType type) {
             s.events.push_back({static_cast<std::uint8_t>(type), quantizePos(ev.to.x), quantizePos(ev.to.y), value});
@@ -358,7 +487,12 @@ Snapshot Server::buildSnapshot() const {
 }
 
 void Server::tick() {
-    world_.step();
+    if (!world_) {
+        for (auto& c : clients_)
+            c->conn->flush();
+        return;
+    }
+    world_->step();
     Snapshot snap = buildSnapshot();
     const std::uint32_t tick = snap.tick;
     history_[tick % history_.size()] = std::move(snap);
@@ -382,6 +516,8 @@ void Server::tick() {
 void Server::update(double now) {
     now_ = now;
     receive(now);
+    if (lobbyDirty_)
+        broadcastLobby();
 
     int steps = 0;
     while (now >= nextTick_ && steps < 5) {

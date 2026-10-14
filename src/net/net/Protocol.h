@@ -34,6 +34,12 @@ enum class DenyReason : std::uint8_t {
 
 enum class MessageType : std::uint8_t {
     Command = 1,
+    Lobby,
+    Ready,
+    Settings,
+    Start,
+    Chat,
+    ReturnToLobby,
 };
 
 enum class NetEventType : std::uint8_t {

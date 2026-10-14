@@ -30,8 +30,8 @@ std::string readFile(const std::filesystem::path& path) {
     return ss.str();
 }
 
-int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty difficulty, int players) {
-    vw::World world(data, map, difficulty);
+int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty difficulty, vw::GameMode mode, int players) {
+    vw::World world(data, map, difficulty, mode);
     for (int p = 0; p < players; ++p)
         world.spawnPlayer(static_cast<std::uint8_t>(p));
     spdlog::info("simulating {} | {} | {} idle players", map.name(), vw::difficultyName(difficulty), players);
@@ -83,6 +83,7 @@ double nowSeconds() {
 int main(int argc, char** argv) {
     std::filesystem::path dataDir = std::filesystem::path(argv[0]).parent_path() / "data";
     vw::server::ServerConfig config;
+    config.lobby = true;
     double runFor = 0.0;
     std::string master;
     int simPlayers = -1;
@@ -110,6 +111,13 @@ int main(int argc, char** argv) {
                 spdlog::error("unknown difficulty {}", argv[i]);
                 return 1;
             }
+        } else if (arg == "--mode" && hasValue) {
+            if (!vw::parseGameMode(argv[++i], config.mode)) {
+                spdlog::error("unknown mode {}", argv[i]);
+                return 1;
+            }
+        } else if (arg == "--no-lobby") {
+            config.lobby = false;
         } else if (arg == "--simulate")
             simPlayers = hasValue && argv[i + 1][0] != '-' ? std::atoi(argv[++i]) : 0;
     }
@@ -125,7 +133,12 @@ int main(int argc, char** argv) {
         const auto data = vw::GameData::parse(readFile(dataDir / "units.json"), readFile(dataDir / "skills.json"), readFile(dataDir / "items.json"));
         const auto map = vw::Map::parse(readFile(dataDir / "maps" / (config.mapName + ".json")));
         if (simPlayers >= 0)
-            return simulate(data, map, config.difficulty, simPlayers);
+            return simulate(data, map, config.difficulty, config.mode, simPlayers);
+        config.loadMap = [dataDir](const std::string& name) {
+            if (name.empty() || name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_") != std::string::npos)
+                throw std::runtime_error("bad map name");
+            return readFile(dataDir / "maps" / (name + ".json"));
+        };
         vw::server::Server server(data, map, config);
         const double start = nowSeconds();
         if (!server.start(start))

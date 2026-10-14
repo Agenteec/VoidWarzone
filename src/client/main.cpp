@@ -49,6 +49,14 @@ int main(int argc, char** argv) {
             options.cheats = true;
         else if (arg == "--difficulty" && hasValue)
             vw::parseDifficulty(argv[++i], options.difficulty);
+        else if (arg == "--windowed")
+            options.windowMode = 0;
+        else if (arg == "--borderless")
+            options.windowMode = 1;
+        else if (arg == "--fullscreen")
+            options.windowMode = 2;
+        else if (arg == "--mode" && hasValue)
+            vw::parseGameMode(argv[++i], options.mode);
         else if (arg == "--shadows" && hasValue)
             options.shadows = vw::client::parseShadowQuality(argv[++i]);
         else if (arg == "--light" && hasValue)

@@ -1,0 +1,482 @@
+#include "App.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+
+#include <SDL3/SDL.h>
+#include <glm/common.hpp>
+
+#include "ui/Widgets.h"
+
+namespace vw::client {
+
+using namespace ui;
+
+namespace {
+
+bool cardButton(const char* id, const char* label, const char* sub, const char* key, bool enabled, bool active, ImVec2 size) {
+    ImGui::PushID(id);
+    ImGui::BeginDisabled(!enabled);
+    if (active)
+        ImGui::PushStyleColor(ImGuiCol_Button, toVec(IM_COL32(40, 110, 160, 255)));
+    const bool pressed = ImGui::Button("##card", size);
+    if (active)
+        ImGui::PopStyleColor();
+    ImGui::EndDisabled();
+    const ImVec2 a = ImGui::GetItemRectMin();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImU32 text = enabled ? kText : kDim;
+    const ImVec2 ls = ImGui::CalcTextSize(label);
+    const float labelY = sub && *sub ? a.y + size.y * 0.42f - ls.y * 0.5f : a.y + (size.y - ls.y) * 0.5f;
+    dl->AddText({a.x + (size.x - ls.x) * 0.5f, labelY}, text, label);
+    if (sub && *sub) {
+        ImFont* font = ImGui::GetFont();
+        const float fs = ImGui::GetFontSize() * 0.78f;
+        const ImVec2 ss = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, sub);
+        dl->AddText(font, fs, {a.x + (size.x - ss.x) * 0.5f, a.y + size.y - ss.y - 3.0f}, enabled ? kEnergy : kDim, sub);
+    }
+    if (key && *key) {
+        ImFont* font = ImGui::GetFont();
+        dl->AddText(font, ImGui::GetFontSize() * 0.72f, {a.x + 4.0f, a.y + 2.0f}, enabled ? IM_COL32(255, 210, 80, 200) : kDim, key);
+    }
+    ImGui::PopID();
+    return pressed && enabled;
+}
+
+}
+
+void App::drawDesktopHud() {
+    const auto* latest = net_.latest();
+    const auto& game = latest->game;
+    const float s = uiScale();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float pad = 8.0f * s;
+
+    ImGui::SetNextWindowPos({pad, pad});
+    ImGui::SetNextWindowBgAlpha(0.62f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{10.0f * s, 6.0f * s});
+    ImGui::Begin("##wave", nullptr, kHudFlags);
+    ImGui::PopStyleVar();
+    ImGui::PushFont(ui_.bold(), 0.0f);
+    if (game.totalWaves == 0)
+        ImGui::Text(ICON_FA_FLAG "  WAVE %d", game.wave);
+    else if (game.wave < game.totalWaves)
+        ImGui::Text(ICON_FA_FLAG "  WAVE %d / %d", game.wave, game.totalWaves);
+    else
+        ImGui::TextColored(toVec(kVoid), ICON_FA_FLAG "  FINAL WAVE");
+    ImGui::PopFont();
+    if (game.totalWaves == 0 || game.wave < game.totalWaves) {
+        const auto& defense = map_->defense();
+        const float interval = game.wave == 0 ? defense.firstWaveDelay : defense.waveInterval;
+        const float left = static_cast<float>(game.nextWaveIn) / 10.0f;
+        char label[16];
+        std::snprintf(label, sizeof(label), "%d:%02d", static_cast<int>(left) / 60, static_cast<int>(left) % 60);
+        bar(1.0f - left / std::max(interval, 1.0f), {110.0f * s, 8.0f * s}, IM_COL32(255, 170, 60, 220), nullptr);
+        ImGui::SameLine();
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 6.0f * s);
+        ImGui::TextDisabled("next %s", label);
+    } else {
+        ImGui::TextDisabled("destroy the portal");
+    }
+    trackWindow();
+    ImGui::End();
+
+    drawResourceBar();
+    drawBossBar();
+
+    const float panelH = 170.0f * s;
+    hudBottom_ = panelH + pad;
+    drawMinimap(panelH - 16.0f * s);
+    drawCommandCard();
+    drawSelection();
+    drawSidePanel();
+    drawChat();
+}
+
+void App::drawResourceBar() {
+    const auto* latest = net_.latest();
+    const auto& game = latest->game;
+    const float s = uiScale();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float pad = 8.0f * s;
+    const auto& points = map_->resourcePoints();
+    float income = map_->defense().baseIncome;
+    for (std::size_t i = 0; i < points.size() && i < game.points.size(); ++i)
+        if (game.points[i].owner == 0)
+            income += points[i].income;
+    for (const auto& e : entities_)
+        if (e.kind == net::EntityKind::Unit && e.team == 0 && e.hp > 0)
+            income += data_->unit(e.def).income;
+
+    ImGui::SetNextWindowPos({display.x - pad, pad}, ImGuiCond_Always, {1.0f, 0.0f});
+    ImGui::SetNextWindowBgAlpha(0.62f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{10.0f * s, 6.0f * s});
+    ImGui::Begin("##resources", nullptr, kHudFlags);
+    ImGui::PopStyleVar();
+    ImGui::AlignTextToFramePadding();
+    ImGui::PushFont(ui_.bold(), 0.0f);
+    ImGui::TextColored(toVec(kEnergy), ICON_FA_BOLT " %u", latest->view.energy);
+    ImGui::PopFont();
+    ImGui::SetItemTooltip("Energy - recruit units, promote, buy items");
+    ImGui::SameLine();
+    ImGui::TextDisabled("+%.1f/s", income);
+    ImGui::SameLine(0.0f, 16.0f * s);
+    ImGui::PushFont(ui_.bold(), 0.0f);
+    ImGui::TextColored(toVec(kShard), ICON_FA_DIAMOND " %u", latest->view.shards);
+    ImGui::PopFont();
+    ImGui::SetItemTooltip("Shards - drop from bosses, raise heroes and buy rare items");
+    if (host_ && lobby_.state() == net::MasterClient::State::Hosting) {
+        ImGui::SameLine(0.0f, 16.0f * s);
+        if (ImGui::SmallButton(lobby_.code().c_str()))
+            SDL_SetClipboardText(lobby_.code().c_str());
+        ImGui::SetItemTooltip("Room code - click to copy");
+    }
+    ImGui::SameLine(0.0f, 16.0f * s);
+    if (ImGui::Button(ICON_FA_BARS))
+        pauseOpen_ = !pauseOpen_;
+    ImGui::SetItemTooltip("Menu [F10]");
+    trackWindow();
+    topBarHeight_ = ImGui::GetWindowPos().y + ImGui::GetWindowSize().y;
+    ImGui::End();
+}
+
+void App::drawMinimap(float size) {
+    const float s = uiScale();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float pad = 8.0f * s;
+    const float mapW = static_cast<float>(map_->width());
+    const float mapH = static_cast<float>(map_->height());
+    const float aspect = mapW / mapH;
+    const ImVec2 imageSize = aspect >= 1.0f ? ImVec2{size * std::min(aspect, 2.0f), size * std::min(aspect, 2.0f) / aspect} : ImVec2{size * aspect, size};
+    const bool touch = touchLayout();
+
+    if (touch)
+        ImGui::SetNextWindowPos({pad, topBarHeight_ + pad});
+    else
+        ImGui::SetNextWindowPos({pad, display.y - pad}, ImGuiCond_Always, {0.0f, 1.0f});
+    ImGui::SetNextWindowBgAlpha(0.8f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{6.0f * s, 6.0f * s});
+    ImGui::Begin("##minimap", nullptr, kHudFlags);
+    ImGui::PopStyleVar();
+    ImGui::InvisibleButton("##mm", imageSize, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+    const ImVec2 a = ImGui::GetItemRectMin();
+    const ImVec2 b = ImGui::GetItemRectMax();
+    auto toMap = [&](ImVec2 p) { return glm::vec2{(p.x - a.x) / imageSize.x * mapW, (p.y - a.y) / imageSize.y * mapH}; };
+    auto toMini = [&](glm::vec2 p) { return ImVec2{a.x + p.x / mapW * imageSize.x, a.y + p.y / mapH * imageSize.y}; };
+    if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        camera_.target = glm::clamp(toMap(ImGui::GetIO().MousePos), glm::vec2(0.0f), glm::vec2(mapW, mapH));
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
+        issueCommandAt(toMap(ImGui::GetIO().MousePos), attackMoveArmed_);
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const bgfx::TextureHandle tex = renderer_.textureHandle(minimap_);
+    if (bgfx::isValid(tex))
+        dl->AddImage(static_cast<ImTextureID>(tex.idx) + 1, a, b);
+    dl->PushClipRect(a, b, true);
+    const auto* latest = net_.latest();
+    const auto& defs = map_->resourcePoints();
+    for (std::size_t i = 0; i < defs.size(); ++i) {
+        const auto owner = latest && i < latest->game.points.size() ? latest->game.points[i].owner : 0xff;
+        const ImU32 c = owner == 0 ? kAccent : owner == 1 ? kVoid : IM_COL32(170, 170, 180, 255);
+        const ImVec2 p = toMini(defs[i].pos);
+        dl->AddCircleFilled(p, 4.0f * s, scaleColor(c, 0.5f, 0.9f));
+        dl->AddCircle(p, 4.0f * s, c, 0, 1.5f);
+    }
+    const float unitR = std::max(1.5f, 1.6f * s);
+    for (const auto& e : entities_) {
+        if (e.kind != net::EntityKind::Unit)
+            continue;
+        const bool structure = data_->unit(e.def).structure;
+        ImU32 c = e.team == 1 ? kVoid : IM_COL32(70, 160, 255, 255);
+        if (isOwn(e))
+            c = kGood;
+        else if (e.owner != net::kNoOwner)
+            c = IM_COL32(240, 210, 70, 255);
+        const ImVec2 p = toMini(e.pos);
+        const float r = structure ? unitR * 1.8f : unitR;
+        dl->AddRectFilled({p.x - r, p.y - r}, {p.x + r, p.y + r}, c);
+    }
+    const float w = static_cast<float>(renderer_.width());
+    const float h = static_cast<float>(renderer_.height());
+    const auto c0 = camera_.screenToGround(0.0f, 0.0f);
+    const auto c1 = camera_.screenToGround(w, 0.0f);
+    const auto c2 = camera_.screenToGround(w, h);
+    const auto c3 = camera_.screenToGround(0.0f, h);
+    if (c0 && c1 && c2 && c3)
+        dl->AddQuad(toMini(*c0), toMini(*c1), toMini(*c2), toMini(*c3), IM_COL32(255, 255, 255, 200), 1.5f);
+    dl->PopClipRect();
+    dl->AddRect(a, b, IM_COL32(255, 255, 255, 40));
+    if (ImGui::IsItemHovered() && !touch)
+        ImGui::SetTooltip("Left: move camera  |  Right: send selected units");
+    trackWindow();
+    minimapRight_ = ImGui::GetWindowPos().x + ImGui::GetWindowSize().x;
+    ImGui::End();
+}
+
+void App::drawSelection() {
+    if (selected_.empty())
+        return;
+    const float s = uiScale();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float pad = 8.0f * s;
+    const float left = minimapRight_ + pad;
+    const float right = commandCardLeft_ - pad;
+    const float width = std::min(right - left, 460.0f * s);
+    if (width < 120.0f * s)
+        return;
+    const float panelH = hudBottom_ - pad;
+    ImGui::SetNextWindowPos({left + (right - left - width) * 0.5f, display.y - pad}, ImGuiCond_Always, {0.0f, 1.0f});
+    ImGui::SetNextWindowSize({width, panelH});
+    ImGui::SetNextWindowBgAlpha(0.8f);
+    ImGui::Begin("##selection", nullptr, kHudFlags & ~ImGuiWindowFlags_AlwaysAutoResize);
+    const float w = ImGui::GetContentRegionAvail().x;
+    const auto* own = focusedOwn();
+    const auto* entity = findEntity(selected_.front());
+
+    if (selected_.size() == 1 && own && entity) {
+        const auto& def = data_->unit(entity->def);
+        const auto rank = static_cast<Rank>(std::min<int>(own->rank, 3));
+        ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.1f);
+        ImGui::TextUnformatted(def.name.c_str());
+        ImGui::PopFont();
+        ImGui::SameLine();
+        ImGui::TextColored(toVec(kRankColors[static_cast<int>(rank)]), "%s", kRankNames[static_cast<int>(rank)]);
+        if (rank == Rank::Hero) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("level %d", own->level);
+        }
+        char label[48];
+        const float hpFrac = static_cast<float>(entity->hp) / static_cast<float>(std::max<std::uint16_t>(entity->maxHp, 1));
+        std::snprintf(label, sizeof(label), "%u / %u", entity->hp, entity->maxHp);
+        bar(hpFrac, {w, 16.0f * s}, hpColor(hpFrac), label);
+        const float goal = rank == Rank::Hero ? xpForNextLevel(own->level) : rank == Rank::Elite ? kHeroXp : kEliteXp;
+        std::snprintf(label, sizeof(label), "XP %u / %.0f", own->xp, goal);
+        bar(static_cast<float>(own->xp) / std::max(goal, 1.0f), {w, 11.0f * s}, IM_COL32(150, 110, 255, 230), label);
+        ImGui::TextDisabled("dmg %.0f  range %.1f  armor %.0f", def.weapon ? def.weapon->damage : 0.0f, def.weapon ? def.weapon->range : 0.0f, def.armor);
+        const int slots = itemSlots(rank);
+        if (slots > 0) {
+            const float box = 34.0f * s;
+            for (int i = 0; i < slots; ++i) {
+                if (i > 0)
+                    ImGui::SameLine();
+                ImGui::PushID(i);
+                if (i < static_cast<int>(own->items.size())) {
+                    const auto& item = data_->item(own->items[static_cast<std::size_t>(i)]);
+                    const ImVec4 c = toVec(kRarityColors[static_cast<int>(item.rarity)]);
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{c.x * 0.3f, c.y * 0.3f, c.z * 0.3f, 1.0f});
+                    ImGui::PushStyleColor(ImGuiCol_Text, c);
+                    if (ImGui::Button(item.name.substr(0, 2).c_str(), {box, box}))
+                        net_.sendCommand(UnequipCommand{0, static_cast<entt::entity>(selected_.front()), static_cast<std::uint8_t>(i)});
+                    ImGui::PopStyleColor(2);
+                    if (ImGui::BeginItemTooltip()) {
+                        ImGui::TextColored(c, "%s", item.name.c_str());
+                        ImGui::TextUnformatted(modsText(item.mods).c_str());
+                        ImGui::TextDisabled("click to move it back to the stash");
+                        ImGui::EndTooltip();
+                    }
+                } else {
+                    ImGui::BeginDisabled();
+                    ImGui::Button("##empty", {box, box});
+                    ImGui::EndDisabled();
+                    ImGui::SetItemTooltip("Empty item slot - equip from the stash [I]");
+                }
+                ImGui::PopID();
+            }
+        }
+        if (own->skillPoints > 0) {
+            ImGui::SameLine();
+            ImGui::TextColored(toVec(kGood), "%d skill point%s [L]", own->skillPoints, own->skillPoints > 1 ? "s" : "");
+        }
+    } else {
+        ImGui::Text("%d units selected", static_cast<int>(selected_.size()));
+        const float tile = 36.0f * s;
+        const int perRow = std::max(1, static_cast<int>((w + ImGui::GetStyle().ItemSpacing.x) / (tile + ImGui::GetStyle().ItemSpacing.x)));
+        int index = 0;
+        std::uint32_t pick = 0;
+        for (const auto id : selected_) {
+            const auto* e = findEntity(id);
+            if (!e)
+                continue;
+            if (index % perRow != 0)
+                ImGui::SameLine();
+            ImGui::PushID(static_cast<int>(id));
+            const auto& def = data_->unit(e->def);
+            const int rank = e->rank > 0 ? e->rank - 1 : 0;
+            ImGui::PushStyleColor(ImGuiCol_Text, toVec(kRankColors[std::min(rank, 3)]));
+            if (ImGui::Button(def.name.substr(0, 2).c_str(), {tile, tile}))
+                pick = id;
+            ImGui::PopStyleColor();
+            const ImVec2 a = ImGui::GetItemRectMin();
+            const ImVec2 b = ImGui::GetItemRectMax();
+            const float frac = static_cast<float>(e->hp) / static_cast<float>(std::max<std::uint16_t>(e->maxHp, 1));
+            ImGui::GetWindowDrawList()->AddRectFilled({a.x + 3.0f, b.y - 5.0f}, {a.x + 3.0f + (b.x - a.x - 6.0f) * frac, b.y - 2.0f}, hpColor(frac));
+            ImGui::SetItemTooltip("%s  %u/%u", def.name.c_str(), e->hp, e->maxHp);
+            ImGui::PopID();
+            if (++index >= perRow * 3)
+                break;
+        }
+        if (pick != 0)
+            selected_ = {pick};
+    }
+    trackWindow();
+    ImGui::End();
+}
+
+void App::drawCommandCard() {
+    const auto* latest = net_.latest();
+    const float s = uiScale();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float pad = 8.0f * s;
+    const float cell = (hudBottom_ - pad - 2.0f * 8.0f * s - 2.0f * ImGui::GetStyle().ItemSpacing.y) / 3.0f;
+    const ImVec2 size{cell * 1.05f, cell};
+
+    ImGui::SetNextWindowPos({display.x - pad, display.y - pad}, ImGuiCond_Always, {1.0f, 1.0f});
+    ImGui::SetNextWindowBgAlpha(0.8f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{8.0f * s, 8.0f * s});
+    ImGui::Begin("##card", nullptr, kHudFlags);
+    ImGui::PopStyleVar();
+
+    const bool hasSelection = !selected_.empty();
+    const auto* own = focusedOwn();
+    const auto* entity = hasSelection ? findEntity(selected_.front()) : nullptr;
+    const auto rank = own ? static_cast<Rank>(std::min<int>(own->rank, 3)) : Rank::Recruit;
+    const float energy = static_cast<float>(latest->view.energy);
+
+    if (cardButton("attack", ICON_FA_CROSSHAIRS, "Attack", "A", hasSelection, attackMoveArmed_, size)) {
+        attackMoveArmed_ = !attackMoveArmed_;
+        armedSkill_ = -1;
+    }
+    ImGui::SetItemTooltip("Attack-move: fight everything on the way [A]");
+    ImGui::SameLine();
+    if (cardButton("stop", ICON_FA_STOP, "Stop", "S", hasSelection, false, size))
+        pressKey(SDLK_S, false);
+    ImGui::SetItemTooltip("Stop [S]");
+    ImGui::SameLine();
+    bool canPromote = false;
+    char promoteSub[24] = "Promote";
+    const char* promoteTip = "Select a unit to promote it";
+    if (own && entity) {
+        if (rank == Rank::Recruit || rank == Rank::Veteran) {
+            canPromote = static_cast<float>(own->xp) >= kEliteXp && energy >= kEliteCost;
+            std::snprintf(promoteSub, sizeof(promoteSub), ICON_FA_BOLT "%.0f", kEliteCost);
+            promoteTip = "Promote to Elite: 200 XP and energy. Elites carry items.";
+        } else if (rank == Rank::Elite && !data_->unit(entity->def).skills.empty()) {
+            canPromote = static_cast<float>(own->xp) >= kHeroXp && latest->view.shards >= kHeroShards;
+            std::snprintf(promoteSub, sizeof(promoteSub), ICON_FA_DIAMOND "%d", kHeroShards);
+            promoteTip = "Raise a Hero: 400 XP and shards. Heroes learn skills.";
+        } else {
+            promoteTip = rank == Rank::Hero ? "Already a hero" : "This unit cannot become a hero";
+        }
+    }
+    if (cardButton("promote", rank == Rank::Elite ? ICON_FA_TROPHY : ICON_FA_ARROW_UP, promoteSub, "P", canPromote, false, size))
+        pressKey(SDLK_P, false);
+    ImGui::SetItemTooltip("%s [P]", promoteTip);
+    ImGui::SameLine();
+    if (cardButton("learn", ICON_FA_BOOK, "Skills", "L", true, panel_ == Panel::Learn, size))
+        panel_ = panel_ == Panel::Learn ? Panel::None : Panel::Learn;
+    ImGui::SetItemTooltip("Learn hero skills [L]");
+
+    for (std::size_t i = 0; i < 4; ++i) {
+        if (i > 0)
+            ImGui::SameLine();
+        const bool has = own && rank == Rank::Hero && i < own->skills.size();
+        if (!has) {
+            cardButton(kSkillKeys[i], "", "", kSkillKeys[i], false, false, size);
+            ImGui::SetItemTooltip("Hero skill slot [%s]", kSkillKeys[i]);
+            continue;
+        }
+        const auto& slot = own->skills[i];
+        const auto& skill = data_->skill(slot.skill);
+        std::string shortName = skill.name.substr(0, 6);
+        char lvl[8];
+        std::snprintf(lvl, sizeof(lvl), "lvl %d", slot.level);
+        if (cardButton(kSkillKeys[i], shortName.c_str(), lvl, kSkillKeys[i], !skill.passive, armedSkill_ == static_cast<int>(i), size))
+            pressKey(i == 0 ? SDLK_Q : i == 1 ? SDLK_W : i == 2 ? SDLK_E : SDLK_R, false);
+        skillTooltip(skill, slot.level);
+        if (slot.cooldown > 0) {
+            const ImVec2 a = ImGui::GetItemRectMin();
+            const ImVec2 b = ImGui::GetItemRectMax();
+            const float frac = std::clamp(static_cast<float>(slot.cooldown) / 10.0f / std::max(skill.cooldown, 0.1f), 0.0f, 1.0f);
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            dl->AddRectFilled({a.x, b.y - (b.y - a.y) * frac}, b, IM_COL32(0, 0, 0, 160), 4.0f);
+            char cd[8];
+            std::snprintf(cd, sizeof(cd), "%d", (slot.cooldown + 9) / 10);
+            const ImVec2 cs = ImGui::CalcTextSize(cd);
+            dl->AddText({a.x + (b.x - a.x - cs.x) * 0.5f, a.y + (b.y - a.y - cs.y) * 0.5f}, IM_COL32(255, 255, 255, 255), cd);
+        }
+    }
+
+    const auto& recruitable = data_->recruitable();
+    static constexpr const char* kDigits[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9"};
+    for (std::size_t i = 0; i < 2; ++i) {
+        if (i > 0)
+            ImGui::SameLine();
+        if (i >= recruitable.size()) {
+            cardButton(kDigits[i], "", "", "", false, false, size);
+            continue;
+        }
+        const auto& def = data_->unit(recruitable[i]);
+        char cost[16];
+        std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
+        if (cardButton(kDigits[i], def.name.substr(0, 6).c_str(), cost, kDigits[i], energy >= def.cost, false, size))
+            net_.sendCommand(RecruitCommand{0, recruitable[i]});
+        if (ImGui::BeginItemTooltip()) {
+            ImGui::Text("Recruit %s  [%d]", def.name.c_str(), static_cast<int>(i) + 1);
+            ImGui::TextDisabled("HP %.0f  armor %.0f  speed %.1f", def.maxHp, def.armor, def.speed);
+            if (def.weapon)
+                ImGui::TextDisabled("damage %.0f  range %.1f  every %.1fs", def.weapon->damage, def.weapon->range, def.weapon->cooldown);
+            ImGui::EndTooltip();
+        }
+    }
+    ImGui::SameLine();
+    if (cardButton("shop", ICON_FA_SHOPPING_CART, "Shop", "B", true, panel_ == Panel::Shop, size))
+        panel_ = panel_ == Panel::Shop ? Panel::None : Panel::Shop;
+    ImGui::SetItemTooltip("Shop [B]");
+    ImGui::SameLine();
+    if (cardButton("stash", ICON_FA_ARCHIVE, "Stash", "I", true, panel_ == Panel::Stash, size))
+        panel_ = panel_ == Panel::Stash ? Panel::None : Panel::Stash;
+    ImGui::SetItemTooltip("Stash [I]");
+    trackWindow();
+    commandCardLeft_ = ImGui::GetWindowPos().x;
+    ImGui::End();
+}
+
+void App::drawChat() {
+    const float s = uiScale();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float pad = 8.0f * s;
+    std::vector<const ChatEntry*> recent;
+    for (const auto& entry : chatLog_)
+        if (chatOpen_ || now_ - entry.time < 12.0)
+            recent.push_back(&entry);
+    if (recent.empty() && !chatOpen_)
+        return;
+    if (recent.size() > 6)
+        recent.erase(recent.begin(), recent.end() - 6);
+    ImGui::SetNextWindowPos({pad, display.y - hudBottom_ - pad}, ImGuiCond_Always, {0.0f, 1.0f});
+    ImGui::SetNextWindowBgAlpha(chatOpen_ ? 0.75f : 0.0f);
+    ImGui::Begin("##chat", nullptr, kHudFlags | (chatOpen_ ? 0 : ImGuiWindowFlags_NoInputs));
+    for (const auto* entry : recent) {
+        ImGui::TextColored(toVec(kAccent), "%s:", entry->line.name.c_str());
+        ImGui::SameLine();
+        ImGui::TextUnformatted(entry->line.text.c_str());
+    }
+    if (chatOpen_) {
+        ImGui::SetNextItemWidth(360.0f * s);
+        if (ImGui::IsWindowAppearing())
+            ImGui::SetKeyboardFocusHere();
+        if (ImGui::InputTextWithHint("##say", "Enter to send, Esc to close", chatBuf_.data(), chatBuf_.size(), ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (chatBuf_[0] != '\0')
+                net_.sendChat(chatBuf_.data());
+            chatBuf_[0] = '\0';
+            chatOpen_ = false;
+        } else if (ImGui::IsItemDeactivated()) {
+            chatOpen_ = false;
+        }
+        trackWindow();
+    }
+    ImGui::End();
+}
+
+}

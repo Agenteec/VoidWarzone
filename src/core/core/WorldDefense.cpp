@@ -55,20 +55,38 @@ bool parseDifficulty(std::string_view text, Difficulty& out) {
     return false;
 }
 
+const char* gameModeName(GameMode m) {
+    return m == GameMode::Endless ? "endless" : "defense";
+}
+
+bool parseGameMode(std::string_view text, GameMode& out) {
+    for (const auto m : {GameMode::Defense, GameMode::Endless})
+        if (text == gameModeName(m)) {
+            out = m;
+            return true;
+        }
+    return false;
+}
+
 int World::activePlayers() const {
     return static_cast<int>(std::count_if(players_.begin(), players_.end(), [](const PlayerState& p) { return p.active; }));
 }
 
+float World::endlessCycle() const {
+    const auto waves = map_ ? static_cast<int>(map_->defense().waves.size()) : 0;
+    return mode_ == GameMode::Endless && waves > 0 ? static_cast<float>(std::max(0, defense_.wave - 1) / waves) : 0.0f;
+}
+
 float World::enemyHpScale() const {
-    return scaling(difficulty_).hp * (1.0f + 0.1f * static_cast<float>(std::max(0, activePlayers() - 1)));
+    return scaling(difficulty_).hp * (1.0f + 0.1f * static_cast<float>(std::max(0, activePlayers() - 1))) * (1.0f + 0.4f * endlessCycle());
 }
 
 float World::enemyDamageScale() const {
-    return scaling(difficulty_).damage;
+    return scaling(difficulty_).damage * (1.0f + 0.25f * endlessCycle());
 }
 
 float World::enemyCountScale() const {
-    return scaling(difficulty_).count * (1.0f + 0.25f * static_cast<float>(std::max(0, activePlayers() - 1)));
+    return scaling(difficulty_).count * (1.0f + 0.25f * static_cast<float>(std::max(0, activePlayers() - 1))) * (1.0f + 0.2f * endlessCycle());
 }
 
 void World::grantTeamEnergy(float amount) {
@@ -281,6 +299,19 @@ void World::updateDefense() {
         if (team.id == 0 && alive(e))
             income += data_->unit(unit.def).income;
     grantTeamEnergy(income * kTickDt);
+
+    if (mode_ == GameMode::Endless && !def.waves.empty()) {
+        defense_.nextWaveIn -= kTickDt;
+        if (defense_.nextWaveIn <= 0.0f) {
+            const auto index = static_cast<std::size_t>(defense_.wave) % def.waves.size();
+            ++defense_.wave;
+            spawnWave(def.waves[index]);
+            events_.push_back({EventType::WaveStart, entt::null, entt::null, {}, {}, static_cast<float>(defense_.wave)});
+            const float delay = def.waves[(index + 1) % def.waves.size()].delay;
+            defense_.nextWaveIn = delay > 0.0f ? delay : def.waveInterval;
+        }
+        return;
+    }
 
     if (defense_.wave < defense_.totalWaves) {
         defense_.nextWaveIn -= kTickDt;

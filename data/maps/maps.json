@@ -1,0 +1,10 @@
+{
+  "maps": [
+    {"id": "void_siege", "name": "Void Siege", "players": "1-8", "description": "Four long parallel lanes, fortified bases with factories, generators and labs. The main map."},
+    {"id": "siege_test", "name": "Proving Grounds", "players": "1-4", "description": "A small compact map for quick matches and testing."}
+  ],
+  "modes": [
+    {"id": "defense", "name": "Defense", "description": "Hold the core through every wave, then destroy the Void portal."},
+    {"id": "endless", "name": "Endless", "description": "Waves never stop and grow stronger every cycle. Survive as long as you can."}
+  ]
+}

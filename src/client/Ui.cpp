@@ -9,121 +9,12 @@
 #include <bgfx/bgfx.h>
 #include <imgui.h>
 
-#include <icons_font_awesome.h>
-
 #include "core/Version.h"
+#include "ui/Widgets.h"
 
 namespace vw::client {
 
-namespace {
-
-constexpr ImU32 kAccent = IM_COL32(61, 184, 255, 255);
-constexpr ImU32 kVoid = IM_COL32(255, 64, 140, 255);
-constexpr ImU32 kEnergy = IM_COL32(255, 210, 80, 255);
-constexpr ImU32 kShard = IM_COL32(190, 130, 255, 255);
-constexpr ImU32 kGood = IM_COL32(90, 230, 120, 255);
-constexpr ImU32 kBad = IM_COL32(255, 80, 80, 255);
-constexpr ImU32 kDim = IM_COL32(125, 135, 158, 255);
-constexpr ImGuiWindowFlags kHudFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-                                       ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_AlwaysAutoResize;
-constexpr const char* kRankNames[] = {"Recruit", "Veteran", "Elite", "Hero"};
-constexpr ImU32 kRankColors[] = {IM_COL32(170, 178, 195, 255), IM_COL32(205, 215, 235, 255), IM_COL32(170, 120, 255, 255), IM_COL32(255, 205, 70, 255)};
-constexpr ImU32 kRarityColors[] = {IM_COL32(210, 215, 225, 255), IM_COL32(80, 160, 255, 255), IM_COL32(190, 110, 255, 255), IM_COL32(255, 170, 40, 255)};
-constexpr const char* kRarityNames[] = {"Common", "Rare", "Epic", "Legendary"};
-constexpr const char* kSkillKeys[] = {"Q", "W", "E", "R"};
-
-ImVec4 toVec(ImU32 c) {
-    return ImGui::ColorConvertU32ToFloat4(c);
-}
-
-void bar(float fraction, ImVec2 size, ImU32 fill, const char* label) {
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImVec2 p = ImGui::GetCursorScreenPos();
-    const float r = size.y * 0.35f;
-    dl->AddRectFilled(p, {p.x + size.x, p.y + size.y}, IM_COL32(10, 12, 20, 230), r);
-    const float f = std::clamp(fraction, 0.0f, 1.0f);
-    if (f > 0.0f)
-        dl->AddRectFilled(p, {p.x + size.x * f, p.y + size.y}, fill, r);
-    dl->AddRect(p, {p.x + size.x, p.y + size.y}, IM_COL32(255, 255, 255, 28), r);
-    if (label && *label) {
-        const ImVec2 ts = ImGui::CalcTextSize(label);
-        const ImVec2 tp{p.x + (size.x - ts.x) * 0.5f, p.y + (size.y - ts.y) * 0.5f};
-        dl->AddText({tp.x + 1.0f, tp.y + 1.0f}, IM_COL32(0, 0, 0, 200), label);
-        dl->AddText(tp, IM_COL32(255, 255, 255, 240), label);
-    }
-    ImGui::Dummy(size);
-}
-
-ImU32 hpColor(float frac) {
-    const ImVec4 a{1.0f, 0.25f, 0.2f, 1.0f};
-    const ImVec4 b{0.3f, 0.9f, 0.4f, 1.0f};
-    const float t = std::clamp(frac, 0.0f, 1.0f);
-    return ImGui::ColorConvertFloat4ToU32({a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t, 1.0f});
-}
-
-bool accentButton(const char* label, ImVec2 size, ImU32 color = kAccent) {
-    const ImVec4 c = toVec(color);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{c.x * 0.55f, c.y * 0.55f, c.z * 0.55f, 1.0f});
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{c.x * 0.75f, c.y * 0.75f, c.z * 0.75f, 1.0f});
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, c);
-    const bool pressed = ImGui::Button(label, size);
-    ImGui::PopStyleColor(3);
-    return pressed;
-}
-
-bool toggleButton(const char* label, bool active, ImVec2 size) {
-    if (active)
-        ImGui::PushStyleColor(ImGuiCol_Button, toVec(IM_COL32(40, 110, 160, 255)));
-    const bool pressed = ImGui::Button(label, size);
-    if (active)
-        ImGui::PopStyleColor();
-    return pressed;
-}
-
-void centeredText(const char* text, ImU32 color) {
-    const float w = ImGui::CalcTextSize(text).x;
-    ImGui::SetCursorPosX(std::max(0.0f, (ImGui::GetContentRegionAvail().x - w) * 0.5f + ImGui::GetCursorPosX()));
-    ImGui::TextColored(toVec(color), "%s", text);
-}
-
-std::string effectText(const SkillEffect& fx, int level) {
-    const float scale = 1.0f + 0.25f * static_cast<float>(level - 1);
-    char buf[96];
-    switch (fx.type) {
-    case EffectType::Damage:
-        std::snprintf(buf, sizeof(buf), "Deals %.0f damage in %.1f radius", fx.amount * scale, fx.radius);
-        break;
-    case EffectType::Heal:
-        std::snprintf(buf, sizeof(buf), "Heals %.0f in %.1f radius", fx.amount * scale, fx.radius);
-        break;
-    case EffectType::Buff:
-        std::snprintf(buf, sizeof(buf), "Buff for %.0fs", fx.duration);
-        break;
-    case EffectType::Dash:
-        std::snprintf(buf, sizeof(buf), "Dash up to %.0f cells", fx.amount);
-        break;
-    case EffectType::Summon:
-        std::snprintf(buf, sizeof(buf), "Summons %d allies", fx.count);
-        break;
-    case EffectType::Aura:
-        std::snprintf(buf, sizeof(buf), "Aura in %.1f radius", fx.radius);
-        break;
-    }
-    return buf;
-}
-
-void skillTooltip(const SkillDef& skill, int level) {
-    if (!ImGui::BeginItemTooltip())
-        return;
-    ImGui::TextColored(toVec(kAccent), "%s", skill.name.c_str());
-    ImGui::SameLine();
-    ImGui::TextDisabled(skill.passive ? "passive" : "cooldown %.0fs", skill.cooldown);
-    for (const auto& fx : skill.effects)
-        ImGui::BulletText("%s", effectText(fx, std::max(level, 1)).c_str());
-    ImGui::EndTooltip();
-}
-
-}
+using namespace ui;
 
 void App::trackWindow() {
     const ImVec2 p = ImGui::GetWindowPos();
@@ -140,9 +31,9 @@ bool App::overUi(glm::vec2 p) const {
 
 float App::uiScale() const {
 #if defined(SDL_PLATFORM_ANDROID)
-    return 1.0f;
+    return 2.2f / renderer_.scale() * uiScaleUser_;
 #else
-    return std::max(1.0f, SDL_GetWindowDisplayScale(window_)) * (touchUi_ ? 1.15f : 1.0f);
+    return std::max(1.0f, SDL_GetWindowDisplayScale(window_)) * uiScaleUser_ * (touchLayout() ? 1.15f : 1.0f);
 #endif
 }
 
@@ -155,249 +46,14 @@ void App::drawUi() {
     }
 }
 
-void App::drawMenu() {
-    const float s = uiScale();
-    const ImVec2 display = ImGui::GetIO().DisplaySize;
-    ImDrawList* bg = ImGui::GetBackgroundDrawList();
-    bg->AddRectFilledMultiColor({0.0f, 0.0f}, display, IM_COL32(10, 14, 28, 255), IM_COL32(16, 10, 30, 255), IM_COL32(4, 4, 8, 255),
-                                IM_COL32(4, 6, 12, 255));
-    const float t = static_cast<float>(now_);
-    for (int i = 0; i < 3; ++i) {
-        const float a = t * 0.07f + static_cast<float>(i) * 2.1f;
-        const ImVec2 c{display.x * (0.5f + 0.35f * std::cos(a)), display.y * (0.5f + 0.3f * std::sin(a * 1.3f))};
-        bg->AddCircleFilled(c, display.y * 0.45f, i == 1 ? IM_COL32(255, 40, 120, 10) : IM_COL32(40, 150, 255, 10), 64);
-    }
-
-    const float width = (screen_ == Screen::Online || screen_ == Screen::Lan ? 680.0f : 440.0f) * s;
-    ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
-    ImGui::SetNextWindowSizeConstraints({width, 0.0f}, {width, display.y * 0.95f});
-    ImGui::Begin("##menu", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
-    const float full = ImGui::GetContentRegionAvail().x;
-    const ImVec2 big{full, 38.0f * s};
-
-    ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 2.4f);
-    centeredText("VOID WARZONE", kAccent);
-    ImGui::PopFont();
-    char version[64];
-    std::snprintf(version, sizeof(version), "co-op defense  |  v%.*s", static_cast<int>(kVersion.size()), kVersion.data());
-    centeredText(version, kDim);
-    ImGui::Spacing();
-
-    auto back = [&] {
-        ImGui::Spacing();
-        if (ImGui::Button(ICON_FA_CHEVRON_LEFT "  Back", {full, 36.0f * s})) {
-            if (screen_ == Screen::Online)
-                lobby_.close();
-            status_.clear();
-            settingsOpen_ = false;
-            setScreen(Screen::Menu);
-        }
-    };
-
-    if (settingsOpen_ && screen_ == Screen::Menu) {
-        ImGui::SeparatorText("Settings");
-        drawSettings();
-        back();
-    } else {
-        switch (screen_) {
-        case Screen::Menu: {
-            ImGui::SetNextItemWidth(full);
-            if (ImGui::InputTextWithHint("##name", "Commander name", nameBuf_.data(), nameBuf_.size()))
-                options_.name = nameBuf_.data();
-            if (ImGui::IsItemDeactivatedAfterEdit())
-                saveSettings();
-            ImGui::Spacing();
-            ImGui::TextDisabled("Difficulty");
-            const float seg = (full - ImGui::GetStyle().ItemSpacing.x * 3.0f) / 4.0f;
-            static constexpr const char* kDiff[] = {"Easy", "Normal", "Hard", "Nightmare"};
-            for (int i = 0; i < 4; ++i) {
-                if (i > 0)
-                    ImGui::SameLine();
-                if (toggleButton(kDiff[i], static_cast<int>(options_.difficulty) == i, {seg, 32.0f * s})) {
-                    options_.difficulty = static_cast<Difficulty>(i);
-                    saveSettings();
-                }
-            }
-            ImGui::Spacing();
-            if (accentButton(ICON_FA_PLAY "   PLAY", {full, 48.0f * s}))
-                startHost();
-            ImGui::Spacing();
-            if (ImGui::Button(ICON_FA_KEY "   Join by room code", big)) {
-                status_.clear();
-                setScreen(Screen::Code);
-            }
-            if (ImGui::Button(ICON_FA_GLOBE "   Online games", big)) {
-                status_.clear();
-                setScreen(Screen::Online);
-            }
-            if (ImGui::Button(ICON_FA_WIFI "   LAN games", big)) {
-                status_.clear();
-                setScreen(Screen::Lan);
-            }
-            if (ImGui::Button(ICON_FA_PLUG "   Connect by IP", big)) {
-                status_.clear();
-                setScreen(Screen::Address);
-            }
-            const float half = (full - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
-            if (ImGui::Button(ICON_FA_COG "  Settings", {half, 36.0f * s}))
-                settingsOpen_ = true;
-            ImGui::SameLine();
-            if (ImGui::Button(ICON_FA_POWER_OFF "  Quit", {half, 36.0f * s}))
-                running_ = false;
-            break;
-        }
-        case Screen::Code:
-        case Screen::Address: {
-            const bool code = screen_ == Screen::Code;
-            ImGui::SeparatorText(code ? "Join by room code" : "Connect by IP");
-            ImGui::TextDisabled(code ? "Ask the host for the code shown in their game" : "Host address, port optional (default 27450)");
-            ImGui::SetNextItemWidth(full);
-            if (ImGui::IsWindowAppearing())
-                ImGui::SetKeyboardFocusHere();
-            char* buf = code ? codeBuf_.data() : addressBuf_.data();
-            const std::size_t bufSize = code ? codeBuf_.size() : addressBuf_.size();
-            const bool enter = ImGui::InputTextWithHint("##input", code ? "VOID-XXXX" : "192.168.1.10:27450", buf, bufSize,
-                                                        ImGuiInputTextFlags_EnterReturnsTrue | (code ? ImGuiInputTextFlags_CharsUppercase : 0));
-            ImGui::Spacing();
-            ImGui::BeginDisabled(buf[0] == '\0');
-            if (accentButton(code ? ICON_FA_KEY "   Join" : ICON_FA_PLUG "   Connect", big) || (enter && buf[0] != '\0')) {
-                if (code) {
-                    startJoin(buf);
-                } else if (const auto addr = net::Address::parse(buf, net::kGamePort)) {
-                    startConnect(*addr);
-                } else {
-                    status_ = "bad address";
-                }
-            }
-            ImGui::EndDisabled();
-            back();
-            break;
-        }
-        case Screen::Online:
-        case Screen::Lan: {
-            const bool online = screen_ == Screen::Online;
-            const bool loading = online && lobby_.state() == net::MasterClient::State::Connecting;
-            ImGui::SeparatorText(online ? "Online games" : "LAN games");
-            ImGui::TextDisabled("%s", online ? (loading ? "refreshing..." : "games registered on the master server")
-                                             : "searching the local network...");
-            const ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_PadOuterX;
-            int rows = 0;
-            if (ImGui::BeginTable("games", 5, flags)) {
-                ImGui::TableSetupColumn(online ? "Code" : "Address", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-                ImGui::TableSetupColumn("Map", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableSetupColumn("Players", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableHeadersRow();
-                auto row = [&](const std::string& id, const std::string& name, const std::string& mapName, int players, int maxPlayers) {
-                    ImGui::TableNextRow(0, 40.0f * s);
-                    ImGui::TableSetColumnIndex(0);
-                    ImGui::AlignTextToFramePadding();
-                    ImGui::TextColored(toVec(kAccent), "%s", id.c_str());
-                    ImGui::TableSetColumnIndex(1);
-                    ImGui::AlignTextToFramePadding();
-                    ImGui::TextUnformatted(name.c_str());
-                    ImGui::TableSetColumnIndex(2);
-                    ImGui::AlignTextToFramePadding();
-                    ImGui::TextDisabled("%s", mapName.c_str());
-                    ImGui::TableSetColumnIndex(3);
-                    ImGui::AlignTextToFramePadding();
-                    ImGui::Text(ICON_FA_USERS " %d/%d", players, maxPlayers);
-                    ImGui::TableSetColumnIndex(4);
-                    ImGui::PushID(rows++);
-                    const bool join = accentButton("Join", {80.0f * s, 0.0f});
-                    ImGui::PopID();
-                    return join;
-                };
-                if (online) {
-                    for (const auto& room : lobby_.rooms())
-                        if (row(room.code, room.name, room.map, room.players, room.maxPlayers)) {
-                            startJoin(room.code);
-                            break;
-                        }
-                } else {
-                    for (const auto& srv : lan_.servers())
-                        if (row(srv.address.toString(), srv.name, srv.map, srv.players, srv.maxPlayers)) {
-                            startConnect(srv.address);
-                            break;
-                        }
-                }
-                ImGui::EndTable();
-            }
-            if (rows == 0) {
-                ImGui::Spacing();
-                const bool failed = online && lobby_.state() == net::MasterClient::State::Failed;
-                centeredText(failed ? lobby_.error().c_str() : "No games found yet - host one with PLAY", failed ? kBad : kDim);
-            }
-            back();
-            break;
-        }
-        case Screen::Joining:
-        case Screen::Connecting: {
-            ImGui::Spacing();
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-            const ImVec2 p = ImGui::GetCursorScreenPos();
-            const ImVec2 c{p.x + full * 0.5f, p.y + 26.0f * s};
-            const float a0 = static_cast<float>(now_) * 6.0f;
-            dl->PathArcTo(c, 18.0f * s, a0, a0 + 4.2f, 32);
-            dl->PathStroke(kAccent, 0, 4.0f * s);
-            ImGui::Dummy({full, 56.0f * s});
-            centeredText(status_.empty() ? "connecting" : status_.c_str(), IM_COL32(220, 228, 240, 255));
-            ImGui::Spacing();
-            if (ImGui::Button(ICON_FA_TIMES "  Cancel", {full, 38.0f * s}))
-                leaveGame("cancelled");
-            break;
-        }
-        case Screen::Game:
-            break;
-        }
-    }
-
-    if (!status_.empty() && screen_ != Screen::Connecting && screen_ != Screen::Joining) {
-        ImGui::Spacing();
-        ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextColored(toVec(kBad), ICON_FA_TIMES " %s", status_.c_str());
-        ImGui::PopTextWrapPos();
-    }
-    ImGui::End();
-}
-
-void App::drawSettings() {
-    const float full = ImGui::GetContentRegionAvail().x;
-    static constexpr const char* kShadows[] = {"Off", "Low", "Medium", "High"};
-    static constexpr const char* kLights[] = {"Day", "Dusk", "Night"};
-    ImGui::BeginDisabled(!renderer_.shadowsSupported());
-    ImGui::SetNextItemWidth(full * 0.55f);
-    if (ImGui::Combo("Shadows", &shadowQuality_, kShadows, 4)) {
-        applyGraphics();
-        saveSettings();
-    }
-    ImGui::EndDisabled();
-    ImGui::SetNextItemWidth(full * 0.55f);
-    if (ImGui::Combo("Lighting", &lightPreset_, kLights, 3)) {
-        applyGraphics();
-        saveSettings();
-    }
-    if (ImGui::Checkbox("Performance stats (F3)", &showStats_))
-        saveSettings();
-    if (screen_ != Screen::Game) {
-        ImGui::SetNextItemWidth(full * 0.55f);
-        if (ImGui::InputText("Master server", masterBuf_.data(), masterBuf_.size()))
-            options_.master = masterBuf_.data();
-        if (ImGui::IsItemDeactivatedAfterEdit())
-            saveSettings();
-    }
-}
-
 void App::drawHud() {
     const auto* latest = net_.latest();
     if (!latest)
         return;
-    drawTopBar();
-    drawBossBar();
-    drawUnitPanel();
-    drawCommandBar();
-    drawSidePanel();
+    if (touchLayout())
+        drawTouchHud();
+    else
+        drawDesktopHud();
     if (showStats_)
         drawStats();
 
@@ -433,6 +89,17 @@ void App::drawHud() {
         drawPauseMenu();
 }
 
+void App::drawTouchHud() {
+    drawTopBar();
+    drawBossBar();
+    hudBottom_ = 82.0f * uiScale();
+    drawMinimap(110.0f * uiScale());
+    drawUnitPanel();
+    drawCommandBar();
+    drawSidePanel();
+    drawChat();
+}
+
 void App::drawTopBar() {
     const auto* latest = net_.latest();
     const auto& game = latest->game;
@@ -449,13 +116,15 @@ void App::drawTopBar() {
     const auto& defense = map_->defense();
     ImGui::BeginGroup();
     ImGui::PushFont(ui_.bold(), 0.0f);
-    if (game.wave < game.totalWaves)
+    if (game.totalWaves == 0)
+        ImGui::Text(ICON_FA_FLAG "  WAVE %d", game.wave);
+    else if (game.wave < game.totalWaves)
         ImGui::Text(ICON_FA_FLAG "  WAVE %d / %d", game.wave, game.totalWaves);
     else
         ImGui::TextColored(toVec(kVoid), ICON_FA_FLAG "  FINAL WAVE");
     ImGui::PopFont();
-    if (game.wave < game.totalWaves) {
-        const auto& next = defense.waves[static_cast<std::size_t>(std::min<int>(game.wave, static_cast<int>(defense.waves.size()) - 1))];
+    if (game.totalWaves == 0 || game.wave < game.totalWaves) {
+        const auto& next = defense.waves[static_cast<std::size_t>(game.wave) % defense.waves.size()];
         const float interval = game.wave == 0 ? defense.firstWaveDelay : (next.delay > 0.0f ? next.delay : defense.waveInterval);
         const float left = static_cast<float>(game.nextWaveIn) / 10.0f;
         char label[32];
@@ -560,7 +229,7 @@ void App::drawBossBar() {
     const ImVec2 display = ImGui::GetIO().DisplaySize;
     const auto& def = data_->unit(boss->def);
     const float frac = static_cast<float>(boss->hp) / static_cast<float>(std::max<std::uint16_t>(boss->maxHp, 1));
-    ImGui::SetNextWindowPos({display.x * 0.5f, topBarHeight_ + 8.0f * s}, ImGuiCond_Always, {0.5f, 0.0f});
+    ImGui::SetNextWindowPos({display.x * 0.5f, (touchLayout() ? topBarHeight_ : 0.0f) + 8.0f * s}, ImGuiCond_Always, {0.5f, 0.0f});
     ImGui::SetNextWindowBgAlpha(0.75f);
     ImGui::Begin("##boss", nullptr, kHudFlags);
     ImGui::PushFont(ui_.bold(), 0.0f);
@@ -793,7 +462,7 @@ void App::drawSidePanel() {
     const float pad = 10.0f * s;
     const float width = std::min(380.0f * s, display.x * 0.45f);
     ImGui::SetNextWindowPos({display.x - pad, topBarHeight_ + pad}, ImGuiCond_Always, {1.0f, 0.0f});
-    ImGui::SetNextWindowSize({width, display.y * 0.62f - topBarHeight_}, ImGuiCond_Always);
+    ImGui::SetNextWindowSize({width, std::max(160.0f * s, display.y - topBarHeight_ - hudBottom_ - pad * 3.0f)}, ImGuiCond_Always);
     const char* title = panel_ == Panel::Shop ? ICON_FA_SHOPPING_CART "  Shop###side" : panel_ == Panel::Stash ? ICON_FA_ARCHIVE "  Stash###side"
                                                                                                                 : ICON_FA_BOOK "  Hero skills###side";
     bool open = true;
@@ -921,7 +590,8 @@ void App::drawStats() {
     const double cpu = st->cpuTimerFreq ? static_cast<double>(st->cpuTimeEnd - st->cpuTimeBegin) * 1000.0 / static_cast<double>(st->cpuTimerFreq) : 0.0;
     const double gpu = st->gpuTimerFreq ? static_cast<double>(st->gpuTimeEnd - st->gpuTimeBegin) * 1000.0 / static_cast<double>(st->gpuTimerFreq) : 0.0;
     if (host_) {
-        const auto& t = host_->world().systemTimes();
+        const auto* world = host_->world();
+        const auto& t = world ? world->systemTimes() : SystemTimes{};
         double total = 0.0;
         for (const double v : t.seconds)
             total += v;
@@ -942,6 +612,7 @@ void App::drawStats() {
     ImGui::Text("render cpu %.1f gpu %.1f ms  draws %u", cpu, gpu, st->numDraw);
     if (host_)
         ImGui::Text("sim %.2f ms/tick  entities %d", simMs_, static_cast<int>(entities_.size()));
+    ImGui::Text("ui %.0f%%  layout %s", uiScale() * 100.0f, touchLayout() ? "touch" : "desktop");
     ImGui::Text("rtt %.0f ms  loss %.1f%%  %s", stats.rtt, stats.packetLoss, net_.path().c_str());
     ImGui::Text("in %.1f out %.1f kbps  snap %d B", stats.receivedKbps, stats.sentKbps, static_cast<int>(net_.lastSnapshotBytes()));
     ImGui::Text("interp %.0f ms  jitter %.1f ms  predicted %d", net_.interpDelay() * 1000.0, net_.jitter() * 1000.0, static_cast<int>(prediction_.active()));
@@ -954,7 +625,7 @@ void App::drawPauseMenu() {
     const ImVec2 display = ImGui::GetIO().DisplaySize;
     ImGui::GetBackgroundDrawList()->AddRectFilled({0.0f, 0.0f}, display, IM_COL32(0, 0, 0, 110));
     ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
-    ImGui::SetNextWindowSizeConstraints({360.0f * s, 0.0f}, {360.0f * s, display.y});
+    ImGui::SetNextWindowSizeConstraints({420.0f * s, 0.0f}, {420.0f * s, display.y});
     ImGui::Begin("##pause", nullptr, kHudFlags);
     const float full = ImGui::GetContentRegionAvail().x;
     ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.5f);
@@ -974,12 +645,16 @@ void App::drawPauseMenu() {
     ImGui::Spacing();
     if (accentButton(ICON_FA_PLAY "  Resume", {full, 44.0f * s}))
         pauseOpen_ = false;
-    ImGui::SeparatorText("Settings");
+    ImGui::Spacing();
     drawSettings();
     ImGui::Spacing();
+    if (net_.lobby().leader == net_.player() && ImGui::Button(ICON_FA_USERS "  Return to lobby", {full, 40.0f * s})) {
+        pauseOpen_ = false;
+        net_.sendReturnToLobby();
+    }
     if (ImGui::Button(ICON_FA_SIGN_OUT "  Leave match", {full, 40.0f * s})) {
         pauseOpen_ = false;
-        leaveGame("left the game");
+        leaveGame("");
     }
     trackWindow();
     ImGui::End();
@@ -997,13 +672,24 @@ void App::drawEndScreen() {
     ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 2.6f);
     centeredText(victory ? "VICTORY" : "DEFEAT", victory ? kGood : kBad);
     ImGui::PopFont();
-    centeredText(victory ? "The Void portal is sealed" : "The core has fallen", IM_COL32(220, 228, 240, 255));
+    centeredText(victory ? "The Void portal is sealed" : "The core has fallen", kText);
     char line[64];
-    std::snprintf(line, sizeof(line), "Waves: %d / %d   |   %s", game.wave, game.totalWaves,
-                  difficultyName(static_cast<Difficulty>(std::min<int>(game.difficulty, 3))));
+    if (game.totalWaves == 0)
+        std::snprintf(line, sizeof(line), "Survived %d waves   |   %s", std::max(0, game.wave - 1),
+                      difficultyName(static_cast<Difficulty>(std::min<int>(game.difficulty, 3))));
+    else
+        std::snprintf(line, sizeof(line), "Waves: %d / %d   |   %s", game.wave, game.totalWaves,
+                      difficultyName(static_cast<Difficulty>(std::min<int>(game.difficulty, 3))));
     centeredText(line, kDim);
     ImGui::Spacing();
-    if (accentButton(ICON_FA_SIGN_OUT "  Back to menu", {ImGui::GetContentRegionAvail().x, 46.0f * s}))
+    const float full = ImGui::GetContentRegionAvail().x;
+    if (net_.lobby().leader == net_.player()) {
+        if (accentButton(ICON_FA_USERS "  Return to lobby", {full, 44.0f * s}))
+            net_.sendReturnToLobby();
+    } else {
+        centeredText("Waiting for the host...", kDim);
+    }
+    if (ImGui::Button(ICON_FA_SIGN_OUT "  Leave", {full, 38.0f * s}))
         leaveGame("");
     trackWindow();
     ImGui::End();
