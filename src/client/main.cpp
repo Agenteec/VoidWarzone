@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <string_view>
 
@@ -29,6 +30,13 @@ int main(int argc, char** argv) {
             options.master = argv[++i];
         else if (arg == "--ui-scale" && hasValue)
             options.uiScale = static_cast<float>(std::atof(argv[++i]));
+        else if (arg == "--camera" && hasValue) {
+            float x = 0.0f;
+            float y = 0.0f;
+            if (std::sscanf(argv[++i], "%f,%f", &x, &y) == 2)
+                options.camera = glm::vec2{x, y};
+        } else if (arg == "--zoom" && hasValue)
+            options.zoom = static_cast<float>(std::atof(argv[++i]));
         else if (arg == "--touch")
             options.touch = true;
         else if (arg == "--cheats")

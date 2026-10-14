@@ -8,6 +8,7 @@
 #include <SDL3/SDL.h>
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
+#include <bx/math.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
@@ -44,14 +45,6 @@ std::string loadText(const std::string& rel) {
     return text;
 }
 
-Mesh parseShape(const std::string& s) {
-    if (s == "cylinder")
-        return Mesh::Cylinder;
-    if (s == "sphere")
-        return Mesh::Sphere;
-    return Mesh::Cube;
-}
-
 template <class... Args>
 void text(int x, int y, std::uint8_t attr, const char* format, Args... args) {
     bgfx::dbgTextPrintf(static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y), attr, format, args...);
@@ -67,6 +60,7 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
     window_ = window;
     options_ = std::move(options);
     now_ = nowSeconds();
+    const double start = now_;
     float scale = options_.uiScale;
     touchUi_ = options_.touch;
 #if defined(SDL_PLATFORM_ANDROID)
@@ -85,7 +79,8 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
         spdlog::error("{}", e.what());
         return false;
     }
-    spdlog::info("Void Warzone {} | {}", kVersion, renderer_.name());
+    now_ = nowSeconds();
+    spdlog::info("Void Warzone {} | {} | content loaded in {:.2f}s", kVersion, renderer_.name(), now_ - start);
 
     if (options_.host) {
         startHost();
@@ -102,16 +97,8 @@ void App::loadContent() {
     const std::string unitsText = loadText("data/units.json");
     data_ = std::make_unique<GameData>(GameData::parse(unitsText, loadText("data/skills.json"), loadText("data/items.json")));
 
-    visuals_.assign(data_->units().size(), {});
-    const auto units = nlohmann::json::parse(unitsText);
-    for (const auto& u : units.at("units")) {
-        const auto it = u.find("visual");
-        if (it == u.end())
-            continue;
-        auto& v = visuals_[data_->find(u.at("id").get<std::string>())];
-        v.shape = parseShape(it->value("shape", "cube"));
-        v.height = it->value("height", v.height);
-    }
+    models_ = std::make_unique<ModelLibrary>(renderer_, loadText);
+    visuals_ = loadUnitVisuals(unitsText, *data_, *models_);
 }
 
 void App::shutdown() {
@@ -220,6 +207,10 @@ bool App::onConnected() {
     if (map_->hash() != net_.mapHash()) {
         leaveGame("map '" + net_.mapName() + "' differs from server");
         return false;
+    }
+    if (mapVisualsHash_ != map_->hash()) {
+        mapVisuals_ = buildMapVisuals(*map_, renderer_, *models_);
+        mapVisualsHash_ = map_->hash();
     }
     selected_.clear();
     effects_.clear();
@@ -750,7 +741,9 @@ void App::updateGame(float dt) {
                 ++own;
             }
         if (own > 0) {
-            camera_.target = center / static_cast<float>(own);
+            camera_.target = options_.camera.value_or(center / static_cast<float>(own));
+            if (options_.zoom > 0.0f)
+                camera_.distance = std::clamp(options_.zoom, kMinZoom, kMaxZoom);
             cameraPlaced_ = true;
         }
     }
@@ -824,23 +817,15 @@ void App::render() {
 }
 
 void App::renderWorld() {
-    const auto w = static_cast<float>(map_->width());
-    const auto h = static_cast<float>(map_->height());
-    renderer_.draw(Mesh::Cube, {w * 0.5f, -0.05f, h * 0.5f}, {w, 0.1f, h}, 0.0f, kGround);
-
-    for (const auto& lane : map_->lanes())
-        for (std::size_t i = 0; i + 1 < lane.points.size(); ++i) {
-            const glm::vec2 a = lane.points[i];
-            const glm::vec2 b = lane.points[i + 1];
-            const glm::vec2 mid = (a + b) * 0.5f;
-            const glm::vec2 d = b - a;
-            renderer_.draw(Mesh::Cube, {mid.x, 0.005f, mid.y}, {glm::length(d) + 3.0f, 0.02f, 3.0f}, std::atan2(d.y, d.x), kLane);
-        }
-
-    for (const auto& r : map_->walls()) {
-        const glm::vec3 size{static_cast<float>(r.w), 2.0f, static_cast<float>(r.h)};
-        renderer_.draw(Mesh::Cube, {static_cast<float>(r.x) + size.x * 0.5f, 1.0f, static_cast<float>(r.y) + size.z * 0.5f}, size, 0.0f, kWall);
-    }
+    float identity[16];
+    bx::mtxIdentity(identity);
+    const glm::vec4 white{1.0f};
+    const TextureId noMask = renderer_.blackTexture();
+    renderer_.drawMesh(mapVisuals_.ground, mapVisuals_.groundTexture, noMask, identity, white);
+    renderer_.drawMesh(mapVisuals_.lanes, mapVisuals_.laneTexture, noMask, identity, white);
+    renderer_.drawMesh(mapVisuals_.walls, mapVisuals_.wallTexture, noMask, identity, white);
+    for (const auto& p : mapVisuals_.props)
+        renderer_.drawMesh(p.model->mesh, p.model->texture, p.model->mask, p.mtx, white);
 
     for (const auto& e : entities_) {
         if (e.kind == net::EntityKind::Projectile) {
@@ -855,7 +840,15 @@ void App::renderWorld() {
         const float d = def.radius * 2.0f * grow;
         const float height = vis.height * grow;
         const glm::vec4 color = unitColor(e);
-        renderer_.draw(vis.shape, {e.pos.x, height * 0.5f, e.pos.y}, {d, height, d}, e.facing, color);
+        if (vis.parts.empty()) {
+            renderer_.draw(vis.shape, {e.pos.x, height * 0.5f, e.pos.y}, {d, height, d}, e.facing, color);
+        } else {
+            float mtx[16];
+            for (const auto& part : vis.parts) {
+                makeModelMatrix(mtx, {e.pos.x, 0.0f, e.pos.y}, e.facing + vis.yaw, vis.scale * grow, part.offset);
+                renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, Tint);
+            }
+        }
         if (e.rank > 0 && rank != Rank::Recruit) {
             const glm::vec4 gold{1.0f, 0.82f, 0.25f, 1.0f};
             const glm::vec4 silver{0.8f, 0.85f, 0.95f, 1.0f};
@@ -871,7 +864,7 @@ void App::renderWorld() {
             }
         }
 
-        if (def.weapon && !def.structure) {
+        if (def.weapon && !def.structure && vis.parts.empty()) {
             const glm::vec2 f{std::cos(e.facing), std::sin(e.facing)};
             const glm::vec2 nose = e.pos + f * d * 0.45f;
             renderer_.draw(Mesh::Cube, {nose.x, height * 0.65f, nose.y}, {d * 0.5f, 0.18f, 0.18f}, e.facing,
@@ -926,6 +919,8 @@ void App::renderHud() {
             ++teams[e.team & 1];
     const auto stats = net_.stats();
     const auto* latest = net_.latest();
+    renderer_.drawScreenRect({0.0f, 8.0f}, {std::min(static_cast<float>(renderer_.width()), 118.0f * 8.0f), 9.0f * 16.0f + 4.0f},
+                             {0.02f, 0.02f, 0.05f, 0.62f});
 
     text(1, 1, 0x0b, "Void Warzone %.*s | %s | %.0f fps", static_cast<int>(kVersion.size()), kVersion.data(), renderer_.name(), fps_);
     text(1, 2, 0x07, "%s P%d | tick %u | units %d vs %d | selected %d%s", host_ ? "host" : "client", net_.player() + 1,
@@ -1055,8 +1050,15 @@ void App::renderResourcePoints() {
         const float p = std::abs(control) * d;
         if (p > 0.05f)
             renderer_.draw(Mesh::Cylinder, {def.pos.x, 0.04f, def.pos.y}, {p, 0.03f, p}, 0.0f, glm::vec4(glm::vec3(progressColor), 0.55f), Unlit | Alpha);
-        renderer_.draw(Mesh::Cylinder, {def.pos.x, 1.2f, def.pos.y}, {0.35f, 2.4f, 0.35f}, 0.0f, ownerColor);
-        renderer_.draw(Mesh::Sphere, {def.pos.x, 2.6f, def.pos.y}, glm::vec3(0.7f), 0.0f, ownerColor, Unlit);
+        if (const Model* m = mapVisuals_.derrick) {
+            float mtx[16];
+            const float extent = std::max({m->max.x - m->min.x, m->max.z - m->min.z, 1.0f});
+            makeModelMatrix(mtx, {def.pos.x, 0.0f, def.pos.y}, 0.0f, 2.6f / extent, {});
+            renderer_.drawMesh(m->mesh, m->texture, m->mask, mtx, ownerColor, Tint);
+        } else {
+            renderer_.draw(Mesh::Cylinder, {def.pos.x, 1.2f, def.pos.y}, {0.35f, 2.4f, 0.35f}, 0.0f, ownerColor);
+        }
+        renderer_.draw(Mesh::Sphere, {def.pos.x, 3.4f, def.pos.y}, glm::vec3(0.5f), 0.0f, ownerColor, Unlit);
     }
 }
 
@@ -1160,6 +1162,7 @@ void App::renderUnitPanel(int row) {
     const auto& def = data_->unit(entity->def);
     const auto rank = static_cast<Rank>(own->rank);
     static constexpr const char* kRankNames[] = {"Recruit", "Veteran", "Elite", "Hero"};
+    renderer_.drawScreenRect({0.0f, static_cast<float>(row * 16 - 4)}, {64.0f * 8.0f, static_cast<float>((row + 9) * 16)}, {0.02f, 0.02f, 0.05f, 0.62f});
 
     if (rank == Rank::Hero)
         text(1, row++, 0x0e, "%s | HERO lvl %d | xp %d/%.0f | skill points %d", def.name.c_str(), own->level, own->xp,
@@ -1205,6 +1208,8 @@ void App::renderSidePanel() {
     const int cols = renderer_.width() / 8;
     const int x = std::max(0, cols - 62);
     int row = 10;
+    renderer_.drawScreenRect({static_cast<float>(x * 8 - 4), static_cast<float>(row * 16 - 4)}, {static_cast<float>(cols * 8), static_cast<float>((row + 24) * 16)},
+                             {0.02f, 0.02f, 0.05f, 0.62f});
     static constexpr const char* kRarity[] = {"common", "rare", "epic", "legendary"};
 
     if (panel_ == Panel::Shop) {

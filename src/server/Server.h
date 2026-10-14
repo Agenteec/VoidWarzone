@@ -17,7 +17,7 @@ namespace vw::server {
 struct ServerConfig {
     std::uint16_t port = 27450;
     std::string name = "Void Warzone";
-    std::string mapName = "siege_test";
+    std::string mapName = "void_siege";
     int maxPlayers = 8;
     Difficulty difficulty = Difficulty::Normal;
     bool cheats = false;

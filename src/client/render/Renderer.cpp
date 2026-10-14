@@ -3,13 +3,18 @@
 #include <algorithm>
 #include <cstring>
 
+#include <cmath>
+
 #include <SDL3/SDL.h>
+#include <bimg/bimg.h>
+#include <bimg/decode.h>
 #include <bx/math.h>
 #include <glm/common.hpp>
 #include <spdlog/spdlog.h>
 
 #include "render/Camera.h"
 #include "render/Mesh.h"
+#include "render/Pie.h"
 #include "render/Shaders.h"
 
 namespace vw::client {
@@ -75,6 +80,16 @@ bool Renderer::init(SDL_Window* window, float scale) {
         return false;
     }
     params_ = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+    texProgram_ = createTexProgram();
+    colorSampler_ = bgfx::createUniform("s_color", bgfx::UniformType::Sampler);
+    maskSampler_ = bgfx::createUniform("s_mask", bgfx::UniformType::Sampler);
+    texLayout_.begin()
+        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+        .end();
+    white_ = solidTexture(0xffffffffu);
+    black_ = solidTexture(0xff000000u);
 
     bgfx::VertexLayout layout;
     layout.begin()
@@ -99,6 +114,21 @@ bool Renderer::init(SDL_Window* window, float scale) {
 }
 
 void Renderer::shutdown() {
+    for (auto& t : textures_)
+        if (bgfx::isValid(t))
+            bgfx::destroy(t);
+    for (auto& m : texMeshes_) {
+        if (bgfx::isValid(m.vbh))
+            bgfx::destroy(m.vbh);
+        if (bgfx::isValid(m.ibh))
+            bgfx::destroy(m.ibh);
+    }
+    for (auto h : {texProgram_})
+        if (bgfx::isValid(h))
+            bgfx::destroy(h);
+    for (auto h : {colorSampler_, maskSampler_})
+        if (bgfx::isValid(h))
+            bgfx::destroy(h);
     for (auto& m : meshes_) {
         if (bgfx::isValid(m.vbh))
             bgfx::destroy(m.vbh);
@@ -142,7 +172,62 @@ void Renderer::begin(const Camera& camera) {
 
     for (auto& b : batches_)
         b.clear();
+    for (auto& [key, list] : texBatches_)
+        list.clear();
     overlay_.clear();
+}
+
+TextureId Renderer::solidTexture(std::uint32_t abgr) {
+    const bgfx::Memory* mem = bgfx::copy(&abgr, sizeof(abgr));
+    textures_.push_back(bgfx::createTexture2D(1, 1, false, 1, bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_NONE, mem));
+    return static_cast<TextureId>(textures_.size() - 1);
+}
+
+TextureId Renderer::createTexture(const void* data, std::uint32_t size) {
+    bimg::ImageContainer* image = bimg::imageParse(&allocator_, data, size, bimg::TextureFormat::RGBA8);
+    if (!image)
+        return white_;
+    const std::uint32_t w = image->m_width;
+    const std::uint32_t h = image->m_height;
+    const bool mips = w == h && w > 1 && (w & (w - 1)) == 0;
+    std::uint32_t total = 0;
+    for (std::uint32_t lw = w, lh = h;;) {
+        total += lw * lh * 4;
+        if (!mips || (lw == 1 && lh == 1))
+            break;
+        lw = std::max(1u, lw / 2);
+        lh = std::max(1u, lh / 2);
+    }
+    const bgfx::Memory* mem = bgfx::alloc(total);
+    std::memcpy(mem->data, image->m_data, w * h * 4);
+    std::uint8_t* src = mem->data;
+    for (std::uint32_t lw = w, lh = h; mips && (lw > 1 || lh > 1);) {
+        std::uint8_t* dst = src + lw * lh * 4;
+        bimg::imageRgba8Downsample2x2(dst, lw, lh, 1, lw * 4, std::max(1u, lw / 2) * 4, src);
+        src = dst;
+        lw = std::max(1u, lw / 2);
+        lh = std::max(1u, lh / 2);
+    }
+    bimg::imageFree(image);
+    textures_.push_back(bgfx::createTexture2D(static_cast<std::uint16_t>(w), static_cast<std::uint16_t>(h), mips, 1, bgfx::TextureFormat::RGBA8,
+                                              BGFX_SAMPLER_MIN_ANISOTROPIC | BGFX_SAMPLER_MAG_ANISOTROPIC, mem));
+    return static_cast<TextureId>(textures_.size() - 1);
+}
+
+MeshId Renderer::createMesh(const std::vector<TexVertex>& vertices, const std::vector<std::uint32_t>& indices) {
+    GpuMesh m;
+    m.vbh = bgfx::createVertexBuffer(bgfx::copy(vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(TexVertex))), texLayout_);
+    m.ibh = bgfx::createIndexBuffer(bgfx::copy(indices.data(), static_cast<std::uint32_t>(indices.size() * sizeof(std::uint32_t))),
+                                    BGFX_BUFFER_INDEX32);
+    texMeshes_.push_back(m);
+    return static_cast<MeshId>(texMeshes_.size() - 1);
+}
+
+void Renderer::drawMesh(MeshId mesh, TextureId texture, TextureId mask, const float* mtx, const glm::vec4& color, std::uint8_t flags) {
+    Instance inst;
+    std::memcpy(inst.mtx, mtx, sizeof(inst.mtx));
+    std::memcpy(inst.color, &color.x, sizeof(inst.color));
+    texBatches_[TexBatchKey{mesh, texture, mask, flags}].push_back(inst);
 }
 
 void Renderer::draw(Mesh mesh, glm::vec3 center, glm::vec3 size, float yaw, const glm::vec4& color, std::uint8_t flags) {
@@ -162,11 +247,50 @@ void Renderer::drawScreenRect(glm::vec2 a, glm::vec2 b, const glm::vec4& color) 
 }
 
 void Renderer::end() {
+    submitTextured(false);
     for (const std::uint8_t flags : {std::uint8_t{Lit}, std::uint8_t{Unlit}, std::uint8_t{Alpha}, std::uint8_t{Alpha | Unlit}})
         for (std::size_t m = 0; m < meshes_.size(); ++m)
             submit(kWorldView, static_cast<Mesh>(m), flags, batches_[m * kFlagVariants + flags]);
+    submitTextured(true);
     submit(kOverlayView, Mesh::Cube, Alpha | Unlit, overlay_);
     bgfx::frame();
+}
+
+void Renderer::submitTextured(bool alpha) {
+    for (const auto& [key, instances] : texBatches_) {
+        if (instances.empty() || ((key.flags & Alpha) != 0) != alpha || key.mesh >= texMeshes_.size())
+            continue;
+        const auto& gpu = texMeshes_[key.mesh];
+        const float params[4] = {(key.flags & Unlit) ? 1.0f : 0.0f, (key.flags & Tint) ? 0.35f : 0.0f, 0.0f, 0.0f};
+        const auto texture = textures_[key.texture];
+        const auto mask = textures_[key.mask];
+        submitInstances(kWorldView, texProgram_, alpha ? kAlphaState : kOpaqueState, instances, [&] {
+            bgfx::setVertexBuffer(0, gpu.vbh);
+            bgfx::setIndexBuffer(gpu.ibh);
+            bgfx::setTexture(0, colorSampler_, texture);
+            bgfx::setTexture(1, maskSampler_, mask);
+            bgfx::setUniform(params_, params);
+        });
+    }
+}
+
+void Renderer::submitInstances(bgfx::ViewId view, bgfx::ProgramHandle program, std::uint64_t state, const std::vector<Instance>& instances,
+                               const std::function<void()>& bind) {
+    std::size_t offset = 0;
+    while (offset < instances.size()) {
+        const auto wanted = static_cast<std::uint32_t>(instances.size() - offset);
+        const std::uint32_t count = bgfx::getAvailInstanceDataBuffer(wanted, sizeof(Instance));
+        if (count == 0)
+            break;
+        bgfx::InstanceDataBuffer idb;
+        bgfx::allocInstanceDataBuffer(&idb, count, sizeof(Instance));
+        std::memcpy(idb.data, instances.data() + offset, count * sizeof(Instance));
+        bind();
+        bgfx::setInstanceDataBuffer(&idb);
+        bgfx::setState(state);
+        bgfx::submit(view, program);
+        offset += count;
+    }
 }
 
 void Renderer::submit(bgfx::ViewId view, Mesh mesh, std::uint8_t flags, const std::vector<Instance>& instances) {

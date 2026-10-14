@@ -54,12 +54,15 @@ TEST_CASE("game data parses") {
 
 TEST_CASE("shipped data is valid") {
     const auto data = vw::GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
-    const auto map = vw::Map::parse(readData("maps/siege_test.json"));
-    CHECK(map.lanes().size() == 4);
-    vw::World world(data, map);
-    for (int i = 0; i < vw::kTickRate * 60; ++i)
-        world.step();
-    CHECK(world.registry().view<vw::Unit>().size() > map.units().size());
+    for (const char* name : {"maps/siege_test.json", "maps/void_siege.json"}) {
+        CAPTURE(name);
+        const auto map = vw::Map::parse(readData(name));
+        CHECK(map.lanes().size() == 4);
+        vw::World world(data, map);
+        for (int i = 0; i < vw::kTickRate * 60; ++i)
+            world.step();
+        CHECK(world.registry().view<vw::Unit>().size() > map.units().size());
+    }
 }
 
 TEST_CASE("line of sight and path around wall") {

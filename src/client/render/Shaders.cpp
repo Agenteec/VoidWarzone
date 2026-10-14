@@ -4,15 +4,25 @@
 
 #include "essl/fs_mesh.sc.bin.h"
 #include "essl/vs_mesh.sc.bin.h"
+#include "essl/fs_tex.sc.bin.h"
+#include "essl/vs_tex.sc.bin.h"
 #include "glsl/fs_mesh.sc.bin.h"
 #include "glsl/vs_mesh.sc.bin.h"
+#include "glsl/fs_tex.sc.bin.h"
+#include "glsl/vs_tex.sc.bin.h"
 #include "spirv/fs_mesh.sc.bin.h"
 #include "spirv/vs_mesh.sc.bin.h"
+#include "spirv/fs_tex.sc.bin.h"
+#include "spirv/vs_tex.sc.bin.h"
 #if defined(_WIN32)
 #include "dxbc/fs_mesh.sc.bin.h"
 #include "dxbc/vs_mesh.sc.bin.h"
+#include "dxbc/fs_tex.sc.bin.h"
+#include "dxbc/vs_tex.sc.bin.h"
 #include "dxil/fs_mesh.sc.bin.h"
 #include "dxil/vs_mesh.sc.bin.h"
+#include "dxil/fs_tex.sc.bin.h"
+#include "dxil/vs_tex.sc.bin.h"
 #endif
 
 namespace vw::client {
@@ -61,6 +71,14 @@ bgfx::ShaderHandle load(const ShaderSet& set, const char* name) {
     return h;
 }
 
+}
+
+bgfx::ProgramHandle createTexProgram() {
+    const auto vs = load(VW_SHADER(vs_tex), "vs_tex");
+    const auto fs = load(VW_SHADER(fs_tex), "fs_tex");
+    if (!bgfx::isValid(vs) || !bgfx::isValid(fs))
+        return BGFX_INVALID_HANDLE;
+    return bgfx::createProgram(vs, fs, true);
 }
 
 bgfx::ProgramHandle createMeshProgram() {

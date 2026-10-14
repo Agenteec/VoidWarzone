@@ -13,6 +13,7 @@
 #include <glm/vec4.hpp>
 
 #include "Prediction.h"
+#include "Visuals.h"
 #include "core/GameData.h"
 #include "core/Map.h"
 #include "net/MasterClient.h"
@@ -29,18 +30,15 @@ struct LaunchOptions {
     bool host = false;
     std::string connect;
     std::string name = "Player";
-    std::string map = "siege_test";
+    std::string map = "void_siege";
     std::uint16_t port = net::kGamePort;
     Difficulty difficulty = Difficulty::Normal;
     bool cheats = false;
     std::string master = "77.83.86.108:27400";
     float uiScale = 0.0f;
     bool touch = false;
-};
-
-struct UnitVisual {
-    Mesh shape = Mesh::Cube;
-    float height = 1.0f;
+    std::optional<glm::vec2> camera;
+    float zoom = 0.0f;
 };
 
 class App {
@@ -121,6 +119,9 @@ private:
     Camera camera_;
     std::unique_ptr<GameData> data_;
     std::vector<UnitVisual> visuals_;
+    std::unique_ptr<ModelLibrary> models_;
+    MapVisuals mapVisuals_;
+    std::uint64_t mapVisualsHash_ = 0;
 
     std::unique_ptr<Map> hostMap_;
     std::unique_ptr<server::Server> host_;
