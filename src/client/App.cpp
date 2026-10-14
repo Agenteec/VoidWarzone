@@ -19,9 +19,9 @@ namespace vw::client {
 
 namespace {
 
-constexpr glm::vec4 kGround{0.06f, 0.06f, 0.10f, 1.0f};
-constexpr glm::vec4 kLane{0.10f, 0.10f, 0.17f, 1.0f};
-constexpr glm::vec4 kWall{0.22f, 0.20f, 0.32f, 1.0f};
+constexpr const char* kShadowNames[] = {"off", "low", "medium", "high"};
+constexpr int kShadowSizes[] = {0, 1024, 2048, 4096};
+constexpr const char* kLightNames[] = {"day", "dusk", "night"};
 constexpr glm::vec4 kTeamColors[] = {{0.25f, 0.75f, 1.0f, 1.0f}, {1.0f, 0.25f, 0.55f, 1.0f}};
 constexpr glm::vec4 kOwnColor{0.35f, 1.0f, 0.55f, 1.0f};
 constexpr glm::vec4 kAllyColor{0.95f, 0.85f, 0.3f, 1.0f};
@@ -56,6 +56,100 @@ double nowSeconds() {
 
 }
 
+const char* shadowQualityName(int quality) {
+    return kShadowNames[std::clamp(quality, 0, 3)];
+}
+
+const char* lightPresetName(int preset) {
+    return kLightNames[std::clamp(preset, 0, 2)];
+}
+
+int parseShadowQuality(std::string_view text) {
+    for (int i = 0; i < 4; ++i)
+        if (text == kShadowNames[i])
+            return i;
+    return -1;
+}
+
+int parseLightPreset(std::string_view text) {
+    for (int i = 0; i < 3; ++i)
+        if (text == kLightNames[i])
+            return i;
+    return -1;
+}
+
+std::string settingsPath() {
+    char* dir = SDL_GetPrefPath("Agenteec", "VoidWarzone");
+    if (!dir)
+        return {};
+    std::string path = std::string(dir) + "settings.json";
+    SDL_free(dir);
+    return path;
+}
+
+void App::loadSettings() {
+#if defined(SDL_PLATFORM_ANDROID)
+    shadowQuality_ = 1;
+#endif
+    const std::string path = settingsPath();
+    std::size_t size = 0;
+    if (void* buf = path.empty() ? nullptr : SDL_LoadFile(path.c_str(), &size)) {
+        const std::string text(static_cast<const char*>(buf), size);
+        SDL_free(buf);
+        const auto j = nlohmann::json::parse(text, nullptr, false);
+        if (j.is_object()) {
+            shadowQuality_ = std::clamp(j.value("shadows", shadowQuality_), 0, 3);
+            lightPreset_ = std::clamp(j.value("light", lightPreset_), 0, 2);
+        }
+    }
+    if (options_.shadows >= 0)
+        shadowQuality_ = options_.shadows;
+    if (options_.light >= 0)
+        lightPreset_ = options_.light;
+}
+
+void App::saveSettings() const {
+    const std::string path = settingsPath();
+    if (path.empty())
+        return;
+    const std::string text = nlohmann::json{{"shadows", shadowQuality_}, {"light", lightPreset_}}.dump(2);
+    SDL_SaveFile(path.c_str(), text.data(), text.size());
+}
+
+void App::applyGraphics() {
+    Lighting l;
+    switch (lightPreset_) {
+    case 1:
+        l.sunDir = {-0.8f, 0.42f, 0.3f};
+        l.sun = {1.0f, 0.62f, 0.36f};
+        l.sky = {0.34f, 0.3f, 0.42f};
+        l.clear = 0x140c10ff;
+        break;
+    case 2:
+        l.sunDir = {0.35f, 0.75f, 0.45f};
+        l.sun = {0.32f, 0.42f, 0.68f};
+        l.sky = {0.14f, 0.16f, 0.27f};
+        l.clear = 0x04050aff;
+        break;
+    default:
+        break;
+    }
+    renderer_.setLighting(l);
+    renderer_.setShadowSize(kShadowSizes[std::clamp(shadowQuality_, 0, 3)]);
+}
+
+void App::cycleShadows() {
+    shadowQuality_ = (shadowQuality_ + 1) % 4;
+    applyGraphics();
+    saveSettings();
+}
+
+void App::cycleLight() {
+    lightPreset_ = (lightPreset_ + 1) % 3;
+    applyGraphics();
+    saveSettings();
+}
+
 bool App::init(SDL_Window* window, LaunchOptions options) {
     window_ = window;
     options_ = std::move(options);
@@ -72,6 +166,8 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
         return false;
     initialized_ = true;
     updateInputScale();
+    loadSettings();
+    applyGraphics();
 
     try {
         loadContent();
@@ -209,7 +305,7 @@ bool App::onConnected() {
         return false;
     }
     if (mapVisualsHash_ != map_->hash()) {
-        mapVisuals_ = buildMapVisuals(*map_, renderer_, *models_);
+        mapVisuals_ = buildMapVisuals(*map_, *data_, renderer_, *models_);
         mapVisualsHash_ = map_->hash();
     }
     selected_.clear();
@@ -458,6 +554,10 @@ void App::handleMenuKey(SDL_Keycode key) {
             setScreen(Screen::Online);
         } else if (key == SDLK_D) {
             options_.difficulty = static_cast<Difficulty>((static_cast<int>(options_.difficulty) + 1) % 4);
+        } else if (key == SDLK_G) {
+            cycleShadows();
+        } else if (key == SDLK_V) {
+            cycleLight();
         } else if (key == SDLK_ESCAPE) {
             running_ = false;
         }
@@ -577,6 +677,10 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
                 camera_.target = u->pos;
     } else if (key == SDLK_F10) {
         leaveGame("left the game");
+    } else if (key == SDLK_F5) {
+        cycleShadows();
+    } else if (key == SDLK_F6) {
+        cycleLight();
     } else if (panel_ != Panel::None && ((key >= SDLK_1 && key <= SDLK_9) || key == SDLK_0)) {
         handlePanelKey(key, shift);
     } else if (key >= SDLK_1 && key <= SDLK_9) {
@@ -754,6 +858,8 @@ void App::updateGame(float dt) {
         addEffect(Mesh::Sphere, {d.pos.x, 0.6f, d.pos.y}, {1.0f, 0.8f, 0.4f, 0.7f}, 1.0f, 3.5f, 0.45f);
     bannerTime_ = std::max(0.0f, bannerTime_ - dt);
 
+    for (auto& [id, s] : shells_)
+        s.seen = false;
     for (auto& fx : effects_)
         fx.t += dt;
     std::erase_if(effects_, [](const Effect& fx) { return fx.t >= fx.life; });
@@ -817,20 +923,15 @@ void App::render() {
 }
 
 void App::renderWorld() {
-    float identity[16];
-    bx::mtxIdentity(identity);
     const glm::vec4 white{1.0f};
-    const TextureId noMask = renderer_.blackTexture();
-    renderer_.drawMesh(mapVisuals_.ground, mapVisuals_.groundTexture, noMask, identity, white);
-    renderer_.drawMesh(mapVisuals_.lanes, mapVisuals_.laneTexture, noMask, identity, white);
-    renderer_.drawMesh(mapVisuals_.walls, mapVisuals_.wallTexture, noMask, identity, white);
+    renderer_.drawTerrain(mapVisuals_.terrain, mapVisuals_.terrainTextures);
     for (const auto& p : mapVisuals_.props)
         renderer_.drawMesh(p.model->mesh, p.model->texture, p.model->mask, p.mtx, white);
 
     for (const auto& e : entities_) {
         if (e.kind == net::EntityKind::Projectile) {
-            const glm::vec4 c = glm::mix(kTeamColors[e.team & 1], glm::vec4(1.0f), 0.4f);
-            renderer_.draw(Mesh::Sphere, {e.pos.x, 0.8f, e.pos.y}, glm::vec3(0.3f), 0.0f, c, Unlit);
+            const glm::vec4 c = glm::mix(kTeamColors[e.team & 1], glm::vec4(1.0f, 0.9f, 0.6f, 1.0f), 0.6f);
+            renderer_.draw(Mesh::Sphere, projectilePos(e), glm::vec3(0.28f), 0.0f, c, Unlit);
             continue;
         }
         const auto& def = data_->unit(e.def);
@@ -844,8 +945,13 @@ void App::renderWorld() {
             renderer_.draw(vis.shape, {e.pos.x, height * 0.5f, e.pos.y}, {d, height, d}, e.facing, color);
         } else {
             float mtx[16];
+            const glm::vec3 base{e.pos.x, 0.0f, e.pos.y};
+            const float hullYaw = e.facing + vis.yaw;
             for (const auto& part : vis.parts) {
-                makeModelMatrix(mtx, {e.pos.x, 0.0f, e.pos.y}, e.facing + vis.yaw, vis.scale * grow, part.offset);
+                if (part.turret)
+                    makeTurretMatrix(mtx, base, hullYaw, vis.pivot, e.aim + kModelYaw, part.pitch ? e.pitch : 0.0f, vis.scale * grow);
+                else
+                    makeModelMatrix(mtx, base, hullYaw, vis.scale * grow, part.offset);
                 renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, Tint);
             }
         }
@@ -865,9 +971,9 @@ void App::renderWorld() {
         }
 
         if (def.weapon && !def.structure && vis.parts.empty()) {
-            const glm::vec2 f{std::cos(e.facing), std::sin(e.facing)};
+            const glm::vec2 f{std::cos(e.aim), std::sin(e.aim)};
             const glm::vec2 nose = e.pos + f * d * 0.45f;
-            renderer_.draw(Mesh::Cube, {nose.x, height * 0.65f, nose.y}, {d * 0.5f, 0.18f, 0.18f}, e.facing,
+            renderer_.draw(Mesh::Cube, {nose.x, height * 0.65f, nose.y}, {d * 0.5f, 0.18f, 0.18f}, e.aim,
                            glm::vec4(glm::vec3(color) * 0.6f, 1.0f));
         }
 
@@ -887,6 +993,7 @@ void App::renderWorld() {
         }
     }
 
+    std::erase_if(shells_, [](const auto& kv) { return !kv.second.seen; });
     renderResourcePoints();
 
     for (const auto& fx : effects_) {
@@ -929,7 +1036,7 @@ void App::renderHud() {
     text(1, 3, 0x07, "rtt %.0f ms | loss %.1f%% | in %.1f out %.1f kbps | interp %.0f ms jitter %.1f ms | snap %d B | predicted %d",
                         stats.rtt, stats.packetLoss, stats.receivedKbps, stats.sentKbps, net_.interpDelay() * 1000.0, net_.jitter() * 1000.0,
                         static_cast<int>(net_.lastSnapshotBytes()), static_cast<int>(prediction_.active()));
-    text(1, 4, 0x08, "LMB select | RMB move/attack | A+LMB attack-move | S stop | Space focus | arrows/edges/wheel camera | F10 leave");
+    text(1, 4, 0x08, "LMB select | RMB move/attack | A+LMB attack-move | S stop | Space focus | arrows/edges/wheel camera | F5 shadows F6 light | F10 leave");
     if (host_) {
         if (lobby_.state() == net::MasterClient::State::Hosting)
             text(1, 5, 0x0e, "Room code: %s  (players join with [4] in the menu)", lobby_.code().c_str());
@@ -940,6 +1047,44 @@ void App::renderHud() {
     } else {
         text(1, 5, 0x08, "link: %s", net_.path().c_str());
     }
+}
+
+glm::vec3 App::muzzleOf(const net::InterpolatedEntity& e) const {
+    const auto& vis = visuals_[e.def];
+    const auto rank = e.rank > 0 ? static_cast<Rank>(e.rank - 1) : Rank::Recruit;
+    const float grow = rank == Rank::Hero ? 1.25f : rank == Rank::Elite ? 1.1f : 1.0f;
+    if (!vis.turret)
+        return {e.pos.x + std::cos(e.aim) * data_->unit(e.def).radius, vis.height * grow * 0.65f, e.pos.y + std::sin(e.aim) * data_->unit(e.def).radius};
+    return turretPoint({e.pos.x, 0.0f, e.pos.y}, e.facing + vis.yaw, vis.pivot, e.aim + kModelYaw, e.pitch, vis.scale * grow, vis.muzzle);
+}
+
+glm::vec3 App::projectilePos(const net::InterpolatedEntity& e) {
+    auto [it, fresh] = shells_.try_emplace(e.id);
+    Shell& s = it->second;
+    s.seen = true;
+    if (fresh) {
+        s.start = e.pos;
+        s.muzzle = {e.pos.x, 0.8f, e.pos.y};
+        s.lob = 0.0f;
+        float best = 9.0f;
+        for (const auto& u : entities_) {
+            if (u.kind != net::EntityKind::Unit || u.def != e.def || u.team != e.team)
+                continue;
+            const glm::vec2 d = u.pos - e.pos;
+            const float d2 = glm::dot(d, d);
+            if (d2 < best) {
+                best = d2;
+                s.muzzle = muzzleOf(u);
+                s.lob = std::tan(std::clamp(u.pitch, 0.0f, 1.2f));
+            }
+        }
+    }
+    const float done = glm::distance(e.pos, s.start);
+    const float left = glm::distance(e.target, e.pos);
+    const float k = done + left > 1e-3f ? done / (done + left) : 1.0f;
+    const glm::vec2 xz = e.pos + (glm::vec2(s.muzzle.x, s.muzzle.z) - s.start) * (1.0f - k);
+    const float y = s.muzzle.y + (0.6f - s.muzzle.y) * k + s.lob * (done + left) * k * (1.0f - k);
+    return {xz.x, y, xz.y};
 }
 
 void App::addEffect(Mesh mesh, glm::vec3 pos, glm::vec4 color, float from, float to, float life) {
@@ -955,6 +1100,23 @@ void App::handleNetEvent(const net::NetEvent& ev) {
     const glm::vec3 pos{net::dequantizePos(ev.x), 0.6f, net::dequantizePos(ev.y)};
     const float value = (static_cast<float>(ev.value) - 64.0f) / 64.0f;
     switch (static_cast<net::NetEventType>(ev.type)) {
+    case net::NetEventType::Fire: {
+        const glm::vec2 from{pos.x, pos.z};
+        const net::InterpolatedEntity* shooter = nullptr;
+        float best = 1.0f;
+        for (const auto& u : entities_) {
+            if (u.kind != net::EntityKind::Unit)
+                continue;
+            const glm::vec2 d = u.pos - from;
+            if (glm::dot(d, d) < best) {
+                best = glm::dot(d, d);
+                shooter = &u;
+            }
+        }
+        if (shooter)
+            addEffect(Mesh::Sphere, muzzleOf(*shooter), {1.0f, 0.85f, 0.4f, 0.9f}, 0.25f, 0.7f, 0.09f);
+        break;
+    }
     case net::NetEventType::Hit:
         addEffect(Mesh::Sphere, pos, {1.0f, 1.0f, 1.0f, 0.8f}, 0.2f, 0.7f, 0.12f);
         break;
@@ -1378,6 +1540,9 @@ void App::renderMenu() {
         row = menuItem(row, SDLK_3, "[3] Connect to address");
         row = menuItem(row, SDLK_4, "[4] Join by room code");
         row = menuItem(row, SDLK_5, "[5] Online games");
+        row = menuItem(row, SDLK_G,
+                       std::string("[G] Shadows: ") + (renderer_.shadowsSupported() ? shadowQualityName(shadowQuality_) : "unsupported"));
+        row = menuItem(row, SDLK_V, std::string("[V] Lighting: ") + lightPresetName(lightPreset_));
         row = menuItem(row, SDLK_ESCAPE, "[Esc] Quit");
         break;
     case Screen::Lan: {

@@ -2,27 +2,57 @@
 
 #include <cstdint>
 
-#include "essl/fs_mesh.sc.bin.h"
 #include "essl/vs_mesh.sc.bin.h"
-#include "essl/fs_tex.sc.bin.h"
+#include "essl/fs_mesh.sc.bin.h"
 #include "essl/vs_tex.sc.bin.h"
-#include "glsl/fs_mesh.sc.bin.h"
+#include "essl/fs_tex.sc.bin.h"
+#include "essl/vs_terrain.sc.bin.h"
+#include "essl/fs_terrain.sc.bin.h"
+#include "essl/vs_shadow.sc.bin.h"
+#include "essl/fs_shadow.sc.bin.h"
+#include "essl/vs_shadow_tex.sc.bin.h"
+#include "essl/fs_shadow_tex.sc.bin.h"
 #include "glsl/vs_mesh.sc.bin.h"
-#include "glsl/fs_tex.sc.bin.h"
+#include "glsl/fs_mesh.sc.bin.h"
 #include "glsl/vs_tex.sc.bin.h"
-#include "spirv/fs_mesh.sc.bin.h"
+#include "glsl/fs_tex.sc.bin.h"
+#include "glsl/vs_terrain.sc.bin.h"
+#include "glsl/fs_terrain.sc.bin.h"
+#include "glsl/vs_shadow.sc.bin.h"
+#include "glsl/fs_shadow.sc.bin.h"
+#include "glsl/vs_shadow_tex.sc.bin.h"
+#include "glsl/fs_shadow_tex.sc.bin.h"
 #include "spirv/vs_mesh.sc.bin.h"
-#include "spirv/fs_tex.sc.bin.h"
+#include "spirv/fs_mesh.sc.bin.h"
 #include "spirv/vs_tex.sc.bin.h"
+#include "spirv/fs_tex.sc.bin.h"
+#include "spirv/vs_terrain.sc.bin.h"
+#include "spirv/fs_terrain.sc.bin.h"
+#include "spirv/vs_shadow.sc.bin.h"
+#include "spirv/fs_shadow.sc.bin.h"
+#include "spirv/vs_shadow_tex.sc.bin.h"
+#include "spirv/fs_shadow_tex.sc.bin.h"
 #if defined(_WIN32)
-#include "dxbc/fs_mesh.sc.bin.h"
 #include "dxbc/vs_mesh.sc.bin.h"
-#include "dxbc/fs_tex.sc.bin.h"
+#include "dxbc/fs_mesh.sc.bin.h"
 #include "dxbc/vs_tex.sc.bin.h"
-#include "dxil/fs_mesh.sc.bin.h"
+#include "dxbc/fs_tex.sc.bin.h"
+#include "dxbc/vs_terrain.sc.bin.h"
+#include "dxbc/fs_terrain.sc.bin.h"
+#include "dxbc/vs_shadow.sc.bin.h"
+#include "dxbc/fs_shadow.sc.bin.h"
+#include "dxbc/vs_shadow_tex.sc.bin.h"
+#include "dxbc/fs_shadow_tex.sc.bin.h"
 #include "dxil/vs_mesh.sc.bin.h"
-#include "dxil/fs_tex.sc.bin.h"
+#include "dxil/fs_mesh.sc.bin.h"
 #include "dxil/vs_tex.sc.bin.h"
+#include "dxil/fs_tex.sc.bin.h"
+#include "dxil/vs_terrain.sc.bin.h"
+#include "dxil/fs_terrain.sc.bin.h"
+#include "dxil/vs_shadow.sc.bin.h"
+#include "dxil/fs_shadow.sc.bin.h"
+#include "dxil/vs_shadow_tex.sc.bin.h"
+#include "dxil/fs_shadow_tex.sc.bin.h"
 #endif
 
 namespace vw::client {
@@ -71,22 +101,41 @@ bgfx::ShaderHandle load(const ShaderSet& set, const char* name) {
     return h;
 }
 
+bgfx::ProgramHandle program(const ShaderSet& vsSet, const char* vsName, const ShaderSet& fsSet, const char* fsName) {
+    const auto vs = load(vsSet, vsName);
+    const auto fs = load(fsSet, fsName);
+    if (!bgfx::isValid(vs) || !bgfx::isValid(fs)) {
+        if (bgfx::isValid(vs))
+            bgfx::destroy(vs);
+        if (bgfx::isValid(fs))
+            bgfx::destroy(fs);
+        return BGFX_INVALID_HANDLE;
+    }
+    return bgfx::createProgram(vs, fs, true);
 }
 
-bgfx::ProgramHandle createTexProgram() {
-    const auto vs = load(VW_SHADER(vs_tex), "vs_tex");
-    const auto fs = load(VW_SHADER(fs_tex), "fs_tex");
-    if (!bgfx::isValid(vs) || !bgfx::isValid(fs))
-        return BGFX_INVALID_HANDLE;
-    return bgfx::createProgram(vs, fs, true);
+#define VW_PROGRAM(vs, fs) program(VW_SHADER(vs), #vs, VW_SHADER(fs), #fs)
+
 }
 
 bgfx::ProgramHandle createMeshProgram() {
-    const auto vs = load(VW_SHADER(vs_mesh), "vs_mesh");
-    const auto fs = load(VW_SHADER(fs_mesh), "fs_mesh");
-    if (!bgfx::isValid(vs) || !bgfx::isValid(fs))
-        return BGFX_INVALID_HANDLE;
-    return bgfx::createProgram(vs, fs, true);
+    return VW_PROGRAM(vs_mesh, fs_mesh);
+}
+
+bgfx::ProgramHandle createTexProgram() {
+    return VW_PROGRAM(vs_tex, fs_tex);
+}
+
+bgfx::ProgramHandle createTerrainProgram() {
+    return VW_PROGRAM(vs_terrain, fs_terrain);
+}
+
+bgfx::ProgramHandle createShadowProgram() {
+    return VW_PROGRAM(vs_shadow, fs_shadow);
+}
+
+bgfx::ProgramHandle createShadowTexProgram() {
+    return VW_PROGRAM(vs_shadow_tex, fs_shadow_tex);
 }
 
 }

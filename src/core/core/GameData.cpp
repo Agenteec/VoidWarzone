@@ -135,12 +135,14 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         def.speed = u.value("speed", def.speed);
         def.sight = u.value("sight", def.sight);
         def.structure = u.value("structure", def.structure);
+        def.income = u.value("income", def.income);
         if (const auto w = u.find("weapon"); w != u.end()) {
             WeaponDef wd;
             wd.damage = w->value("damage", wd.damage);
             wd.range = w->value("range", wd.range);
             wd.cooldown = w->value("cooldown", wd.cooldown);
             wd.projectileSpeed = w->value("projectileSpeed", wd.projectileSpeed);
+            wd.turnRate = w->value("turnRate", def.structure ? 3.5f : 6.0f);
             def.weapon = wd;
         }
         if (const auto b = u.find("boss"); b != u.end()) {

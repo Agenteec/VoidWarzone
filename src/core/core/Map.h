@@ -25,6 +25,7 @@ struct Lane {
 struct PlacedUnit {
     std::string unit;
     std::string role;
+    std::string tag;
     std::uint8_t team = 0;
     int owner = -1;
     glm::vec2 pos{};
@@ -38,6 +39,7 @@ struct SpawnerDef {
     float delay = 0.0f;
     int count = 1;
     float offset = 4.0f;
+    std::string building;
 };
 
 struct PlayerStart {

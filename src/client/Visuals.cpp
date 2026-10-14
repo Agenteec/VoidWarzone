@@ -19,7 +19,6 @@ namespace {
 
 constexpr const char* kModelDir = "data/wz2100/models/";
 constexpr const char* kTextureDir = "data/wz2100/textures/";
-constexpr float kDroidYaw = -std::numbers::pi_v<float> * 0.5f;
 
 std::string defaultMask(const std::string& page) {
     if (page.rfind("page-", 0) != 0)
@@ -36,14 +35,6 @@ Mesh parseShape(const std::string& s) {
     return Mesh::Cube;
 }
 
-void addQuad(std::vector<TexVertex>& v, std::vector<std::uint32_t>& idx, const glm::vec3 (&p)[4], const glm::vec2 (&uv)[4], glm::vec3 n) {
-    const auto base = static_cast<std::uint32_t>(v.size());
-    for (int i = 0; i < 4; ++i)
-        v.push_back({p[i].x, p[i].y, p[i].z, n.x, n.y, n.z, uv[i].x, uv[i].y});
-    for (const std::uint32_t i : {0u, 1u, 2u, 0u, 2u, 3u})
-        idx.push_back(base + i);
-}
-
 }
 
 void makeModelMatrix(float* mtx, glm::vec3 pos, float yaw, float scale, glm::vec3 offset) {
@@ -52,6 +43,30 @@ void makeModelMatrix(float* mtx, glm::vec3 pos, float yaw, float scale, glm::vec
     const glm::vec3 o = offset * scale;
     const glm::vec3 t{pos.x + o.x * c - o.z * s, pos.y + o.y, pos.z + o.x * s + o.z * c};
     bx::mtxSRT(mtx, scale, scale, scale, 0.0f, yaw, 0.0f, t.x, t.y, t.z);
+}
+
+static glm::vec3 rotateY(glm::vec3 v, float yaw) {
+    const float c = std::cos(yaw);
+    const float s = std::sin(yaw);
+    return {v.x * c - v.z * s, v.y, v.x * s + v.z * c};
+}
+
+void makeTurretMatrix(float* mtx, glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale) {
+    const glm::vec3 t = pos + rotateY(pivot * scale, hullYaw);
+    const float cy = std::cos(yaw);
+    const float sy = std::sin(yaw);
+    const float cp = std::cos(pitch);
+    const float sp = std::sin(pitch);
+    const float m[16] = {cy, 0.0f, sy, 0.0f, -sp * sy, cp, sp * cy, 0.0f, -cp * sy, -sp, cp * cy, 0.0f, t.x, t.y, t.z, 1.0f};
+    for (int i = 0; i < 16; ++i)
+        mtx[i] = i < 12 ? m[i] * scale : m[i];
+}
+
+glm::vec3 turretPoint(glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale, glm::vec3 local) {
+    float m[16];
+    makeTurretMatrix(m, pos, hullYaw, pivot, yaw, pitch, scale);
+    return {local.x * m[0] + local.y * m[4] + local.z * m[8] + m[12], local.x * m[1] + local.y * m[5] + local.z * m[9] + m[13],
+            local.x * m[2] + local.y * m[6] + local.z * m[10] + m[14]};
 }
 
 TextureId ModelLibrary::texture(const std::string& file) {
@@ -69,6 +84,8 @@ TextureId ModelLibrary::texture(const std::string& file) {
 }
 
 const Model* ModelLibrary::model(const std::string& name) {
+    if (name.empty())
+        return nullptr;
     if (const auto it = models_.find(name); it != models_.end())
         return it->second.get();
     std::unique_ptr<Model> result;
@@ -126,17 +143,25 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
             }
             return model;
         };
+        const Model* hull = nullptr;
         if (const auto pie = m->find("pie"); pie != m->end()) {
-            add(pie->get<std::string>(), {}, true);
+            hull = add(pie->get<std::string>(), {}, true);
         } else {
             add(m->value("prop", ""), {}, true);
-            const Model* body = add(m->value("body", ""), {}, true);
-            const glm::vec3 mount = body && !body->connectors.empty() ? body->connectors[0] : glm::vec3(0.0f, hi.y, 0.0f);
-            if (const Model* weapon = models.model(m->value("weapon", ""))) {
-                v.parts.push_back({weapon, mount});
-                hi.y = std::max(hi.y, mount.y + weapon->max.y);
-            }
-            v.yaw = kDroidYaw;
+            hull = add(m->value("body", ""), {}, true);
+            v.yaw = kModelYaw;
+        }
+        v.pivot = hull && !hull->connectors.empty() ? hull->connectors[0] : glm::vec3(0.0f, hi.y, 0.0f);
+        if (const Model* mount = models.model(m->value("mount", ""))) {
+            v.parts.push_back({mount, {}, true, false});
+            hi.y = std::max(hi.y, v.pivot.y + mount->max.y);
+            v.turret = true;
+        }
+        if (const Model* weapon = models.model(m->value("weapon", ""))) {
+            v.parts.push_back({weapon, {}, true, true});
+            hi.y = std::max(hi.y, v.pivot.y + weapon->max.y);
+            v.muzzle = weapon->connectors.empty() ? glm::vec3(0.0f, (weapon->min.y + weapon->max.y) * 0.5f, weapon->min.z) : weapon->connectors[0];
+            v.turret = true;
         }
         if (v.parts.empty())
             continue;
@@ -149,92 +174,215 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
     return visuals;
 }
 
-MapVisuals buildMapVisuals(const Map& map, Renderer& renderer, ModelLibrary& models) {
+namespace {
+
+std::uint32_t hash2(int x, int y, std::uint32_t seed) {
+    std::uint32_t h = seed ^ (static_cast<std::uint32_t>(x) * 0x8da6b343u) ^ (static_cast<std::uint32_t>(y) * 0xd8163841u);
+    h ^= h >> 13;
+    h *= 0x5bd1e995u;
+    h ^= h >> 15;
+    return h;
+}
+
+float valueNoise(float x, float y, std::uint32_t seed) {
+    const int ix = static_cast<int>(std::floor(x));
+    const int iy = static_cast<int>(std::floor(y));
+    const float fx = x - static_cast<float>(ix);
+    const float fy = y - static_cast<float>(iy);
+    auto v = [&](int dx, int dy) { return static_cast<float>(hash2(ix + dx, iy + dy, seed) & 0xffff) / 65535.0f; };
+    const float sx = fx * fx * (3.0f - 2.0f * fx);
+    const float sy = fy * fy * (3.0f - 2.0f * fy);
+    const float a = v(0, 0) + (v(1, 0) - v(0, 0)) * sx;
+    const float b = v(0, 1) + (v(1, 1) - v(0, 1)) * sx;
+    return a + (b - a) * sy;
+}
+
+float fbm(float x, float y, std::uint32_t seed) {
+    return valueNoise(x, y, seed) * 0.6f + valueNoise(x * 2.3f, y * 2.3f, seed + 17u) * 0.3f + valueNoise(x * 5.1f, y * 5.1f, seed + 31u) * 0.1f;
+}
+
+float segmentDistance(glm::vec2 p, glm::vec2 a, glm::vec2 b) {
+    const glm::vec2 ab = b - a;
+    const float t = std::clamp(glm::dot(p - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+    return glm::distance(p, a + ab * t);
+}
+
+float smooth(float e0, float e1, float x) {
+    const float t = std::clamp((x - e0) / (e1 - e0), 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+}
+
+std::uint8_t toByte(float v) {
+    return static_cast<std::uint8_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * 255.0f));
+}
+
+}
+
+float MapVisuals::heightAt(float x, float z) const {
+    if (columns < 2 || rows < 2)
+        return 0.0f;
+    const float cx = std::clamp(x, 0.0f, static_cast<float>(columns - 1));
+    const float cz = std::clamp(z, 0.0f, static_cast<float>(rows - 1));
+    const int ix = std::min(static_cast<int>(cx), columns - 2);
+    const int iz = std::min(static_cast<int>(cz), rows - 2);
+    const float fx = cx - static_cast<float>(ix);
+    const float fz = cz - static_cast<float>(iz);
+    auto h = [&](int i, int j) { return heights[static_cast<std::size_t>(j * columns + i)]; };
+    const float a = h(ix, iz) + (h(ix + 1, iz) - h(ix, iz)) * fx;
+    const float b = h(ix, iz + 1) + (h(ix + 1, iz + 1) - h(ix, iz + 1)) * fx;
+    return a + (b - a) * fz;
+}
+
+MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& renderer, ModelLibrary& models) {
     MapVisuals out;
-    const auto w = static_cast<float>(map.width());
-    const auto h = static_cast<float>(map.height());
-    const glm::vec3 up{0.0f, 1.0f, 0.0f};
+    const int w = map.width();
+    const int h = map.height();
+    const auto seed = static_cast<std::uint32_t>(map.hash());
 
-    {
-        std::vector<TexVertex> v;
-        std::vector<std::uint32_t> idx;
-        constexpr float tile = 8.0f;
-        addQuad(v, idx, {{0, 0, 0}, {w, 0, 0}, {w, 0, h}, {0, 0, h}}, {{0, 0}, {w / tile, 0}, {w / tile, h / tile}, {0, h / tile}}, up);
-        out.ground = renderer.createMesh(v, idx);
-        out.groundTexture = models.texture("page-82-yellow-sand-arizona.png");
-    }
-
-    {
-        std::vector<TexVertex> v;
-        std::vector<std::uint32_t> idx;
-        constexpr float half = 4.0f;
-        constexpr float tile = 4.0f;
-        for (const auto& lane : map.lanes())
-            for (std::size_t i = 0; i + 1 < lane.points.size(); ++i) {
-                const glm::vec2 a = lane.points[i];
-                const glm::vec2 b = lane.points[i + 1];
-                const glm::vec2 dir = glm::normalize(b - a);
-                const glm::vec2 side{-dir.y * half, dir.x * half};
-                const glm::vec2 a0 = a - dir * half;
-                const glm::vec2 b0 = b + dir * half;
-                const glm::vec2 c[4] = {a0 - side, b0 - side, b0 + side, a0 + side};
-                const float y = 0.02f;
-                addQuad(v, idx, {{c[0].x, y, c[0].y}, {c[1].x, y, c[1].y}, {c[2].x, y, c[2].y}, {c[3].x, y, c[3].y}},
-                        {{c[0].x / tile, c[0].y / tile}, {c[1].x / tile, c[1].y / tile}, {c[2].x / tile, c[2].y / tile}, {c[3].x / tile, c[3].y / tile}},
-                        up);
+    std::vector<int> dist(static_cast<std::size_t>(w * h), -1);
+    std::vector<int> queue;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (!map.blocked(x, y)) {
+                dist[static_cast<std::size_t>(map.index(x, y))] = 0;
+                queue.push_back(map.index(x, y));
             }
-        out.lanes = renderer.createMesh(v, idx);
-        out.laneTexture = models.texture("page-84-tiles-arizona.png");
+    for (std::size_t q = 0; q < queue.size(); ++q) {
+        const int c = queue[q];
+        const int cx = c % w;
+        const int cy = c / w;
+        for (int dy = -1; dy <= 1; ++dy)
+            for (int dx = -1; dx <= 1; ++dx) {
+                const int nx = cx + dx;
+                const int ny = cy + dy;
+                if (!map.inside(nx, ny) || dist[static_cast<std::size_t>(map.index(nx, ny))] >= 0)
+                    continue;
+                dist[static_cast<std::size_t>(map.index(nx, ny))] = dist[static_cast<std::size_t>(c)] + 1;
+                queue.push_back(map.index(nx, ny));
+            }
+    }
+    auto cellDist = [&](int x, int y) {
+        if (!map.inside(x, y))
+            return 99;
+        const int d = dist[static_cast<std::size_t>(map.index(x, y))];
+        return d < 0 ? 99 : d;
+    };
+
+    out.columns = w + 1;
+    out.rows = h + 1;
+    out.heights.assign(static_cast<std::size_t>(out.columns * out.rows), 0.0f);
+    std::vector<int> level(out.heights.size(), 0);
+    for (int j = 0; j < out.rows; ++j)
+        for (int i = 0; i < out.columns; ++i) {
+            const int l = std::min({cellDist(i - 1, j - 1), cellDist(i, j - 1), cellDist(i - 1, j), cellDist(i, j)});
+            const auto idx = static_cast<std::size_t>(j * out.columns + i);
+            level[idx] = l;
+            if (l == 0)
+                continue;
+            const float n = fbm(static_cast<float>(i) * 0.15f, static_cast<float>(j) * 0.15f, seed);
+            const float rise = std::min(static_cast<float>(l), 5.0f);
+            out.heights[idx] = 1.7f + rise * 0.45f + n * 1.4f * std::min(rise / 3.0f, 1.0f);
+        }
+
+    std::vector<glm::vec2> structures;
+    std::vector<float> pads;
+    for (const auto& u : map.units()) {
+        const UnitDefId id = data.find(u.unit);
+        if (id == kInvalidUnitDef)
+            continue;
+        structures.push_back(u.pos);
+        pads.push_back(data.unit(id).radius + 1.6f);
     }
 
-    {
-        std::vector<TexVertex> v;
-        std::vector<std::uint32_t> idx;
-        constexpr float tile = 4.0f;
-        constexpr float height = 2.5f;
-        for (const auto& r : map.walls()) {
-            const float x0 = static_cast<float>(r.x);
-            const float z0 = static_cast<float>(r.y);
-            const float x1 = x0 + static_cast<float>(r.w);
-            const float z1 = z0 + static_cast<float>(r.h);
-            addQuad(v, idx, {{x0, height, z0}, {x1, height, z0}, {x1, height, z1}, {x0, height, z1}},
-                    {{x0 / tile, z0 / tile}, {x1 / tile, z0 / tile}, {x1 / tile, z1 / tile}, {x0 / tile, z1 / tile}}, up);
-            const float ty = height / tile;
-            addQuad(v, idx, {{x0, 0, z0}, {x1, 0, z0}, {x1, height, z0}, {x0, height, z0}}, {{x0 / tile, ty}, {x1 / tile, ty}, {x1 / tile, 0}, {x0 / tile, 0}},
-                    {0, 0, -1});
-            addQuad(v, idx, {{x1, 0, z1}, {x0, 0, z1}, {x0, height, z1}, {x1, height, z1}}, {{x1 / tile, ty}, {x0 / tile, ty}, {x0 / tile, 0}, {x1 / tile, 0}},
-                    {0, 0, 1});
-            addQuad(v, idx, {{x0, 0, z1}, {x0, 0, z0}, {x0, height, z0}, {x0, height, z1}}, {{z1 / tile, ty}, {z0 / tile, ty}, {z0 / tile, 0}, {z1 / tile, 0}},
-                    {-1, 0, 0});
-            addQuad(v, idx, {{x1, 0, z0}, {x1, 0, z1}, {x1, height, z1}, {x1, height, z0}}, {{z0 / tile, ty}, {z1 / tile, ty}, {z1 / tile, 0}, {z0 / tile, 0}},
-                    {1, 0, 0});
+    std::vector<TerrainVertex> vertices;
+    vertices.reserve(out.heights.size());
+    auto heightOf = [&](int i, int j) {
+        i = std::clamp(i, 0, out.columns - 1);
+        j = std::clamp(j, 0, out.rows - 1);
+        return out.heights[static_cast<std::size_t>(j * out.columns + i)];
+    };
+    for (int j = 0; j < out.rows; ++j)
+        for (int i = 0; i < out.columns; ++i) {
+            const float y = heightOf(i, j);
+            const glm::vec3 n = glm::normalize(glm::vec3(heightOf(i - 1, j) - heightOf(i + 1, j), 2.0f, heightOf(i, j - 1) - heightOf(i, j + 1)));
+            const glm::vec2 p{static_cast<float>(i), static_cast<float>(j)};
+            const int l = level[static_cast<std::size_t>(j * out.columns + i)];
+
+            float road = 0.0f;
+            for (const auto& lane : map.lanes())
+                for (std::size_t k = 0; k + 1 < lane.points.size(); ++k)
+                    road = std::max(road, 1.0f - smooth(2.6f, 4.2f, segmentDistance(p, lane.points[k], lane.points[k + 1])));
+            for (std::size_t k = 0; k < structures.size(); ++k)
+                road = std::max(road, 1.0f - smooth(pads[k] - 0.6f, pads[k] + 0.6f, glm::distance(p, structures[k])));
+            const float patch = fbm(p.x * 0.07f + 13.0f, p.y * 0.07f, seed + 101u);
+            float dirt = smooth(0.52f, 0.7f, patch);
+            float cliff = std::clamp((1.0f - n.y) * 3.2f, 0.0f, 1.0f);
+            if (l > 0) {
+                dirt = std::max(dirt, 0.55f + 0.45f * smooth(0.3f, 0.7f, patch));
+                road = 0.0f;
+            }
+            road *= 1.0f - cliff;
+            dirt *= 1.0f - cliff;
+            const float ground = std::max(0.0f, 1.0f - road - dirt - cliff);
+            const std::uint32_t weights = static_cast<std::uint32_t>(toByte(ground)) | static_cast<std::uint32_t>(toByte(dirt)) << 8 |
+                                          static_cast<std::uint32_t>(toByte(cliff)) << 16 | static_cast<std::uint32_t>(toByte(road)) << 24;
+            vertices.push_back({p.x, y, p.y, n.x, n.y, n.z, weights});
         }
-        out.walls = renderer.createMesh(v, idx);
-        out.wallTexture = models.texture("page-85-cliff-arizona.png");
-    }
+
+    std::vector<std::uint32_t> indices;
+    indices.reserve(static_cast<std::size_t>(w * h * 6));
+    for (int j = 0; j < h; ++j)
+        for (int i = 0; i < w; ++i) {
+            const auto a = static_cast<std::uint32_t>(j * out.columns + i);
+            const auto b = a + 1;
+            const auto c = a + static_cast<std::uint32_t>(out.columns);
+            const auto d = c + 1;
+            if (((i + j) & 1) == 0) {
+                for (const auto v : {a, c, b, b, c, d})
+                    indices.push_back(v);
+            } else {
+                for (const auto v : {a, c, d, a, d, b})
+                    indices.push_back(v);
+            }
+        }
+    out.terrain = renderer.createTerrain(vertices, indices);
+    out.terrainTextures = {models.texture("page-82-yellow-sand-arizona.png"), models.texture("page-83-red-earth-arizona.png"),
+                           models.texture("page-85-cliff-arizona.png"), models.texture("page-84-tiles-arizona.png")};
 
     out.derrick = models.model("blderik");
 
-    std::mt19937 rng(static_cast<std::uint32_t>(map.hash()));
+    std::mt19937 rng(seed);
     std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+    const Model* trees[] = {models.model("arizonatree1"), models.model("arizonatree2"), models.model("arizonatree4")};
+    const Model* bushes[] = {models.model("arizonabush1"), models.model("arizonabush2")};
     const Model* boulders[] = {models.model("mibould1"), models.model("mibould2")};
-    for (const auto& r : map.walls()) {
-        if (r.w < 3 || r.h < 3)
-            continue;
-        const int count = r.w * r.h / 90;
-        for (int i = 0; i < count; ++i) {
-            const Model* model = boulders[i % 2];
-            if (!model)
+    const Model* wreck = models.model("drwreck");
+    auto place = [&](const Model* model, glm::vec2 at, float size, bool byHeight) {
+        if (!model)
+            return;
+        const float extent = byHeight ? std::max(model->max.y, 1.0f) : std::max({model->max.x - model->min.x, model->max.z - model->min.z, 1.0f});
+        Placement p;
+        p.model = model;
+        makeModelMatrix(p.mtx, {at.x, out.heightAt(at.x, at.y) - 0.1f, at.y}, unit(rng) * 6.283f, size / extent, {});
+        out.props.push_back(p);
+    };
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            const int d = cellDist(x, y);
+            if (d < 2)
                 continue;
-            const glm::vec3 pos{static_cast<float>(r.x) + 1.0f + unit(rng) * static_cast<float>(r.w - 2), 2.4f,
-                                static_cast<float>(r.y) + 1.0f + unit(rng) * static_cast<float>(r.h - 2)};
-            const float extent = std::max({model->max.x - model->min.x, model->max.z - model->min.z, 1.0f});
-            Placement p;
-            p.model = model;
-            makeModelMatrix(p.mtx, pos, unit(rng) * 6.283f, (0.8f + unit(rng) * 1.4f) / extent, {});
-            out.props.push_back(p);
+            const glm::vec2 at{static_cast<float>(x) + 0.2f + unit(rng) * 0.6f, static_cast<float>(y) + 0.2f + unit(rng) * 0.6f};
+            const float roll = unit(rng);
+            const float forest = fbm(static_cast<float>(x) * 0.09f, static_cast<float>(y) * 0.09f, seed + 7u);
+            if (d >= 3 && roll < 0.002f)
+                place(wreck, at, 1.6f + unit(rng) * 0.6f, false);
+            else if (roll < 0.02f + forest * 0.12f)
+                place(trees[static_cast<std::size_t>(unit(rng) * 2.99f)], at, 2.4f + unit(rng) * 1.8f, true);
+            else if (roll < 0.2f && roll > 0.17f)
+                place(bushes[static_cast<std::size_t>(unit(rng) * 1.99f)], at, 1.0f + unit(rng) * 0.8f, false);
+            else if (roll > 0.985f)
+                place(boulders[static_cast<std::size_t>(unit(rng) * 1.99f)], at, 0.9f + unit(rng) * 1.4f, false);
         }
-    }
     return out;
 }
 

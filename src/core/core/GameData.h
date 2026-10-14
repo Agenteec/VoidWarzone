@@ -33,6 +33,7 @@ struct WeaponDef {
     float range = 0.0f;
     float cooldown = 1.0f;
     float projectileSpeed = 0.0f;
+    float turnRate = 0.0f;
 };
 
 enum class AbilityType : std::uint8_t { Slam, Summon };
@@ -72,6 +73,7 @@ struct UnitDef {
     float radius = 0.5f;
     float speed = 0.0f;
     float sight = 8.0f;
+    float income = 0.0f;
     bool structure = false;
     std::optional<WeaponDef> weapon;
     std::optional<BossDef> boss;

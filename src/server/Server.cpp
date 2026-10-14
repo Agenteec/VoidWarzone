@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <variant>
 
 #include <glm/geometric.hpp>
@@ -264,6 +265,10 @@ Snapshot Server::buildSnapshot() const {
         }
         if (const auto* f = reg.try_get<Facing>(e))
             st.facing = quantizeAngle(f->angle);
+        if (const auto* t = reg.try_get<Turret>(e)) {
+            st.aim = quantizeAngle(t->yaw);
+            st.pitch = static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(std::lround(t->pitch / std::numbers::pi_v<float> * 128.0f), -127L, 127L)));
+        }
         st.hp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.hp), 0.0f, 65535.0f));
         st.maxHp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.max), 1.0f, 65535.0f));
         s.entities.push_back(st);
@@ -274,6 +279,9 @@ Snapshot Server::buildSnapshot() const {
         st.id = entt::to_integral(e);
         st.kind = EntityKind::Projectile;
         st.team = proj.team;
+        st.def = proj.def;
+        st.tx = quantizePos(proj.targetPos.x);
+        st.ty = quantizePos(proj.targetPos.y);
         st.x = quantizePos(pos.value.x);
         st.y = quantizePos(pos.value.y);
         const glm::vec2 d = proj.targetPos - pos.value;
@@ -304,6 +312,7 @@ Snapshot Server::buildSnapshot() const {
         };
         switch (ev.type) {
         case EventType::Shot:
+            s.events.push_back({static_cast<std::uint8_t>(NetEventType::Fire), quantizePos(ev.from.x), quantizePos(ev.from.y), value});
             if (reg.valid(ev.entity))
                 if (const auto* w = reg.try_get<Weapon>(ev.entity); w && w->def.projectileSpeed <= 0.0f)
                     push(NetEventType::Hit);

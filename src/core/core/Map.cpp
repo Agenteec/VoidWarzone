@@ -67,6 +67,7 @@ Map Map::parse(std::string_view text) {
         PlacedUnit pu;
         pu.unit = u.at("unit").get<std::string>();
         pu.role = u.value("role", "");
+        pu.tag = u.value("tag", "");
         pu.team = u.value("team", std::uint8_t{0});
         pu.owner = u.value("owner", -1);
         pu.pos = toVec2(u.at("pos"));
@@ -82,6 +83,7 @@ Map Map::parse(std::string_view text) {
         sd.delay = s.value("delay", sd.delay);
         sd.count = s.value("count", sd.count);
         sd.offset = s.value("offset", sd.offset);
+        sd.building = s.value("building", "");
         m.spawners_.push_back(std::move(sd));
     }
 

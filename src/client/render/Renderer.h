@@ -31,6 +31,20 @@ enum DrawFlags : std::uint8_t {
     Unlit = 1,
     Alpha = 2,
     Tint = 4,
+    NoShadow = 8,
+};
+
+struct TerrainVertex {
+    float x, y, z;
+    float nx, ny, nz;
+    std::uint32_t weights;
+};
+
+struct Lighting {
+    glm::vec3 sunDir{-0.55f, 0.75f, 0.35f};
+    glm::vec3 sun{0.85f, 0.8f, 0.72f};
+    glm::vec3 sky{0.42f, 0.45f, 0.52f};
+    std::uint32_t clear = 0x0a0c12ff;
 };
 
 class Renderer {
@@ -49,10 +63,17 @@ public:
     void draw(Mesh mesh, glm::vec3 center, glm::vec3 size, float yaw, const glm::vec4& color, std::uint8_t flags = Lit);
     void drawScreenRect(glm::vec2 a, glm::vec2 b, const glm::vec4& color);
     void drawMesh(MeshId mesh, TextureId texture, TextureId mask, const float* mtx, const glm::vec4& color, std::uint8_t flags = Lit);
+    void drawTerrain(MeshId mesh, const std::array<TextureId, 4>& textures);
     void end();
+
+    void setLighting(const Lighting& lighting);
+    void setShadowSize(int size);
+    int shadowSize() const { return shadowSize_; }
+    bool shadowsSupported() const { return shadowsSupported_; }
 
     TextureId createTexture(const void* data, std::uint32_t size);
     MeshId createMesh(const std::vector<TexVertex>& vertices, const std::vector<std::uint32_t>& indices);
+    MeshId createTerrain(const std::vector<TerrainVertex>& vertices, const std::vector<std::uint32_t>& indices);
     TextureId whiteTexture() const { return white_; }
     TextureId blackTexture() const { return black_; }
 
@@ -69,8 +90,14 @@ private:
     };
 
     static constexpr int kFlagVariants = 4;
-    static constexpr bgfx::ViewId kWorldView = 0;
-    static constexpr bgfx::ViewId kOverlayView = 1;
+    static constexpr bgfx::ViewId kShadowView = 0;
+    static constexpr bgfx::ViewId kWorldView = 1;
+    static constexpr bgfx::ViewId kOverlayView = 2;
+
+    struct TerrainDraw {
+        MeshId mesh;
+        std::array<TextureId, 4> textures;
+    };
 
     struct TexBatchKey {
         MeshId mesh;
@@ -82,6 +109,10 @@ private:
 
     void submit(bgfx::ViewId view, Mesh mesh, std::uint8_t flags, const std::vector<Instance>& instances);
     void submitTextured(bool alpha);
+    void submitShadows();
+    void bindLighting();
+    void updateLight(const Camera& camera);
+    void destroyShadowMap();
     void submitInstances(bgfx::ViewId view, bgfx::ProgramHandle program, std::uint64_t state, const std::vector<Instance>& instances,
                          const std::function<void()>& bind);
     TextureId solidTexture(std::uint32_t rgba);
@@ -106,6 +137,28 @@ private:
     std::map<TexBatchKey, std::vector<Instance>> texBatches_;
     TextureId white_ = 0;
     TextureId black_ = 0;
+
+    bgfx::ProgramHandle terrainProgram_ = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle shadowProgram_ = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle shadowTexProgram_ = BGFX_INVALID_HANDLE;
+    bgfx::VertexLayout terrainLayout_;
+    std::array<bgfx::UniformHandle, 4> terrainSamplers_{};
+    std::vector<TerrainDraw> terrain_;
+
+    bgfx::UniformHandle sunDirUniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle sunColorUniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle skyColorUniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle shadowParamsUniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle lightMtxUniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle shadowSampler_ = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle shadowTexture_ = BGFX_INVALID_HANDLE;
+    bgfx::FrameBufferHandle shadowBuffer_ = BGFX_INVALID_HANDLE;
+    int shadowSize_ = 0;
+    int shadowMapSize_ = 0;
+    bool shadowsSupported_ = false;
+    Lighting lighting_;
+    float lightMtx_[16]{};
+    float shadowTexel_ = 0.0f;
 };
 
 }

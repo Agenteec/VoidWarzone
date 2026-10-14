@@ -40,6 +40,9 @@ InterpolatedEntity toEntity(const EntityState& s) {
     e.pos = {dequantizePos(s.x), dequantizePos(s.y)};
     e.vel = {dequantizeVel(s.vx), dequantizeVel(s.vy)};
     e.facing = dequantizeAngle(s.facing);
+    e.aim = dequantizeAngle(s.aim);
+    e.pitch = static_cast<float>(static_cast<std::int8_t>(s.pitch)) / 128.0f * std::numbers::pi_v<float>;
+    e.target = {dequantizePos(s.tx), dequantizePos(s.ty)};
     e.hp = s.hp;
     e.maxHp = std::max<std::uint16_t>(s.maxHp, 1);
     e.rank = s.rank;
@@ -318,6 +321,8 @@ void NetClient::interpolate(double now, std::vector<InterpolatedEntity>& out) co
             const auto ea = toEntity(*sa);
             e.pos = glm::mix(ea.pos, e.pos, t);
             e.facing = lerpAngle(ea.facing, e.facing, t);
+            e.aim = lerpAngle(ea.aim, e.aim, t);
+            e.pitch = ea.pitch + (e.pitch - ea.pitch) * t;
         }
         out.push_back(e);
     }

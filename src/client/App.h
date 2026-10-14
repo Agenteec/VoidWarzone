@@ -2,9 +2,11 @@
 
 #include <cstdint>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <SDL3/SDL_events.h>
@@ -39,7 +41,14 @@ struct LaunchOptions {
     bool touch = false;
     std::optional<glm::vec2> camera;
     float zoom = 0.0f;
+    int shadows = -1;
+    int light = -1;
 };
+
+const char* shadowQualityName(int quality);
+const char* lightPresetName(int preset);
+int parseShadowQuality(std::string_view text);
+int parseLightPreset(std::string_view text);
 
 class App {
 public:
@@ -96,6 +105,8 @@ private:
     bool isOwn(const net::InterpolatedEntity& e) const { return e.owner == net_.player(); }
     glm::vec4 unitColor(const net::InterpolatedEntity& e) const;
 
+    glm::vec3 muzzleOf(const net::InterpolatedEntity& e) const;
+    glm::vec3 projectilePos(const net::InterpolatedEntity& e);
     void addEffect(Mesh mesh, glm::vec3 pos, glm::vec4 color, float from, float to, float life);
     void handleNetEvent(const net::NetEvent& ev);
     void showBanner(std::string text, float seconds);
@@ -106,6 +117,12 @@ private:
     void handlePanelKey(SDL_Keycode key, bool shift);
     const net::OwnUnit* focusedOwn() const;
     std::string modsText(const StatMods& m) const;
+
+    void loadSettings();
+    void saveSettings() const;
+    void applyGraphics();
+    void cycleShadows();
+    void cycleLight();
 
     void render();
     void renderWorld();
@@ -135,6 +152,14 @@ private:
     std::vector<net::InterpolatedEntity> entities_;
     std::vector<std::uint32_t> selected_;
     std::vector<Effect> effects_;
+
+    struct Shell {
+        glm::vec3 muzzle;
+        glm::vec2 start;
+        float lob;
+        bool seen;
+    };
+    std::unordered_map<std::uint32_t, Shell> shells_;
     std::string banner_;
     float bannerTime_ = 0.0f;
 
@@ -176,6 +201,8 @@ private:
     float gestureSpread_ = 0.0f;
     int armedSkill_ = -1;
     bool paused_ = false;
+    int shadowQuality_ = 2;
+    int lightPreset_ = 0;
 };
 
 }

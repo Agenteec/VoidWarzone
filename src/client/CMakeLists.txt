@@ -24,13 +24,13 @@ else()
     set(VW_SHADER_DIR ${VW_SHADER_EXPORT_DIR})
 endif()
 if(TARGET bgfx::shaderc)
-    bgfx_compile_shaders(TYPE VERTEX SHADERS shaders/vs_mesh.sc shaders/vs_tex.sc
+    bgfx_compile_shaders(TYPE VERTEX SHADERS shaders/vs_mesh.sc shaders/vs_tex.sc shaders/vs_terrain.sc shaders/vs_shadow.sc shaders/vs_shadow_tex.sc
         VARYING_DEF ${CMAKE_CURRENT_SOURCE_DIR}/shaders/varying.def.sc
-        OUTPUT_DIR ${VW_SHADER_DIR} INCLUDE_DIRS ${bgfx_SOURCE_DIR}/bgfx/src
+        OUTPUT_DIR ${VW_SHADER_DIR} INCLUDE_DIRS ${bgfx_SOURCE_DIR}/bgfx/src ${CMAKE_CURRENT_SOURCE_DIR}/shaders
         OUT_FILES_VAR VW_VS_FILES AS_HEADERS)
-    bgfx_compile_shaders(TYPE FRAGMENT SHADERS shaders/fs_mesh.sc shaders/fs_tex.sc
+    bgfx_compile_shaders(TYPE FRAGMENT SHADERS shaders/fs_mesh.sc shaders/fs_tex.sc shaders/fs_terrain.sc shaders/fs_shadow.sc shaders/fs_shadow_tex.sc
         VARYING_DEF ${CMAKE_CURRENT_SOURCE_DIR}/shaders/varying.def.sc
-        OUTPUT_DIR ${VW_SHADER_DIR} INCLUDE_DIRS ${bgfx_SOURCE_DIR}/bgfx/src
+        OUTPUT_DIR ${VW_SHADER_DIR} INCLUDE_DIRS ${bgfx_SOURCE_DIR}/bgfx/src ${CMAKE_CURRENT_SOURCE_DIR}/shaders
         OUT_FILES_VAR VW_FS_FILES AS_HEADERS)
     target_sources(vw_client PRIVATE ${VW_VS_FILES} ${VW_FS_FILES})
     add_custom_target(vw_export_shaders

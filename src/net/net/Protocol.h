@@ -49,6 +49,7 @@ enum class NetEventType : std::uint8_t {
     Promote,
     LevelUp,
     Loot,
+    Fire,
 };
 
 const char* denyReasonText(DenyReason reason);

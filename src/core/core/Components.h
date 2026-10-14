@@ -53,6 +53,11 @@ struct Weapon {
     float cooldown = 0.0f;
 };
 
+struct Turret {
+    float yaw = 0.0f;
+    float pitch = 0.0f;
+};
+
 struct Structure {};
 
 struct Invulnerable {};
@@ -90,6 +95,7 @@ struct Spawner {
     float timer = 0.0f;
     int count = 1;
     float offset = 4.0f;
+    entt::entity building = entt::null;
 };
 
 struct Projectile {
@@ -100,6 +106,7 @@ struct Projectile {
     float damage = 0.0f;
     std::uint8_t team = 0;
     int owner = -1;
+    UnitDefId def = kInvalidUnitDef;
 };
 
 struct BaseStats {

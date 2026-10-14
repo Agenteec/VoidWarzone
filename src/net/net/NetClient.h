@@ -28,6 +28,9 @@ struct InterpolatedEntity {
     glm::vec2 pos{};
     glm::vec2 vel{};
     float facing = 0.0f;
+    float aim = 0.0f;
+    float pitch = 0.0f;
+    glm::vec2 target{};
     std::uint16_t hp = 0;
     std::uint16_t maxHp = 1;
     std::uint8_t rank = 0;

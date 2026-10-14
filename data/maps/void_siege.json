@@ -1,700 +1,324 @@
 {
- "name": "Void Siege",
- "width": 240,
- "height": 136,
- "walls": [
-  [
-   0,
-   0,
-   240,
-   15
+  "name": "Void Siege",
+  "width": 320,
+  "height": 176,
+  "walls": [
+    [0, 0, 320, 20],
+    [0, 156, 320, 20],
+    [0, 20, 2, 136],
+    [318, 20, 2, 136],
+    [52, 42, 60, 18],
+    [124, 42, 72, 18],
+    [208, 42, 60, 18],
+    [52, 80, 60, 16],
+    [124, 80, 72, 16],
+    [208, 80, 60, 16],
+    [52, 116, 60, 18],
+    [124, 116, 72, 18],
+    [208, 116, 60, 18],
+    [2, 20, 8, 10],
+    [2, 146, 8, 10],
+    [310, 20, 8, 10],
+    [310, 146, 8, 10]
   ],
-  [
-   0,
-   122,
-   240,
-   14
-  ],
-  [
-   0,
-   15,
-   2,
-   107
-  ],
-  [
-   238,
-   15,
-   2,
-   107
-  ],
-  [
-   30,
-   30,
-   51,
-   15
-  ],
-  [
-   89,
-   30,
-   62,
-   15
-  ],
-  [
-   159,
-   30,
-   52,
-   15
-  ],
-  [
-   30,
-   60,
-   51,
-   17
-  ],
-  [
-   89,
-   60,
-   62,
-   17
-  ],
-  [
-   159,
-   60,
-   52,
-   17
-  ],
-  [
-   30,
-   92,
-   51,
-   15
-  ],
-  [
-   89,
-   92,
-   62,
-   15
-  ],
-  [
-   159,
-   92,
-   52,
-   15
-  ]
- ],
- "lanes": [
-  {
-   "name": "north",
-   "points": [
-    [
-     12,
-     68
-    ],
-    [
-     26,
-     22
-    ],
-    [
-     214,
-     22
-    ],
-    [
-     228,
-     68
-    ]
-   ]
-  },
-  {
-   "name": "upper",
-   "points": [
-    [
-     12,
-     68
-    ],
-    [
-     26,
-     52
-    ],
-    [
-     214,
-     52
-    ],
-    [
-     228,
-     68
-    ]
-   ]
-  },
-  {
-   "name": "lower",
-   "points": [
-    [
-     12,
-     68
-    ],
-    [
-     26,
-     84
-    ],
-    [
-     214,
-     84
-    ],
-    [
-     228,
-     68
-    ]
-   ]
-  },
-  {
-   "name": "south",
-   "points": [
-    [
-     12,
-     68
-    ],
-    [
-     26,
-     114
-    ],
-    [
-     214,
-     114
-    ],
-    [
-     228,
-     68
-    ]
-   ]
-  }
- ],
- "units": [
-  {
-   "unit": "core",
-   "role": "core",
-   "team": 0,
-   "pos": [
-    12,
-    68
-   ]
-  },
-  {
-   "unit": "portal",
-   "role": "portal",
-   "team": 1,
-   "pos": [
-    228,
-    68
-   ]
-  },
-  {
-   "unit": "tower",
-   "team": 0,
-   "pos": [
-    40,
-    18
-   ]
-  },
-  {
-   "unit": "tower",
-   "team": 0,
-   "pos": [
-    62,
-    26
-   ]
-  },
-  {
-   "unit": "void_tower",
-   "team": 1,
-   "pos": [
-    178,
-    18
-   ]
-  },
-  {
-   "unit": "void_tower",
-   "team": 1,
-   "pos": [
-    192,
-    26
-   ]
-  },
-  {
-   "unit": "void_bastion",
-   "team": 1,
-   "pos": [
-    210,
-    22
-   ]
-  },
-  {
-   "unit": "tower",
-   "team": 0,
-   "pos": [
-    40,
-    48
-   ]
-  },
-  {
-   "unit": "tower",
-   "team": 0,
-   "pos": [
-    62,
-    56
-   ]
-  },
-  {
-   "unit": "void_tower",
-   "team": 1,
-   "pos": [
-    178,
-    48
-   ]
-  },
-  {
-   "unit": "void_tower",
-   "team": 1,
-   "pos": [
-    192,
-    56
-   ]
-  },
-  {
-   "unit": "void_bastion",
-   "team": 1,
-   "pos": [
-    210,
-    52
-   ]
-  },
-  {
-   "unit": "tower",
-   "team": 0,
-   "pos": [
-    40,
-    80
-   ]
-  },
-  {
-   "unit": "tower",
-   "team": 0,
-   "pos": [
-    62,
-    88
-   ]
-  },
-  {
-   "unit": "void_tower",
-   "team": 1,
-   "pos": [
-    178,
-    80
-   ]
-  },
-  {
-   "unit": "void_tower",
-   "team": 1,
-   "pos": [
-    192,
-    88
-   ]
-  },
-  {
-   "unit": "void_bastion",
-   "team": 1,
-   "pos": [
-    210,
-    84
-   ]
-  },
-  {
-   "unit": "tower",
-   "team": 0,
-   "pos": [
-    40,
-    110
-   ]
-  },
-  {
-   "unit": "tower",
-   "team": 0,
-   "pos": [
-    62,
-    118
-   ]
-  },
-  {
-   "unit": "void_tower",
-   "team": 1,
-   "pos": [
-    178,
-    110
-   ]
-  },
-  {
-   "unit": "void_tower",
-   "team": 1,
-   "pos": [
-    192,
-    118
-   ]
-  },
-  {
-   "unit": "void_bastion",
-   "team": 1,
-   "pos": [
-    210,
-    114
-   ]
-  }
- ],
- "playerStart": {
-  "pos": [
-   24,
-   68
+  "lanes": [
+    {"name": "north", "points": [[12, 88], [44, 31], [276, 31], [308, 88]]},
+    {"name": "upper", "points": [[12, 88], [44, 70], [276, 70], [308, 88]]},
+    {"name": "lower", "points": [[12, 88], [44, 106], [276, 106], [308, 88]]},
+    {"name": "south", "points": [[12, 88], [44, 145], [276, 145], [308, 88]]}
   ],
   "units": [
-   "tank",
-   "tank",
-   "scout",
-   "scout"
-  ]
- },
- "resourcePoints": [
-  {
-   "name": "A",
-   "pos": [
-    85,
-    37
-   ],
-   "radius": 3.5,
-   "income": 2
-  },
-  {
-   "name": "B",
-   "pos": [
-    85,
-    68
-   ],
-   "radius": 3.5,
-   "income": 3
-  },
-  {
-   "name": "C",
-   "pos": [
-    85,
-    99
-   ],
-   "radius": 3.5,
-   "income": 2
-  },
-  {
-   "name": "D",
-   "pos": [
-    155,
-    37
-   ],
-   "radius": 3.5,
-   "income": 4
-  },
-  {
-   "name": "E",
-   "pos": [
-    155,
-    68
-   ],
-   "radius": 4.0,
-   "income": 6
-  },
-  {
-   "name": "F",
-   "pos": [
-    155,
-    99
-   ],
-   "radius": 3.5,
-   "income": 4
+    {"unit": "core", "role": "core", "team": 0, "pos": [12, 88]},
+    {"unit": "portal", "role": "portal", "team": 1, "pos": [308, 88]},
+    {"unit": "factory", "team": 0, "pos": [36, 24], "tag": "factory_north"},
+    {"unit": "tower", "team": 0, "pos": [58, 26]},
+    {"unit": "tower", "team": 0, "pos": [58, 36]},
+    {"unit": "cannon_tower", "team": 0, "pos": [82, 31]},
+    {"unit": "tower", "team": 0, "pos": [102, 35]},
+    {"unit": "void_factory", "team": 1, "pos": [284, 24], "tag": "void_factory_north"},
+    {"unit": "void_bastion", "team": 1, "pos": [262, 31]},
+    {"unit": "void_mortar", "team": 1, "pos": [250, 38]},
+    {"unit": "void_tower", "team": 1, "pos": [238, 26]},
+    {"unit": "void_tower", "team": 1, "pos": [238, 36]},
+    {"unit": "void_tower", "team": 1, "pos": [214, 35]},
+    {"unit": "factory", "team": 0, "pos": [36, 63], "tag": "factory_upper"},
+    {"unit": "tower", "team": 0, "pos": [58, 65]},
+    {"unit": "tower", "team": 0, "pos": [58, 75]},
+    {"unit": "cannon_tower", "team": 0, "pos": [82, 70]},
+    {"unit": "tower", "team": 0, "pos": [102, 74]},
+    {"unit": "void_factory", "team": 1, "pos": [284, 63], "tag": "void_factory_upper"},
+    {"unit": "void_bastion", "team": 1, "pos": [262, 70]},
+    {"unit": "void_mortar", "team": 1, "pos": [250, 77]},
+    {"unit": "void_tower", "team": 1, "pos": [238, 65]},
+    {"unit": "void_tower", "team": 1, "pos": [238, 75]},
+    {"unit": "void_tower", "team": 1, "pos": [214, 74]},
+    {"unit": "factory", "team": 0, "pos": [36, 113], "tag": "factory_lower"},
+    {"unit": "tower", "team": 0, "pos": [58, 101]},
+    {"unit": "tower", "team": 0, "pos": [58, 111]},
+    {"unit": "cannon_tower", "team": 0, "pos": [82, 106]},
+    {"unit": "tower", "team": 0, "pos": [102, 102]},
+    {"unit": "void_factory", "team": 1, "pos": [284, 113], "tag": "void_factory_lower"},
+    {"unit": "void_bastion", "team": 1, "pos": [262, 106]},
+    {"unit": "void_mortar", "team": 1, "pos": [250, 99]},
+    {"unit": "void_tower", "team": 1, "pos": [238, 101]},
+    {"unit": "void_tower", "team": 1, "pos": [238, 111]},
+    {"unit": "void_tower", "team": 1, "pos": [214, 102]},
+    {"unit": "factory", "team": 0, "pos": [36, 152], "tag": "factory_south"},
+    {"unit": "tower", "team": 0, "pos": [58, 140]},
+    {"unit": "tower", "team": 0, "pos": [58, 150]},
+    {"unit": "cannon_tower", "team": 0, "pos": [82, 145]},
+    {"unit": "tower", "team": 0, "pos": [102, 141]},
+    {"unit": "void_factory", "team": 1, "pos": [284, 152], "tag": "void_factory_south"},
+    {"unit": "void_bastion", "team": 1, "pos": [262, 145]},
+    {"unit": "void_mortar", "team": 1, "pos": [250, 138]},
+    {"unit": "void_tower", "team": 1, "pos": [238, 140]},
+    {"unit": "void_tower", "team": 1, "pos": [238, 150]},
+    {"unit": "void_tower", "team": 1, "pos": [214, 141]},
+    {"unit": "generator", "team": 0, "pos": [22, 40]},
+    {"unit": "generator", "team": 0, "pos": [22, 136]},
+    {"unit": "lab", "team": 0, "pos": [22, 62]},
+    {"unit": "lab", "team": 0, "pos": [22, 114]},
+    {"unit": "cannon_tower", "team": 0, "pos": [26, 80]},
+    {"unit": "cannon_tower", "team": 0, "pos": [26, 96]},
+    {"unit": "void_generator", "team": 1, "pos": [298, 40]},
+    {"unit": "void_generator", "team": 1, "pos": [298, 136]},
+    {"unit": "void_lab", "team": 1, "pos": [298, 62]},
+    {"unit": "void_lab", "team": 1, "pos": [298, 114]},
+    {"unit": "void_citadel", "team": 1, "pos": [290, 78]},
+    {"unit": "void_citadel", "team": 1, "pos": [290, 98]}
+  ],
+  "playerStart": {"pos": [30, 88], "units": ["tank", "tank", "scout", "scout"]},
+  "resourcePoints": [
+    {"name": "A", "pos": [118, 51], "radius": 3.5, "income": 2},
+    {"name": "B", "pos": [118, 88], "radius": 3.5, "income": 3},
+    {"name": "C", "pos": [118, 125], "radius": 3.5, "income": 2},
+    {"name": "D", "pos": [202, 51], "radius": 3.5, "income": 4},
+    {"name": "E", "pos": [202, 88], "radius": 4, "income": 6},
+    {"name": "F", "pos": [202, 125], "radius": 3.5, "income": 4}
+  ],
+  "spawners": [
+    {"unit": "creep_melee", "team": 0, "lane": "north", "interval": 30, "delay": 5, "count": 3, "offset": 6, "building": "factory_north"},
+    {"unit": "creep_ranged", "team": 0, "lane": "north", "interval": 30, "delay": 6, "count": 2, "offset": 6, "building": "factory_north"},
+    {"unit": "void_melee", "team": 1, "lane": "north", "interval": 40, "delay": 30, "count": 2, "offset": 8, "building": "void_factory_north"},
+    {"unit": "void_ranged", "team": 1, "lane": "north", "interval": 40, "delay": 31, "count": 1, "offset": 8, "building": "void_factory_north"},
+    {"unit": "creep_melee", "team": 0, "lane": "upper", "interval": 30, "delay": 5, "count": 3, "offset": 6, "building": "factory_upper"},
+    {"unit": "creep_ranged", "team": 0, "lane": "upper", "interval": 30, "delay": 6, "count": 2, "offset": 6, "building": "factory_upper"},
+    {"unit": "void_melee", "team": 1, "lane": "upper", "interval": 40, "delay": 30, "count": 2, "offset": 8, "building": "void_factory_upper"},
+    {"unit": "void_ranged", "team": 1, "lane": "upper", "interval": 40, "delay": 31, "count": 1, "offset": 8, "building": "void_factory_upper"},
+    {"unit": "creep_melee", "team": 0, "lane": "lower", "interval": 30, "delay": 5, "count": 3, "offset": 6, "building": "factory_lower"},
+    {"unit": "creep_ranged", "team": 0, "lane": "lower", "interval": 30, "delay": 6, "count": 2, "offset": 6, "building": "factory_lower"},
+    {"unit": "void_melee", "team": 1, "lane": "lower", "interval": 40, "delay": 30, "count": 2, "offset": 8, "building": "void_factory_lower"},
+    {"unit": "void_ranged", "team": 1, "lane": "lower", "interval": 40, "delay": 31, "count": 1, "offset": 8, "building": "void_factory_lower"},
+    {"unit": "creep_melee", "team": 0, "lane": "south", "interval": 30, "delay": 5, "count": 3, "offset": 6, "building": "factory_south"},
+    {"unit": "creep_ranged", "team": 0, "lane": "south", "interval": 30, "delay": 6, "count": 2, "offset": 6, "building": "factory_south"},
+    {"unit": "void_melee", "team": 1, "lane": "south", "interval": 40, "delay": 30, "count": 2, "offset": 8, "building": "void_factory_south"},
+    {"unit": "void_ranged", "team": 1, "lane": "south", "interval": 40, "delay": 31, "count": 1, "offset": 8, "building": "void_factory_south"}
+  ],
+  "defense": {
+    "firstWaveDelay": 45,
+    "waveInterval": 45,
+    "baseIncome": 2,
+    "startEnergy": 150,
+    "waves": [
+      {
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 3,
+            "lanes": "all"
+          }
+        ]
+      },
+      {
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 3,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 1,
+            "lanes": "all"
+          }
+        ]
+      },
+      {
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 4,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 2,
+            "lanes": "all"
+          }
+        ]
+      },
+      {
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 3,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 2,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_brute",
+            "count": 1,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_melee",
+            "count": 4,
+            "lanes": "raid"
+          }
+        ]
+      },
+      {
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 3,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 2,
+            "lanes": "all"
+          }
+        ],
+        "boss": {
+          "unit": "void_warden",
+          "lane": "upper"
+        }
+      },
+      {
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 4,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 3,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_brute",
+            "count": 1,
+            "lanes": "all"
+          }
+        ]
+      },
+      {
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 4,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 3,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_brute",
+            "count": 2,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_melee",
+            "count": 4,
+            "lanes": "raid"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 2,
+            "lanes": "raid"
+          }
+        ]
+      },
+      {
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 5,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 3,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_brute",
+            "count": 2,
+            "lanes": "all"
+          }
+        ]
+      },
+      {
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 5,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 4,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_brute",
+            "count": 3,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_brute",
+            "count": 2,
+            "lanes": "raid"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 3,
+            "lanes": "raid"
+          }
+        ]
+      },
+      {
+        "delay": 50,
+        "groups": [
+          {
+            "unit": "void_melee",
+            "count": 4,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_ranged",
+            "count": 3,
+            "lanes": "all"
+          },
+          {
+            "unit": "void_brute",
+            "count": 2,
+            "lanes": "all"
+          }
+        ],
+        "boss": {
+          "unit": "void_titan",
+          "lane": "lower"
+        }
+      }
+    ]
   }
- ],
- "spawners": [
-  {
-   "unit": "creep_melee",
-   "team": 0,
-   "lane": "north",
-   "interval": 30,
-   "delay": 5,
-   "count": 3,
-   "offset": 6
-  },
-  {
-   "unit": "creep_ranged",
-   "team": 0,
-   "lane": "north",
-   "interval": 30,
-   "delay": 6,
-   "count": 2,
-   "offset": 6
-  },
-  {
-   "unit": "creep_melee",
-   "team": 0,
-   "lane": "upper",
-   "interval": 30,
-   "delay": 5,
-   "count": 3,
-   "offset": 6
-  },
-  {
-   "unit": "creep_ranged",
-   "team": 0,
-   "lane": "upper",
-   "interval": 30,
-   "delay": 6,
-   "count": 2,
-   "offset": 6
-  },
-  {
-   "unit": "creep_melee",
-   "team": 0,
-   "lane": "lower",
-   "interval": 30,
-   "delay": 5,
-   "count": 3,
-   "offset": 6
-  },
-  {
-   "unit": "creep_ranged",
-   "team": 0,
-   "lane": "lower",
-   "interval": 30,
-   "delay": 6,
-   "count": 2,
-   "offset": 6
-  },
-  {
-   "unit": "creep_melee",
-   "team": 0,
-   "lane": "south",
-   "interval": 30,
-   "delay": 5,
-   "count": 3,
-   "offset": 6
-  },
-  {
-   "unit": "creep_ranged",
-   "team": 0,
-   "lane": "south",
-   "interval": 30,
-   "delay": 6,
-   "count": 2,
-   "offset": 6
-  }
- ],
- "defense": {
-  "firstWaveDelay": 45,
-  "waveInterval": 45,
-  "baseIncome": 2,
-  "startEnergy": 150,
-  "waves": [
-   {
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 3,
-      "lanes": "all"
-     }
-    ]
-   },
-   {
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 3,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 1,
-      "lanes": "all"
-     }
-    ]
-   },
-   {
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 4,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 2,
-      "lanes": "all"
-     }
-    ]
-   },
-   {
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 3,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 2,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_brute",
-      "count": 1,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_melee",
-      "count": 4,
-      "lanes": "raid"
-     }
-    ]
-   },
-   {
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 3,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 2,
-      "lanes": "all"
-     }
-    ],
-    "boss": {
-     "unit": "void_warden",
-     "lane": "upper"
-    }
-   },
-   {
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 4,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 3,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_brute",
-      "count": 1,
-      "lanes": "all"
-     }
-    ]
-   },
-   {
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 4,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 3,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_brute",
-      "count": 2,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_melee",
-      "count": 4,
-      "lanes": "raid"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 2,
-      "lanes": "raid"
-     }
-    ]
-   },
-   {
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 5,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 3,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_brute",
-      "count": 2,
-      "lanes": "all"
-     }
-    ]
-   },
-   {
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 5,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 4,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_brute",
-      "count": 3,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_brute",
-      "count": 2,
-      "lanes": "raid"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 3,
-      "lanes": "raid"
-     }
-    ]
-   },
-   {
-    "delay": 50,
-    "groups": [
-     {
-      "unit": "void_melee",
-      "count": 4,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_ranged",
-      "count": 3,
-      "lanes": "all"
-     },
-     {
-      "unit": "void_brute",
-      "count": 2,
-      "lanes": "all"
-     }
-    ],
-    "boss": {
-     "unit": "void_titan",
-     "lane": "lower"
-    }
-   }
-  ]
- }
 }

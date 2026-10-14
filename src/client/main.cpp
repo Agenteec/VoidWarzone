@@ -43,6 +43,10 @@ int main(int argc, char** argv) {
             options.cheats = true;
         else if (arg == "--difficulty" && hasValue)
             vw::parseDifficulty(argv[++i], options.difficulty);
+        else if (arg == "--shadows" && hasValue)
+            options.shadows = vw::client::parseShadowQuality(argv[++i]);
+        else if (arg == "--light" && hasValue)
+            options.light = vw::client::parseLightPreset(argv[++i]);
     }
 
 #if defined(SDL_PLATFORM_ANDROID)

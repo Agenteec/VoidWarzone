@@ -12,7 +12,11 @@ enum Field : std::uint8_t {
     kVel = 4,
     kFacing = 8,
     kHp = 16,
+    kAim = 32,
+    kTarget = 64,
 };
+
+constexpr std::uint8_t kAll = kStatic | kPos | kVel | kFacing | kHp | kAim | kTarget;
 
 std::uint8_t diff(const EntityState& a, const EntityState& b) {
     std::uint8_t m = 0;
@@ -26,6 +30,10 @@ std::uint8_t diff(const EntityState& a, const EntityState& b) {
         m |= kFacing;
     if (a.hp != b.hp || a.maxHp != b.maxHp)
         m |= kHp;
+    if (a.aim != b.aim || a.pitch != b.pitch)
+        m |= kAim;
+    if (a.tx != b.tx || a.ty != b.ty)
+        m |= kTarget;
     return m;
 }
 
@@ -134,7 +142,7 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const 
         while (bi < baseEntities.size() && baseEntities[bi].id < e.id)
             removed.push_back(baseEntities[bi++].id);
         const EntityState* prev = bi < baseEntities.size() && baseEntities[bi].id == e.id ? &baseEntities[bi++] : nullptr;
-        const std::uint8_t mask = prev ? diff(*prev, e) : static_cast<std::uint8_t>(kStatic | kPos | kVel | kFacing | kHp);
+        const std::uint8_t mask = prev ? diff(*prev, e) : kAll;
         if (!mask)
             continue;
         ++changedCount;
@@ -160,6 +168,14 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const 
         if (mask & kHp) {
             changed.u16(e.hp);
             changed.u16(e.maxHp);
+        }
+        if (mask & kAim) {
+            changed.u8(e.aim);
+            changed.u8(e.pitch);
+        }
+        if (mask & kTarget) {
+            changed.u16(e.tx);
+            changed.u16(e.ty);
         }
     }
     while (bi < baseEntities.size())
@@ -257,6 +273,14 @@ bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
         if (mask & kHp) {
             e->hp = r.u16();
             e->maxHp = r.u16();
+        }
+        if (mask & kAim) {
+            e->aim = r.u8();
+            e->pitch = r.u8();
+        }
+        if (mask & kTarget) {
+            e->tx = r.u16();
+            e->ty = r.u16();
         }
     }
     std::sort(out.entities.begin(), out.entities.end(), byId);

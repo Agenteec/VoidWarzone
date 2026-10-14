@@ -1,7 +1,9 @@
 $input a_position, a_normal, a_texcoord0, i_data0, i_data1, i_data2, i_data3, i_data4
-$output v_normal, v_color0, v_texcoord0
+$output v_normal, v_color0, v_texcoord0, v_shadowcoord, v_wpos
 
 #include <bgfx_shader.sh>
+
+uniform mat4 u_lightMtx;
 
 void main()
 {
@@ -11,4 +13,6 @@ void main()
 	v_normal = mul(model, vec4(a_normal, 0.0)).xyz;
 	v_color0 = i_data4;
 	v_texcoord0 = a_texcoord0;
+	v_wpos = worldPos.xyz;
+	v_shadowcoord = mul(u_lightMtx, worldPos);
 }

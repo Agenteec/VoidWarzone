@@ -19,6 +19,20 @@ constexpr float kLeashFactor = 1.5f;
 constexpr float kWaypointReach = 2.5f;
 constexpr float kArriveDistance = 0.3f;
 constexpr float kRangeSlack = 0.1f;
+constexpr float kAimTolerance = 0.12f;
+constexpr float kPitchRate = 1.5f;
+constexpr float kLobGravity = 30.0f;
+
+float wrapAngle(float a) {
+    constexpr float pi = std::numbers::pi_v<float>;
+    a = std::fmod(a + pi, 2.0f * pi);
+    return a < 0.0f ? a + pi : a - pi;
+}
+
+float approach(float from, float to, float maxStep) {
+    const float d = wrapAngle(to - from);
+    return wrapAngle(from + std::clamp(d, -maxStep, maxStep));
+}
 constexpr int kRepathTicks = 15;
 
 glm::vec2 seek(glm::vec2 pos, glm::vec2 goal, float speed) {
@@ -35,11 +49,14 @@ World::World(const GameData& data, const Map& map, Difficulty difficulty) : data
     spatial_.reset(static_cast<float>(map.width()), static_cast<float>(map.height()), 4.0f);
     maxRadius_ = std::max(data.maxRadius(), 0.5f);
 
+    std::unordered_map<std::string, entt::entity> tagged;
     for (const auto& u : map.units()) {
         const UnitDefId id = data.find(u.unit);
         if (id == kInvalidUnitDef)
             throw std::runtime_error("unknown unit: " + u.unit);
         const auto e = spawn(id, u.team, u.pos, u.owner);
+        if (!u.tag.empty())
+            tagged[u.tag] = e;
         if (u.role == "core")
             core_ = e;
         else if (u.role == "portal")
@@ -58,7 +75,14 @@ World::World(const GameData& data, const Map& map, Difficulty difficulty) : data
         if (id == kInvalidUnitDef)
             throw std::runtime_error("unknown unit: " + s.unit);
         const auto e = registry_.create();
-        registry_.emplace<Spawner>(e, Spawner{id, s.team, s.lane, s.interval, s.delay, s.count, s.offset});
+        entt::entity building = entt::null;
+        if (!s.building.empty()) {
+            const auto it = tagged.find(s.building);
+            if (it == tagged.end())
+                throw std::runtime_error("unknown building: " + s.building);
+            building = it->second;
+        }
+        registry_.emplace<Spawner>(e, Spawner{id, s.team, s.lane, s.interval, s.delay, s.count, s.offset, building});
     }
 }
 
@@ -81,6 +105,7 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
         if (enemy)
             w.damage *= enemyDamageScale();
         registry_.emplace<Weapon>(e, w, 0.0f);
+        registry_.emplace<Turret>(e, Turret{registry_.get<Facing>(e).angle, 0.0f});
         base.damage = w.damage;
         base.cooldown = w.cooldown;
         base.range = w.range;
@@ -219,6 +244,7 @@ void World::step() {
     updateBosses();
     integrate();
     resolveCollisions();
+    updateTurrets();
     updateWeapons();
     updateProjectiles();
     removeDead();
@@ -269,6 +295,8 @@ void World::updateSpawners() {
     };
     std::vector<Pending> pending;
     for (auto [e, s] : registry_.view<Spawner>().each()) {
+        if (s.building != entt::null && !alive(s.building))
+            continue;
         s.timer -= kTickDt;
         if (s.timer > 0.0f)
             continue;
@@ -367,12 +395,8 @@ void World::updateUnits() {
             const glm::vec2 tp = registry_.get<Position>(target.value).value;
             const float reach = weapon->def.range + unit.radius + registry_.get<Unit>(target.value).radius;
             const glm::vec2 d = tp - pos.value;
-            if (glm::dot(d, d) > reach * reach) {
-                if (unit.speed > 0.0f)
-                    vel.value = navigate(e, pos.value, tp, unit.speed);
-            } else {
-                facing.angle = std::atan2(d.y, d.x);
-            }
+            if (glm::dot(d, d) > reach * reach && unit.speed > 0.0f)
+                vel.value = navigate(e, pos.value, tp, unit.speed);
         } else if (order && (order->type == OrderType::Move || order->type == OrderType::AttackMove)) {
             if (glm::distance(pos.value, order->point) < kArriveDistance) {
                 *order = {};
@@ -431,6 +455,23 @@ void World::damage(entt::entity target, float amount, int sourceOwner, entt::ent
     events_.push_back({EventType::Hit, target, source, registry_.get<Position>(target).value, registry_.get<Position>(target).value});
 }
 
+void World::updateTurrets() {
+    for (auto [e, pos, weapon, target, facing, turret] : registry_.view<const Position, const Weapon, const Target, const Facing, Turret>().each()) {
+        float yaw = registry_.all_of<Structure>(e) ? turret.yaw : facing.angle;
+        float pitch = 0.0f;
+        if (alive(target.value)) {
+            const glm::vec2 d = registry_.get<Position>(target.value).value - pos.value;
+            yaw = std::atan2(d.y, d.x);
+            if (weapon.def.projectileSpeed > 0.0f) {
+                const float v = weapon.def.projectileSpeed;
+                pitch = 0.5f * std::asin(std::min(1.0f, kLobGravity * glm::length(d) / (v * v)));
+            }
+        }
+        turret.yaw = approach(turret.yaw, yaw, weapon.def.turnRate * kTickDt);
+        turret.pitch += std::clamp(pitch - turret.pitch, -kPitchRate * kTickDt, kPitchRate * kTickDt);
+    }
+}
+
 void World::updateWeapons() {
     struct PendingShot {
         entt::entity source;
@@ -440,6 +481,7 @@ void World::updateWeapons() {
         WeaponDef def;
         std::uint8_t team;
         int owner;
+        UnitDefId unit;
     };
     std::vector<PendingShot> shots;
 
@@ -451,9 +493,12 @@ void World::updateWeapons() {
         const float reach = weapon.def.range + unit.radius + registry_.get<Unit>(target.value).radius + kRangeSlack;
         if (glm::distance(tp, pos.value) > reach)
             continue;
+        if (const auto* turret = registry_.try_get<Turret>(e);
+            turret && std::abs(wrapAngle(std::atan2(tp.y - pos.value.y, tp.x - pos.value.x) - turret->yaw)) > kAimTolerance)
+            continue;
         weapon.cooldown = weapon.def.cooldown;
         const auto* owner = registry_.try_get<Owner>(e);
-        shots.push_back({e, target.value, pos.value, tp, weapon.def, team.id, owner ? static_cast<int>(owner->player) : -1});
+        shots.push_back({e, target.value, pos.value, tp, weapon.def, team.id, owner ? static_cast<int>(owner->player) : -1, unit.def});
     }
 
     for (const auto& s : shots) {
@@ -462,7 +507,7 @@ void World::updateWeapons() {
             const auto p = registry_.create();
             registry_.emplace<Position>(p, s.from);
             registry_.emplace<PrevPosition>(p, s.from);
-            registry_.emplace<Projectile>(p, Projectile{s.source, s.target, s.to, s.def.projectileSpeed, s.def.damage, s.team, s.owner});
+            registry_.emplace<Projectile>(p, Projectile{s.source, s.target, s.to, s.def.projectileSpeed, s.def.damage, s.team, s.owner, s.unit});
         } else {
             damage(s.target, s.def.damage, s.owner, s.source);
         }

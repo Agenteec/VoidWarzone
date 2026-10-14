@@ -100,6 +100,7 @@ private:
     void updateBosses();
     void integrate();
     void resolveCollisions();
+    void updateTurrets();
     void updateWeapons();
     void updateProjectiles();
     void removeDead();

@@ -27,6 +27,10 @@ struct EntityState {
     std::uint16_t hp = 0;
     std::uint16_t maxHp = 0;
     std::uint8_t rank = 0;
+    std::uint8_t aim = 0;
+    std::uint8_t pitch = 0;
+    std::uint16_t tx = 0;
+    std::uint16_t ty = 0;
 };
 
 struct NetEvent {

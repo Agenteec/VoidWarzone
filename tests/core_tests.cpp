@@ -1,3 +1,4 @@
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -124,6 +125,54 @@ TEST_CASE("units fight and die") {
     }
     CHECK(shot);
     CHECK(world.alive(a) != world.alive(b));
+}
+
+TEST_CASE("turret turns to target before firing") {
+    const auto data = vw::GameData::parse(R"({"units":[
+        {"id":"gun","structure":true,"maxHp":1000,"radius":1,"weapon":{"damage":1,"range":8,"cooldown":0.5,"turnRate":1.0}},
+        {"id":"dummy","maxHp":1000,"radius":0.5}
+    ]})");
+    vw::Map map(30, 30);
+    vw::World world(data, map);
+    const auto gun = world.spawn(data.find("gun"), 0, {10.0f, 10.0f});
+    world.spawn(data.find("dummy"), 1, {4.0f, 10.0f});
+    int firstShot = -1;
+    for (int i = 0; i < vw::kTickRate * 5 && firstShot < 0; ++i) {
+        world.step();
+        for (const auto& ev : world.events())
+            if (ev.type == vw::EventType::Shot && firstShot < 0)
+                firstShot = i;
+    }
+    CHECK(firstShot > vw::kTickRate * 2);
+    CHECK(std::abs(std::abs(world.registry().get<vw::Turret>(gun).yaw) - 3.14159f) < 0.15f);
+}
+
+TEST_CASE("spawner stops with its building") {
+    const auto data = vw::GameData::parse(kUnits);
+    const auto map = vw::Map::parse(R"({"width":40,"height":20,
+        "lanes":[{"name":"mid","points":[[2,10],[38,10]]}],
+        "units":[{"unit":"wall","team":0,"pos":[5,5],"tag":"barracks"}],
+        "spawners":[{"unit":"soldier","team":0,"lane":"mid","interval":1,"building":"barracks"}]})");
+    vw::World world(data, map);
+    auto soldiers = [&] {
+        int n = 0;
+        for (auto [e, unit] : world.registry().view<const vw::Unit>().each())
+            n += unit.def == data.find("soldier");
+        return n;
+    };
+    for (int i = 0; i < vw::kTickRate * 2; ++i)
+        world.step();
+    CHECK(soldiers() >= 2);
+    for (auto [e, unit, health] : world.registry().view<const vw::Unit, vw::Health>().each())
+        if (unit.def == data.find("wall"))
+            health.hp = 0.0f;
+    world.step();
+    const int before = soldiers();
+    for (int i = 0; i < vw::kTickRate * 3; ++i)
+        world.step();
+    CHECK(soldiers() == before);
+    CHECK_THROWS(vw::World(data, vw::Map::parse(R"({"width":10,"height":10,"lanes":[{"name":"m","points":[[1,1],[8,8]]}],
+        "spawners":[{"unit":"soldier","lane":"m","building":"none"}]})")));
 }
 
 TEST_CASE("units separate") {

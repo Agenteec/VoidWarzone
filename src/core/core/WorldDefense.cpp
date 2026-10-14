@@ -278,7 +278,11 @@ void World::updateDefense() {
         return;
     }
 
-    grantTeamEnergy(def.baseIncome * kTickDt);
+    float income = def.baseIncome;
+    for (auto [e, unit, team] : registry_.view<const Unit, const Team, const Structure>().each())
+        if (team.id == 0 && alive(e))
+            income += data_->unit(unit.def).income;
+    grantTeamEnergy(income * kTickDt);
 
     if (defense_.wave < defense_.totalWaves) {
         defense_.nextWaveIn -= kTickDt;
