@@ -257,6 +257,9 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
     if (options_.host) {
         autoStart_ = true;
         startHost(true);
+    } else if (!options_.join.empty()) {
+        autoStart_ = true;
+        startJoin(options_.join);
     } else if (!options_.connect.empty()) {
         if (const auto addr = net::Address::parse(options_.connect, net::kGamePort))
             startConnect(*addr);
@@ -308,6 +311,7 @@ void App::startJoin(const std::string& code) {
     status_.clear();
     if (!lobby_.join(options_.master, code, now_)) {
         status_ = lobby_.error();
+        spdlog::warn("join failed: {}", status_);
         return;
     }
     status_ = "joining " + code;
@@ -318,6 +322,7 @@ void App::updateLobby() {
     lobby_.update(now_);
     if (screen_ == Screen::Joining) {
         if (lobby_.state() == net::MasterClient::State::Ready) {
+            spdlog::info("ice connected via {} | {}", lobby_.agent()->selectedPath(), lobby_.agent()->selectedPair());
             if (net_.connectVia(lobby_.agent(), data_->hash(), options_.name, now_)) {
                 status_ = "connecting (" + net_.path() + ")";
                 setScreen(Screen::Connecting);
@@ -327,6 +332,7 @@ void App::updateLobby() {
                 setScreen(Screen::Menu);
             }
         } else if (lobby_.state() == net::MasterClient::State::Failed) {
+            spdlog::warn("join failed: {}", lobby_.error());
             status_ = lobby_.error();
             setScreen(Screen::Menu);
         }
@@ -486,6 +492,8 @@ void App::leaveGame(std::string status) {
     selected_.clear();
     prediction_.clear();
     status_ = std::move(status);
+    if (!status_.empty())
+        spdlog::warn("{}", status_);
     SDL_SetWindowTitle(window_, "Void Warzone");
     setScreen(Screen::Menu);
 }

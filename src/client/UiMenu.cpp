@@ -82,10 +82,15 @@ void App::drawMenu() {
     ImGui::TextColored(toVec(kText), "WARZONE");
     ImGui::PopFont();
     ImGui::TextDisabled("co-op defense  v%.*s", static_cast<int>(kVersion.size()), kVersion.data());
+    const bool busy = screen_ == Screen::Connecting || screen_ == Screen::Joining;
+    if (!status_.empty() && !busy) {
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextColored(toVec(kBad), "%s", status_.c_str());
+        ImGui::PopTextWrapPos();
+    }
     ImGui::Dummy({0.0f, 18.0f * s});
 
     const float h = 38.0f * s;
-    const bool busy = screen_ == Screen::Connecting || screen_ == Screen::Joining;
     ImGui::BeginDisabled(busy);
     if (menuButton(ICON_FA_PLAY "   Single Player", false, full, h)) {
         settingsOpen_ = false;
@@ -121,12 +126,6 @@ void App::drawMenu() {
         running_ = false;
     ImGui::EndDisabled();
 
-    if (!status_.empty() && !busy) {
-        ImGui::Dummy({0.0f, 8.0f * s});
-        ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextColored(toVec(kBad), "%s", status_.c_str());
-        ImGui::PopTextWrapPos();
-    }
 
     ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY() + 10.0f * s, ImGui::GetWindowHeight() - 80.0f * s));
     ImGui::TextDisabled("Commander");

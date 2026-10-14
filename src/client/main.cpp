@@ -5,6 +5,7 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <juice/juice.h>
 #include <spdlog/spdlog.h>
 #if defined(SDL_PLATFORM_ANDROID)
 #include <spdlog/sinks/android_sink.h>
@@ -16,7 +17,16 @@ int main(int argc, char** argv) {
 #if defined(SDL_PLATFORM_ANDROID)
     spdlog::set_default_logger(spdlog::android_logger_mt("vw", "VoidWarzone"));
 #endif
+    juice_set_log_handler([](juice_log_level_t level, const char* message) {
+        if (level >= JUICE_LOG_LEVEL_WARN)
+            spdlog::warn("ice: {}", message);
+        else
+            spdlog::info("ice: {}", message);
+    });
+    juice_set_log_level(JUICE_LOG_LEVEL_INFO);
     vw::client::LaunchOptions options;
+    for (int i = 1; i < argc; ++i)
+        spdlog::info("arg {}: {}", i, argv[i]);
     if (const char* env = std::getenv("VW_MASTER"); env && *env)
         options.master = env;
     for (int i = 1; i < argc; ++i) {
@@ -26,6 +36,8 @@ int main(int argc, char** argv) {
             options.host = true;
         else if (arg == "--connect" && hasValue)
             options.connect = argv[++i];
+        else if (arg == "--join" && hasValue)
+            options.join = argv[++i];
         else if (arg == "--name" && hasValue)
             options.name = argv[++i];
         else if (arg == "--map" && hasValue)
@@ -89,6 +101,7 @@ int main(int argc, char** argv) {
     int code = 0;
     {
         vw::client::App app;
+        juice_set_log_level(JUICE_LOG_LEVEL_INFO);
         if (app.init(window, options)) {
             std::uint64_t last = SDL_GetTicksNS();
             while (app.running()) {

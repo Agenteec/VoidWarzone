@@ -68,6 +68,8 @@ int main(int argc, char** argv) {
     vw::net::IceServers servers;
     servers.stunPort = stunPort;
     servers.turnPort = stunPort;
+    servers.stunHost = externalIp;
+    servers.turnHost = externalIp;
     if (turn) {
         servers.turnUser = turnUser;
         servers.turnPass = turnPass;

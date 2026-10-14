@@ -34,6 +34,7 @@ namespace vw::client {
 struct LaunchOptions {
     bool host = false;
     std::string connect;
+    std::string join;
     std::string name = "Player";
     std::string map = "void_siege";
     std::uint16_t port = net::kGamePort;
