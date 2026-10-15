@@ -22,6 +22,6 @@ void main()
 	float diffuse = mix(abs(d), max(d, 0.0), u_params.z);
 	vec3 lit = shade(albedo, n * sign(d + 0.0001), diffuse, v_shadowcoord);
 	vec3 color = mix(lit, albedo, u_params.x);
-	color = mix(color, albedo * 1.7, glow);
+	color = mix(color, albedo * 1.3, glow);
 	gl_FragColor = vec4(color, v_color0.a);
 }

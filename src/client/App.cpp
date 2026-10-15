@@ -511,11 +511,11 @@ void App::buildMinimap() {
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x) {
             const glm::vec2 p = Map::center({x, y});
-            std::uint32_t c = 0xff4f7ca0u;
+            std::uint32_t c = 0xff50606cu;
             if (map_->blocked(x, y))
-                c = ((x * 7 + y * 13) % 5 == 0) ? 0xff2e4537u : 0xff283a30u;
+                c = ((x * 7 + y * 13) % 5 == 0) ? 0xff282c3au : 0xff242632u;
             else if (nearLane(p))
-                c = 0xff6e7880u;
+                c = 0xff6c7070u;
             pixels[static_cast<std::size_t>(y * w + x)] = c;
         }
     minimap_ = renderer_.createTextureRgba(w, h, pixels.data());
@@ -1228,7 +1228,7 @@ void App::renderWorld() {
             continue;
         renderer_.drawTerrain(chunk.terrain, mapVisuals_.terrainTextures);
         for (const auto& p : chunk.props)
-            renderer_.drawMesh(p.mesh, p.texture, p.mask, identity, white);
+            renderer_.drawMesh(p.mesh, p.texture, p.mask, identity, white, p.glow ? Glow : Lit);
     }
 
     for (const auto& e : entities_) {
@@ -1533,7 +1533,7 @@ void App::renderResourcePoints() {
             float mtx[16];
             const float extent = std::max({m->max.x - m->min.x, m->max.z - m->min.z, 1.0f});
             makeModelMatrix(mtx, {def.pos.x, 0.0f, def.pos.y}, 0.0f, 2.6f / extent, {});
-            renderer_.drawMesh(m->mesh, m->texture, m->mask, mtx, ownerColor, Tint);
+            renderer_.drawMesh(m->mesh, m->texture, m->mask, mtx, ownerColor, m->glow ? Tint | Glow : Tint);
         } else {
             renderer_.draw(Mesh::Cylinder, {def.pos.x, 1.2f, def.pos.y}, {0.35f, 2.4f, 0.35f}, 0.0f, ownerColor);
         }

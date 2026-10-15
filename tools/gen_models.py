@@ -16,7 +16,8 @@ import sys
 from PIL import Image, ImageDraw
 
 CELL = 64
-GRID = 4
+GRID = 8
+ROWS = 4
 
 # name: (rgb, team, glow)
 MATERIALS = [
@@ -36,14 +37,22 @@ MATERIALS = [
     ("concrete_dark", (86, 83, 78), 0, 0),
     ("team_dark", (120, 120, 120), 255, 0),
     ("energy", (95, 205, 255), 0, 255),
+    ("rock", (104, 94, 82), 0, 0),
+    ("rock_dark", (64, 58, 52), 0, 0),
+    ("charred", (38, 32, 28), 0, 0),
+    ("rust", (120, 62, 36), 0, 0),
+    ("bark", (58, 46, 38), 0, 0),
+    ("ember", (255, 110, 30), 0, 200),
+    ("moss", (70, 74, 52), 0, 0),
+    ("bone", (176, 168, 150), 0, 0),
 ]
 MAT = {m[0]: i for i, m in enumerate(MATERIALS)}
 
 
 def palette():
     rnd = random.Random(7)
-    color = Image.new("RGBA", (CELL * GRID, CELL * GRID))
-    mask = Image.new("RGBA", (CELL * GRID, CELL * GRID), (0, 0, 0, 255))
+    color = Image.new("RGBA", (CELL * GRID, CELL * ROWS))
+    mask = Image.new("RGBA", (CELL * GRID, CELL * ROWS), (0, 0, 0, 255))
     px = color.load()
     for i, (_, rgb, team, glow) in enumerate(MATERIALS):
         cx, cy = (i % GRID) * CELL, (i // GRID) * CELL
@@ -84,14 +93,13 @@ class Mesh:
         vs = [p[pb] for p in pts]
         u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
         cx, cy = (mat % GRID) * CELL, (mat // GRID) * CELL
-        size = CELL * GRID
         base = len(self.pos)
         for p in pts:
             fu = (p[pa] - u0) / (u1 - u0) if u1 > u0 else 0.5
             fv = (p[pb] - v0) / (v1 - v0) if v1 > v0 else 0.5
             self.pos.append(tuple(p))
             self.nrm.append(tuple(n))
-            self.uv.append(((cx + 1 + fu * (CELL - 2)) / size, (cy + 1 + fv * (CELL - 2)) / size))
+            self.uv.append(((cx + 1 + fu * (CELL - 2)) / (CELL * GRID), (cy + 1 + fv * (CELL - 2)) / (CELL * ROWS)))
         for i in range(1, len(pts) - 1):
             self.idx += [base, base + i, base + i + 1]
 
@@ -587,7 +595,113 @@ def void_hive(kind):
     return {"hull": (m, (0, 0, 0))}, {}
 
 
+def boulder(seed, flat=0.6):
+    rnd = random.Random(seed)
+    m = Mesh()
+    n = 7
+    ring = []
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        r = rnd.uniform(0.8, 1.2)
+        ring.append((math.cos(a) * r, rnd.uniform(0.15, 0.35), math.sin(a) * r))
+    top = (rnd.uniform(-0.2, 0.2), flat + rnd.uniform(0.0, 0.3), rnd.uniform(-0.2, 0.2))
+    low = [(p[0] * 0.85, 0.0, p[2] * 0.85) for p in ring]
+    for i in range(n):
+        j = (i + 1) % n
+        m.face([ring[i], top, ring[j]][::-1], MAT["rock"] if i % 3 else MAT["rock_dark"])
+        m.face([low[i], ring[i], ring[j], low[j]][::-1], MAT["rock_dark"])
+    if rnd.random() < 0.5:
+        m.box((0.3, 0.45, 0.2), (0.15, 0.04, 0.3), MAT["moss"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def dead_tree(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    h = rnd.uniform(2.2, 3.0)
+    lean = (rnd.uniform(-0.3, 0.3), rnd.uniform(-0.3, 0.3))
+    top = (lean[0], h, lean[1])
+    m.strut((0, 0, 0), top, 0.12, MAT["bark"])
+    for k in range(rnd.randint(3, 5)):
+        t = rnd.uniform(0.4, 0.9)
+        a = rnd.uniform(0, 2 * math.pi)
+        start = (lean[0] * t, h * t, lean[1] * t)
+        ln = rnd.uniform(0.5, 1.0) * (1.1 - t)
+        end = (start[0] + math.cos(a) * ln, start[1] + ln * 0.7, start[2] + math.sin(a) * ln)
+        m.strut(start, end, 0.05, MAT["charred"] if k % 2 else MAT["bark"])
+    m.cyl((0, 0.05, 0), 0.25, 0.1, MAT["charred"], n=6, r2=0.12)
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def crystal_growth(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    m.cyl((0, 0.05, 0), 0.7, 0.1, MAT["void_shell"], n=7, r2=0.5, capmat=MAT["void_purple"])
+    for k in range(rnd.randint(3, 6)):
+        a = rnd.uniform(0, 2 * math.pi)
+        r = rnd.uniform(0.0, 0.45)
+        m.crystal((math.cos(a) * r, 0.05, math.sin(a) * r), rnd.uniform(0.08, 0.18), rnd.uniform(0.5, 1.4),
+                  MAT["void_crystal"] if k % 2 == 0 else MAT["void_vein"], tilt=(math.cos(a) * 0.3, math.sin(a) * 0.3), base=MAT["void_purple"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def wreck(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    m.box((0, 0.3, 0), (1.3, 0.5, 2.0), MAT["charred"], top=(0.85, 0.8), shift=(0.1, 0.1), sides={"left": MAT["rust"]})
+    m.box((0.85, 0.2, 0.1), (0.4, 0.4, 2.2), MAT["rust"], top=(1, 0.9))
+    m.box((-0.2, 0.62, 0.3), (0.7, 0.25, 0.8), MAT["rust"], top=(0.8, 0.8))
+    m.strut((-0.2, 0.7, 0.0), (-0.6, 0.45, -1.3), 0.06, MAT["charred"])
+    for k in range(3):
+        m.box((rnd.uniform(-1.4, 1.4), 0.06, rnd.uniform(-1.4, 1.4)), (rnd.uniform(0.2, 0.4), 0.1, rnd.uniform(0.2, 0.4)), MAT["rust"])
+    m.cyl((0.1, 0.62, -0.5), 0.08, 0.06, MAT["ember"], n=5)
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def extractor():
+    m = Mesh()
+    m.cyl((0, 0.2, 0), 1.3, 0.4, MAT["concrete_dark"], n=8, capmat=MAT["concrete"])
+    for i in range(4):
+        a = math.pi / 4 + i * math.pi / 2
+        m.strut((math.cos(a) * 1.0, 0.4, math.sin(a) * 1.0), (0.0, 2.6, 0.0), 0.07, MAT["hazard"] if i % 2 else MAT["graphite"])
+    m.cyl((0, 1.1, 0), 0.35, 1.4, MAT["energy"], n=8)
+    m.box((0, 2.65, 0), (0.6, 0.2, 0.6), MAT["graphite_dark"])
+    m.cyl((0, 2.85, 0), 0.1, 0.2, MAT["warn"], n=6)
+    m.box((0.95, 0.55, 0), (0.4, 0.3, 0.7), MAT["team"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def module_gun(kind):
+    tur, bar = Mesh(), Mesh()
+    tur.box((0, 0.08, 0.05), (0.36, 0.16, 0.36), MAT["graphite_dark"], sides={"left": MAT["team"], "right": MAT["team"]})
+    if kind == "mg":
+        muzzle = cannon(bar, r=0.03, length=0.5, y=0.14, twin=0.05, brake=False)
+    elif kind == "flak":
+        muzzle = cannon(bar, r=0.045, length=0.55, y=0.16, twin=0.08, brake=True)
+    elif kind == "aa":
+        muzzle = rocket_pod(bar, rows=2, cols=2, y=0.2, size=0.08, length=0.45)
+    else:
+        bar.cyl((0.0, 0.18, -0.25), 0.13, 0.1, MAT["energy"], n=8, axis="z", r2=0.05)
+        bar.box((0.0, 0.18, -0.05), (0.08, 0.08, 0.35), MAT["steel"])
+        muzzle = (0.0, 0.18, -0.35)
+    return {"turret": (tur, (0, 0, 0)), "barrel": (bar, (0, 0, 0))}, {"muzzle": (muzzle, "barrel")}
+
+
 MODELS = {
+    "module_mg": lambda: module_gun("mg"),
+    "module_flak": lambda: module_gun("flak"),
+    "module_aa": lambda: module_gun("aa"),
+    "module_emp": lambda: module_gun("emp"),
+    "colony_extractor": extractor,
+    "prop_boulder1": lambda: boulder(1),
+    "prop_boulder2": lambda: boulder(2, 0.4),
+    "prop_boulder3": lambda: boulder(3, 0.9),
+    "prop_tree1": lambda: dead_tree(1),
+    "prop_tree2": lambda: dead_tree(2),
+    "prop_tree3": lambda: dead_tree(3),
+    "prop_crystal1": lambda: crystal_growth(1),
+    "prop_crystal2": lambda: crystal_growth(2),
+    "prop_wreck": lambda: wreck(1),
     "colony_tank": lambda: tank("base"),
     "colony_tank_assault": lambda: tank("assault"),
     "colony_tank_siege": lambda: tank("siege"),

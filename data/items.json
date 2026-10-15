@@ -17,11 +17,11 @@
     { "id": "shield_gen", "name": "Shield Generator", "slot": "system", "cost": 150, "shield": 160, "look": "bubble" },
     { "id": "booster", "name": "Booster", "slot": "system", "cost": 90, "mods": { "speedMul": 1.25 }, "look": "booster" },
     { "id": "targeting", "name": "Targeting Computer", "slot": "system", "cost": 120, "mods": { "range": 1.0, "damageMul": 1.1 } },
-    { "id": "coax_mg", "name": "Coaxial MG", "slot": "weapon", "cost": 100, "look": "trlmg1/gnlmg1", "weapon": { "type": "kinetic", "damage": 7, "range": 5, "cooldown": 0.25, "projectileSpeed": 28, "targets": "both" } },
-    { "id": "aa_missiles", "name": "AA Missiles", "slot": "weapon", "cost": 130, "look": "trlrckt/gnlrckt", "weapon": { "type": "explosive", "damage": 26, "range": 8, "cooldown": 1.4, "projectileSpeed": 26, "targets": "air" } },
-    { "id": "emp_emitter", "name": "EMP Emitter", "slot": "weapon", "cost": 150, "look": "trlflmr/gnlflmr", "weapon": { "type": "emp", "damage": 25, "range": 5, "cooldown": 1.0, "projectileSpeed": 24 } },
+    { "id": "coax_mg", "name": "Coaxial MG", "slot": "weapon", "cost": 100, "look": "module_mg:turret/module_mg:barrel", "weapon": { "type": "kinetic", "damage": 7, "range": 5, "cooldown": 0.25, "projectileSpeed": 28, "targets": "both" } },
+    { "id": "aa_missiles", "name": "AA Missiles", "slot": "weapon", "cost": 130, "look": "module_aa:turret/module_aa:barrel", "weapon": { "type": "explosive", "damage": 26, "range": 8, "cooldown": 1.4, "projectileSpeed": 26, "targets": "air" } },
+    { "id": "emp_emitter", "name": "EMP Emitter", "slot": "weapon", "cost": 150, "look": "module_emp:turret/module_emp:barrel", "weapon": { "type": "emp", "damage": 25, "range": 5, "cooldown": 1.0, "projectileSpeed": 24 } },
     { "id": "composite_armor", "name": "Composite Armor", "slot": "armor", "cost": 180, "mods": { "hp": 250, "armor": 2, "speedMul": 0.88 }, "look": "plates" },
     { "id": "repair_kit", "name": "Repair Kit", "slot": "system", "cost": 110, "mods": { "regen": 6 } },
-    { "id": "flak", "name": "Flak Cannon", "slot": "weapon", "cost": 120, "look": "trmmg/gnmmg1", "weapon": { "type": "kinetic", "damage": 9, "range": 6.5, "cooldown": 0.3, "projectileSpeed": 30, "splash": 0.8, "targets": "air" } }
+    { "id": "flak", "name": "Flak Cannon", "slot": "weapon", "cost": 120, "look": "module_flak:turret/module_flak:barrel", "weapon": { "type": "kinetic", "damage": 9, "range": 6.5, "cooldown": 0.3, "projectileSpeed": 30, "splash": 0.8, "targets": "air" } }
   ]
 }

@@ -74,6 +74,7 @@ struct StaticBatch {
     MeshId mesh = 0;
     TextureId texture = 0;
     TextureId mask = 0;
+    bool glow = false;
 };
 
 struct MapChunk {

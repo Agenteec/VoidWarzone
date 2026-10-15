@@ -78,7 +78,7 @@ TextureId ModelLibrary::texture(const std::string& file) {
         return it->second;
     TextureId id = renderer_.whiteTexture();
     try {
-        const std::string bytes = load_(kTextureDir + file);
+        const std::string bytes = load_(file.rfind("data/", 0) == 0 ? file : kTextureDir + file);
         id = renderer_.createTexture(bytes.data(), static_cast<std::uint32_t>(bytes.size()));
     } catch (const std::exception& e) {
         spdlog::warn("texture {}: {}", file, e.what());
@@ -443,22 +443,23 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             chunk.max = {static_cast<float>(x1), static_cast<float>(y1)};
             chunk.terrain = renderer.createTerrain(local, indices);
         }
-    out.terrainTextures = {models.texture("page-82-yellow-sand-arizona.png"), models.texture("page-83-red-earth-arizona.png"),
-                           models.texture("page-85-cliff-arizona.png"), models.texture("page-84-tiles-arizona.png")};
+    out.terrainTextures = {models.texture("data/terrain/ground.png"), models.texture("data/terrain/soil.png"), models.texture("data/terrain/cliff.png"),
+                           models.texture("data/terrain/road.png")};
 
-    out.derrick = models.model("blderik");
+    out.derrick = models.model("colony_extractor:hull");
 
     std::mt19937 rng(seed);
     std::uniform_real_distribution<float> unit(0.0f, 1.0f);
-    const Model* trees[] = {models.model("arizonatree1"), models.model("arizonatree2"), models.model("arizonatree4")};
-    const Model* bushes[] = {models.model("arizonabush1"), models.model("arizonabush2")};
-    const Model* boulders[] = {models.model("mibould1"), models.model("mibould2")};
-    const Model* wreck = models.model("drwreck");
+    const Model* trees[] = {models.model("prop_tree1:hull"), models.model("prop_tree2:hull"), models.model("prop_tree3:hull")};
+    const Model* bushes[] = {models.model("prop_crystal1:hull"), models.model("prop_crystal2:hull")};
+    const Model* boulders[] = {models.model("prop_boulder1:hull"), models.model("prop_boulder2:hull"), models.model("prop_boulder3:hull")};
+    const Model* wreck = models.model("prop_wreck:hull");
     struct Geometry {
         std::vector<TexVertex> vertices;
         std::vector<std::uint32_t> indices;
         TextureId texture;
         TextureId mask;
+        bool glow = false;
     };
     std::map<std::tuple<std::size_t, TextureId, TextureId>, Geometry> merged;
     auto place = [&](const Model* model, glm::vec2 at, float size, bool byHeight) {
@@ -472,6 +473,7 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
         auto& g = merged[{static_cast<std::size_t>(cy * chunksX + cx), model->texture, model->mask}];
         g.texture = model->texture;
         g.mask = model->mask;
+        g.glow = model->glow;
         const auto base = static_cast<std::uint32_t>(g.vertices.size());
         for (const auto& v : model->vertices) {
             TexVertex t = v;
@@ -503,10 +505,10 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             else if (roll < 0.2f && roll > 0.17f)
                 place(bushes[static_cast<std::size_t>(unit(rng) * 1.99f)], at, 1.0f + unit(rng) * 0.8f, false);
             else if (roll > 0.985f)
-                place(boulders[static_cast<std::size_t>(unit(rng) * 1.99f)], at, 0.9f + unit(rng) * 1.4f, false);
+                place(boulders[static_cast<std::size_t>(unit(rng) * 2.99f)], at, 0.9f + unit(rng) * 1.4f, false);
         }
     for (const auto& [key, g] : merged)
-        out.chunks[std::get<0>(key)].props.push_back({renderer.createMesh(g.vertices, g.indices), g.texture, g.mask});
+        out.chunks[std::get<0>(key)].props.push_back({renderer.createMesh(g.vertices, g.indices), g.texture, g.mask, g.glow});
     return out;
 }
 
