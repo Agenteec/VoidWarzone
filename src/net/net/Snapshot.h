@@ -26,6 +26,8 @@ struct EntityState {
     std::uint8_t facing = 0;
     std::uint16_t hp = 0;
     std::uint16_t maxHp = 0;
+    std::uint16_t shield = 0;
+    std::uint8_t flags = 0;
     std::uint8_t rank = 0;
     std::uint8_t aim = 0;
     std::uint8_t pitch = 0;
@@ -41,6 +43,7 @@ struct NetEvent {
 };
 
 inline constexpr std::uint32_t kNoEntity = 0xffffffffu;
+inline constexpr std::uint8_t kStateBuilding = 1;
 
 struct PointInfo {
     std::int8_t control = 0;

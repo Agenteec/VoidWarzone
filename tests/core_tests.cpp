@@ -277,3 +277,40 @@ TEST_CASE("queued orders, patrol, hold and inertia") {
     CHECK(reg.get<vw::Order>(u).type == vw::OrderType::Hold);
     CHECK(glm::distance(reg.get<vw::Position>(enemy).value, pos()) < 3.0f);
 }
+
+TEST_CASE("damage types, shields and splash") {
+    const auto data = vw::GameData::parse(R"({"units":[
+        {"id":"mg","maxHp":100,"radius":0.5,"speed":4,"sight":8,"weapon":{"type":"kinetic","damage":10,"range":5,"cooldown":0.5}},
+        {"id":"rocket","maxHp":100,"radius":0.5,"speed":4,"sight":8,"weapon":{"type":"explosive","damage":20,"range":6,"cooldown":1,"splash":2}},
+        {"id":"light","maxHp":1000,"radius":0.4,"armorType":"light"},
+        {"id":"heavy","maxHp":1000,"radius":0.7,"armorType":"heavy"},
+        {"id":"shielded","maxHp":1000,"radius":0.5,"armorType":"crystal","shield":50,"shieldRegen":25}
+    ]})");
+    vw::Map map(40, 40);
+    vw::World world(data, map);
+    auto& reg = world.registry();
+    const auto light = world.spawn(data.find("light"), 1, {10.5f, 10.5f});
+    const auto heavy = world.spawn(data.find("heavy"), 1, {20.5f, 20.5f});
+    const auto shielded = world.spawn(data.find("shielded"), 1, {30.5f, 30.5f});
+    world.damage(light, 100.0f, -1, entt::null, vw::DamageType::Kinetic);
+    world.damage(heavy, 100.0f, -1, entt::null, vw::DamageType::Kinetic);
+    CHECK(reg.get<vw::Health>(light).hp == doctest::Approx(875.0f));
+    CHECK(reg.get<vw::Health>(heavy).hp == doctest::Approx(940.0f));
+
+    world.damage(shielded, 30.0f, -1, entt::null, vw::DamageType::Energy);
+    CHECK(reg.get<vw::Health>(shielded).shield == doctest::Approx(8.0f));
+    CHECK(reg.get<vw::Health>(shielded).hp == doctest::Approx(1000.0f));
+    world.damage(shielded, 100.0f, -1, entt::null, vw::DamageType::Emp);
+    CHECK(reg.get<vw::Health>(shielded).shield == doctest::Approx(0.0f));
+    for (int i = 0; i < vw::kTickRate * 6; ++i)
+        world.step();
+    CHECK(reg.get<vw::Health>(shielded).shield == doctest::Approx(50.0f));
+
+    const auto a = world.spawn(data.find("light"), 1, {5.0f, 30.0f});
+    const auto b = world.spawn(data.find("light"), 1, {5.0f, 31.2f});
+    world.spawn(data.find("rocket"), 0, {5.0f, 26.0f});
+    for (int i = 0; i < vw::kTickRate * 2; ++i)
+        world.step();
+    CHECK(reg.get<vw::Health>(a).hp < 1000.0f);
+    CHECK(reg.get<vw::Health>(b).hp < 1000.0f);
+}

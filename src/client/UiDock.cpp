@@ -50,11 +50,12 @@ void unitTooltip(const UnitDef& def, const char* action, const char* key) {
         ImGui::Text("%s %s  [%s]", action, def.name.c_str(), key);
     else
         ImGui::Text("%s %s", action, def.name.c_str());
-    ImGui::TextDisabled("HP %.0f  armor %.0f%s", def.maxHp, def.armor, def.speed > 0.0f ? "" : "  (structure)");
+    ImGui::TextDisabled("HP %.0f  %s armor %.0f", def.maxHp, armorTypeName(def.armorType), def.armor);
     if (def.speed > 0.0f)
         ImGui::TextDisabled("speed %.1f", def.speed);
     if (def.weapon)
-        ImGui::TextDisabled("damage %.0f  range %.1f  every %.1fs", def.weapon->damage, def.weapon->range, def.weapon->cooldown);
+        ImGui::TextDisabled("%s damage %.0f%s  range %.1f  every %.1fs", damageTypeName(def.weapon->type), def.weapon->damage,
+                                def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown);
     if (def.income > 0.0f)
         ImGui::TextDisabled("+%.1f energy/s", def.income);
     ImGui::EndTooltip();

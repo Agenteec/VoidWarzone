@@ -15,6 +15,21 @@ using ItemId = std::uint16_t;
 inline constexpr UnitDefId kInvalidUnitDef = 0xffff;
 inline constexpr std::uint16_t kInvalidId = 0xffff;
 
+enum class DamageType : std::uint8_t { Kinetic, Piercing, Explosive, Energy, Emp, Count };
+enum class ArmorType : std::uint8_t { Light, Heavy, Structure, Crystal, Count };
+
+struct CombatTable {
+    float hull[static_cast<int>(DamageType::Count)][static_cast<int>(ArmorType::Count)] = {
+        {1.25f, 0.6f, 0.5f, 1.0f}, {0.8f, 1.3f, 0.9f, 0.9f}, {1.1f, 0.8f, 1.5f, 1.0f}, {1.0f, 1.0f, 0.8f, 0.7f}, {0.3f, 0.3f, 0.2f, 0.3f}};
+    float shield[static_cast<int>(DamageType::Count)] = {1.0f, 0.8f, 0.8f, 1.4f, 3.0f};
+
+    float vsHull(DamageType d, ArmorType a) const { return hull[static_cast<int>(d)][static_cast<int>(a)]; }
+    float vsShield(DamageType d) const { return shield[static_cast<int>(d)]; }
+};
+
+const char* damageTypeName(DamageType t);
+const char* armorTypeName(ArmorType t);
+
 struct StatMods {
     float hp = 0.0f;
     float hpMul = 1.0f;
@@ -29,6 +44,8 @@ struct StatMods {
 };
 
 struct WeaponDef {
+    DamageType type = DamageType::Kinetic;
+    float splash = 0.0f;
     float damage = 0.0f;
     float range = 0.0f;
     float cooldown = 1.0f;
@@ -74,6 +91,9 @@ struct UnitDef {
     float speed = 0.0f;
     float sight = 8.0f;
     float accel = 0.0f;
+    ArmorType armorType = ArmorType::Light;
+    float shield = 0.0f;
+    float shieldRegen = 0.0f;
     float turnRate = 8.0f;
     float income = 0.0f;
     bool structure = false;
@@ -147,6 +167,7 @@ public:
     const std::vector<ItemId>& shop() const { return shop_; }
 
     float maxRadius() const { return maxRadius_; }
+    const CombatTable& combat() const { return combat_; }
     std::uint64_t hash() const { return hash_; }
 
 private:
@@ -158,6 +179,7 @@ private:
     std::vector<ItemDef> items_;
     std::vector<ItemId> shop_;
     float maxRadius_ = 0.0f;
+    CombatTable combat_;
     std::uint64_t hash_ = 0;
 };
 

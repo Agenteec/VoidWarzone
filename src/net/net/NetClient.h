@@ -34,6 +34,8 @@ struct InterpolatedEntity {
     glm::vec2 target{};
     std::uint16_t hp = 0;
     std::uint16_t maxHp = 1;
+    std::uint16_t shield = 0;
+    std::uint8_t flags = 0;
     std::uint8_t rank = 0;
 };
 

@@ -314,7 +314,7 @@ void World::updateBosses() {
                     hits.push_back(item.entity);
             });
             for (const auto h : hits)
-                damage(h, dmg, -1, e);
+                damage(h, dmg, -1, e, DamageType::Explosive);
             events_.push_back({EventType::Slam, e, entt::null, boss.castPos, boss.castPos, ability.radius});
             boss.casting = -1;
             continue;

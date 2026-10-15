@@ -28,7 +28,7 @@ std::uint8_t diff(const EntityState& a, const EntityState& b) {
         m |= kVel;
     if (a.facing != b.facing)
         m |= kFacing;
-    if (a.hp != b.hp || a.maxHp != b.maxHp)
+    if (a.hp != b.hp || a.maxHp != b.maxHp || a.shield != b.shield || a.flags != b.flags)
         m |= kHp;
     if (a.aim != b.aim || a.pitch != b.pitch)
         m |= kAim;
@@ -182,6 +182,8 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const 
         if (mask & kHp) {
             changed.u16(e.hp);
             changed.u16(e.maxHp);
+            changed.u16(e.shield);
+            changed.u8(e.flags);
         }
         if (mask & kAim) {
             changed.u8(e.aim);
@@ -287,6 +289,8 @@ bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
         if (mask & kHp) {
             e->hp = r.u16();
             e->maxHp = r.u16();
+            e->shield = r.u16();
+            e->flags = r.u8();
         }
         if (mask & kAim) {
             e->aim = r.u8();

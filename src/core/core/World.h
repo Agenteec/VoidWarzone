@@ -106,6 +106,7 @@ public:
     Difficulty difficulty() const { return difficulty_; }
     GameMode mode() const { return mode_; }
     SiteStatus checkSite(UnitDefId def, glm::vec2 pos, std::uint8_t team, bool phantoms = false) const;
+    void damage(entt::entity target, float amount, int sourceOwner, entt::entity source, DamageType type = DamageType::Kinetic);
     void clearSite(UnitDefId def, glm::vec2 pos, std::uint8_t team);
     void assistConstruction();
     bool canBuild(UnitDefId def, glm::vec2 pos) const { return checkSite(def, pos, 0) == SiteStatus::Ok; }
@@ -171,7 +172,9 @@ private:
     glm::vec2 laneVelocity(LaneFollower& lane, glm::vec2 pos, float speed);
     glm::vec2 lanePoint(const LaneFollower& lane, int i) const;
     const FlowField& flowField(glm::vec2 goal);
-    void damage(entt::entity target, float amount, int sourceOwner, entt::entity source);
+    void splashDamage(glm::vec2 at, float radius, float amount, std::uint8_t team, int owner, entt::entity source, DamageType type,
+                      entt::entity skip);
+    void updateShields();
 
     const GameData* data_ = nullptr;
     const Map* map_ = nullptr;

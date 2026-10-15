@@ -1,4 +1,45 @@
 {
+  "combat": {
+    "hull": {
+      "kinetic": {
+        "light": 1.25,
+        "heavy": 0.6,
+        "structure": 0.5,
+        "crystal": 1.1
+      },
+      "piercing": {
+        "light": 0.8,
+        "heavy": 1.3,
+        "structure": 0.9,
+        "crystal": 1.0
+      },
+      "explosive": {
+        "light": 1.1,
+        "heavy": 0.8,
+        "structure": 1.25,
+        "crystal": 1.0
+      },
+      "energy": {
+        "light": 1.0,
+        "heavy": 1.0,
+        "structure": 0.8,
+        "crystal": 0.7
+      },
+      "emp": {
+        "light": 0.3,
+        "heavy": 0.3,
+        "structure": 0.2,
+        "crystal": 0.3
+      }
+    },
+    "shield": {
+      "kinetic": 1.0,
+      "piercing": 0.8,
+      "explosive": 0.8,
+      "energy": 1.4,
+      "emp": 3.0
+    }
+  },
   "units": [
     {
       "id": "core",
@@ -11,7 +52,8 @@
         "damage": 40,
         "range": 9,
         "cooldown": 1.0,
-        "projectileSpeed": 18
+        "projectileSpeed": 18,
+        "type": "piercing"
       },
       "visual": {
         "shape": "cube",
@@ -32,7 +74,8 @@
         "damage": 15,
         "range": 8.5,
         "cooldown": 0.45,
-        "projectileSpeed": 30
+        "projectileSpeed": 30,
+        "type": "kinetic"
       },
       "visual": {
         "shape": "cylinder",
@@ -50,6 +93,8 @@
       "name": "Void Portal",
       "structure": true,
       "maxHp": 14000,
+      "shield": 2000,
+      "shieldRegen": 40,
       "armor": 6,
       "radius": 3.0,
       "visual": {
@@ -71,7 +116,9 @@
         "damage": 75,
         "range": 10,
         "cooldown": 0.9,
-        "projectileSpeed": 24
+        "projectileSpeed": 24,
+        "type": "explosive",
+        "splash": 0.9
       },
       "visual": {
         "shape": "cylinder",
@@ -89,13 +136,17 @@
       "name": "Void Bastion",
       "structure": true,
       "maxHp": 9000,
+      "shield": 600,
+      "shieldRegen": 15,
       "armor": 10,
       "radius": 1.6,
       "weapon": {
         "damage": 140,
         "range": 12,
         "cooldown": 1.1,
-        "projectileSpeed": 26
+        "projectileSpeed": 26,
+        "type": "energy",
+        "splash": 1.5
       },
       "visual": {
         "shape": "cylinder",
@@ -113,6 +164,7 @@
       "name": "Guard",
       "maxHp": 150,
       "armor": 1,
+      "armorType": "light",
       "radius": 0.45,
       "speed": 3.0,
       "sight": 7,
@@ -121,7 +173,8 @@
       "weapon": {
         "damage": 13,
         "range": 0.4,
-        "cooldown": 1.0
+        "cooldown": 1.0,
+        "type": "kinetic"
       },
       "visual": {
         "shape": "cube",
@@ -147,7 +200,8 @@
         "damage": 11,
         "range": 5,
         "cooldown": 1.2,
-        "projectileSpeed": 14
+        "projectileSpeed": 14,
+        "type": "piercing"
       },
       "visual": {
         "shape": "cylinder",
@@ -158,7 +212,8 @@
           "weapon": "gnlcan",
           "mount": "trlcan"
         }
-      }
+      },
+      "armorType": "light"
     },
     {
       "id": "void_melee",
@@ -166,6 +221,7 @@
       "bounty": 4,
       "maxHp": 140,
       "armor": 1,
+      "armorType": "crystal",
       "radius": 0.45,
       "speed": 3.0,
       "sight": 7,
@@ -174,7 +230,8 @@
       "weapon": {
         "damage": 12,
         "range": 0.4,
-        "cooldown": 1.0
+        "cooldown": 1.0,
+        "type": "energy"
       },
       "visual": {
         "shape": "cube",
@@ -201,7 +258,9 @@
         "damage": 11,
         "range": 5,
         "cooldown": 1.2,
-        "projectileSpeed": 14
+        "projectileSpeed": 14,
+        "type": "explosive",
+        "splash": 0.6
       },
       "visual": {
         "shape": "sphere",
@@ -212,7 +271,8 @@
           "weapon": "gnlrckt",
           "mount": "trlrckt"
         }
-      }
+      },
+      "armorType": "crystal"
     },
     {
       "id": "void_brute",
@@ -220,7 +280,10 @@
       "bounty": 12,
       "shards": 1,
       "maxHp": 520,
+      "shield": 60,
+      "shieldRegen": 8,
       "armor": 4,
+      "armorType": "crystal",
       "radius": 0.75,
       "speed": 2.4,
       "sight": 7,
@@ -229,7 +292,8 @@
       "weapon": {
         "damage": 34,
         "range": 0.5,
-        "cooldown": 1.6
+        "cooldown": 1.6,
+        "type": "kinetic"
       },
       "visual": {
         "shape": "cube",
@@ -253,7 +317,10 @@
         "void_blade"
       ],
       "maxHp": 3200,
+      "shield": 400,
+      "shieldRegen": 30,
       "armor": 5,
+      "armorType": "crystal",
       "radius": 1.3,
       "speed": 2.4,
       "sight": 9,
@@ -262,7 +329,8 @@
       "weapon": {
         "damage": 45,
         "range": 1.0,
-        "cooldown": 1.4
+        "cooldown": 1.4,
+        "type": "piercing"
       },
       "boss": {
         "title": "VOID WARDEN",
@@ -302,7 +370,10 @@
         "titan_heart"
       ],
       "maxHp": 7500,
+      "shield": 1000,
+      "shieldRegen": 60,
       "armor": 7,
+      "armorType": "crystal",
       "radius": 1.7,
       "speed": 2.1,
       "sight": 10,
@@ -311,7 +382,9 @@
       "weapon": {
         "damage": 70,
         "range": 1.2,
-        "cooldown": 1.5
+        "cooldown": 1.5,
+        "type": "energy",
+        "splash": 1.8
       },
       "boss": {
         "title": "VOID TITAN",
@@ -354,6 +427,7 @@
       "cost": 120,
       "maxHp": 500,
       "armor": 4,
+      "armorType": "heavy",
       "radius": 0.7,
       "speed": 4.0,
       "sight": 9,
@@ -370,7 +444,8 @@
         "damage": 35,
         "range": 6,
         "cooldown": 0.9,
-        "projectileSpeed": 22
+        "projectileSpeed": 22,
+        "type": "piercing"
       },
       "visual": {
         "shape": "cube",
@@ -389,6 +464,7 @@
       "cost": 60,
       "maxHp": 200,
       "armor": 1,
+      "armorType": "light",
       "radius": 0.45,
       "speed": 6.5,
       "sight": 10,
@@ -405,7 +481,8 @@
         "damage": 9,
         "range": 4,
         "cooldown": 0.3,
-        "projectileSpeed": 26
+        "projectileSpeed": 26,
+        "type": "kinetic"
       },
       "visual": {
         "shape": "sphere",
@@ -424,6 +501,7 @@
       "cost": 50,
       "maxHp": 160,
       "armor": 2,
+      "armorType": "light",
       "radius": 0.45,
       "speed": 4.5,
       "sight": 8,
@@ -452,7 +530,8 @@
         "damage": 14,
         "range": 4,
         "cooldown": 0.6,
-        "projectileSpeed": 24
+        "projectileSpeed": 24,
+        "type": "kinetic"
       },
       "visual": {
         "shape": "sphere",
@@ -463,7 +542,8 @@
           "weapon": "gnlmg1",
           "mount": "trlmg1"
         }
-      }
+      },
+      "armorType": "light"
     },
     {
       "id": "cannon_tower",
@@ -477,7 +557,8 @@
         "range": 10,
         "cooldown": 1.5,
         "projectileSpeed": 22,
-        "turnRate": 2.5
+        "turnRate": 2.5,
+        "type": "piercing"
       },
       "visual": {
         "shape": "cube",
@@ -541,6 +622,8 @@
       "name": "Void Citadel",
       "structure": true,
       "maxHp": 8000,
+      "shield": 800,
+      "shieldRegen": 20,
       "armor": 9,
       "radius": 2.0,
       "weapon": {
@@ -548,7 +631,8 @@
         "range": 11,
         "cooldown": 1.2,
         "projectileSpeed": 24,
-        "turnRate": 2.5
+        "turnRate": 2.5,
+        "type": "piercing"
       },
       "visual": {
         "shape": "cube",
@@ -572,7 +656,9 @@
         "range": 15,
         "cooldown": 2.2,
         "projectileSpeed": 13,
-        "turnRate": 2.0
+        "turnRate": 2.0,
+        "type": "explosive",
+        "splash": 2.2
       },
       "visual": {
         "shape": "cube",
@@ -663,7 +749,8 @@
         "damage": 13,
         "range": 8,
         "cooldown": 0.45,
-        "projectileSpeed": 30
+        "projectileSpeed": 30,
+        "type": "kinetic"
       },
       "visual": {
         "shape": "cylinder",
@@ -690,7 +777,9 @@
         "damage": 60,
         "range": 10,
         "cooldown": 1.6,
-        "projectileSpeed": 24
+        "projectileSpeed": 24,
+        "type": "piercing",
+        "splash": 0.8
       },
       "visual": {
         "shape": "cube",

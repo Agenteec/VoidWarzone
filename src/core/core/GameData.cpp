@@ -11,6 +11,23 @@ using nlohmann::json;
 
 namespace {
 
+constexpr const char* kDamageNames[] = {"kinetic", "piercing", "explosive", "energy", "emp"};
+constexpr const char* kArmorNames[] = {"light", "heavy", "structure", "crystal"};
+
+DamageType parseDamage(const std::string& name) {
+    for (int i = 0; i < static_cast<int>(DamageType::Count); ++i)
+        if (name == kDamageNames[i])
+            return static_cast<DamageType>(i);
+    throw std::runtime_error("unknown damage type: " + name);
+}
+
+ArmorType parseArmor(const std::string& name) {
+    for (int i = 0; i < static_cast<int>(ArmorType::Count); ++i)
+        if (name == kArmorNames[i])
+            return static_cast<ArmorType>(i);
+    throw std::runtime_error("unknown armor type: " + name);
+}
+
 StatMods parseMods(const json& j) {
     StatMods m;
     m.hp = j.value("hp", m.hp);
@@ -80,6 +97,14 @@ std::uint64_t fnv1a(std::string_view data, std::uint64_t seed) {
     return h;
 }
 
+const char* damageTypeName(DamageType t) {
+    return kDamageNames[std::min(static_cast<int>(t), static_cast<int>(DamageType::Count) - 1)];
+}
+
+const char* armorTypeName(ArmorType t) {
+    return kArmorNames[std::min(static_cast<int>(t), static_cast<int>(ArmorType::Count) - 1)];
+}
+
 GameData GameData::parse(std::string_view unitsText, std::string_view skillsText, std::string_view itemsText) {
     GameData d;
 
@@ -122,6 +147,15 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         }
 
     const json unitsJson = json::parse(unitsText);
+    if (const auto c = unitsJson.find("combat"); c != unitsJson.end()) {
+        const json hull = c->value("hull", json::object());
+        for (const auto& [dname, row] : hull.items())
+            for (const auto& [aname, v] : row.items())
+                d.combat_.hull[static_cast<int>(parseDamage(dname))][static_cast<int>(parseArmor(aname))] = v.get<float>();
+        const json shield = c->value("shield", json::object());
+        for (const auto& [dname, v] : shield.items())
+            d.combat_.shield[static_cast<int>(parseDamage(dname))] = v.get<float>();
+    }
     std::unordered_map<std::size_t, std::string> produceNames;
     for (const auto& u : unitsJson.at("units")) {
         UnitDef def;
@@ -138,6 +172,11 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         def.accel = u.value("accel", std::max(def.speed * 4.0f, 1.0f));
         def.turnRate = u.value("turnRate", def.turnRate);
         def.structure = u.value("structure", def.structure);
+        def.armorType = def.structure ? ArmorType::Structure : def.radius >= 0.65f ? ArmorType::Heavy : ArmorType::Light;
+        if (const auto at = u.find("armorType"); at != u.end())
+            def.armorType = parseArmor(at->get<std::string>());
+        def.shield = u.value("shield", def.shield);
+        def.shieldRegen = u.value("shieldRegen", def.shield * 0.05f);
         def.income = u.value("income", def.income);
         def.buildable = u.value("buildable", def.buildable);
         def.builder = u.value("builder", def.builder);
@@ -157,6 +196,8 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             wd.cooldown = w->value("cooldown", wd.cooldown);
             wd.projectileSpeed = w->value("projectileSpeed", wd.projectileSpeed);
             wd.turnRate = w->value("turnRate", def.structure ? 3.5f : 6.0f);
+            wd.type = parseDamage(w->value("type", "kinetic"));
+            wd.splash = w->value("splash", wd.splash);
             def.weapon = wd;
         }
         if (const auto b = u.find("boss"); b != u.end()) {

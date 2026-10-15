@@ -45,6 +45,8 @@ InterpolatedEntity toEntity(const EntityState& s) {
     e.target = {dequantizePos(s.tx), dequantizePos(s.ty)};
     e.hp = s.hp;
     e.maxHp = std::max<std::uint16_t>(s.maxHp, 1);
+    e.shield = s.shield;
+    e.flags = s.flags;
     e.rank = s.rank;
     return e;
 }

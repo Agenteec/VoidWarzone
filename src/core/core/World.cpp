@@ -115,7 +115,7 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     registry_.emplace<Team>(e, team);
     const bool enemy = team != 0;
     const float maxHp = def.maxHp * (enemy ? enemyHpScale() : 1.0f);
-    registry_.emplace<Health>(e, maxHp, maxHp, def.armor);
+    registry_.emplace<Health>(e, maxHp, maxHp, def.armor, -1, def.shield, def.shield, 0.0f);
     registry_.emplace<Target>(e);
     BaseStats base{maxHp, def.armor, def.speed};
     if (def.weapon) {
@@ -348,7 +348,10 @@ void World::step() {
     run([&] { updateTurrets(); });
     run([&] { updateWeapons(); });
     run([&] { updateProjectiles(); });
-    run([&] { removeDead(); });
+    run([&] {
+        updateShields();
+        removeDead();
+    });
     run([&] { updateResourcePoints(); });
     run([&] { updateDefense(); });
     times_.peak = std::max(times_.peak, std::chrono::duration<double>(last - begin).count());
@@ -713,14 +716,52 @@ void World::resolveCollisions() {
     }
 }
 
-void World::damage(entt::entity target, float amount, int sourceOwner, entt::entity source) {
+void World::damage(entt::entity target, float amount, int sourceOwner, entt::entity source, DamageType type) {
     if (registry_.all_of<Invulnerable>(target))
         return;
     auto& h = registry_.get<Health>(target);
-    h.hp -= std::max(1.0f, amount - h.armor);
+    const auto& combat = data_->combat();
+    if (h.shield > 0.0f) {
+        const float vs = std::max(combat.vsShield(type), 0.01f);
+        const float absorbed = std::min(h.shield, amount * vs);
+        h.shield -= absorbed;
+        amount -= absorbed / vs;
+        h.shieldDelay = 3.0f;
+    }
+    const float hull = amount * combat.vsHull(type, data_->unit(registry_.get<Unit>(target).def).armorType);
+    if (hull > 0.0f)
+        h.hp -= std::max(type == DamageType::Emp ? 0.0f : 1.0f, hull - h.armor);
     if (sourceOwner >= 0)
         h.lastHitBy = sourceOwner;
     events_.push_back({EventType::Hit, target, source, registry_.get<Position>(target).value, registry_.get<Position>(target).value});
+}
+
+void World::splashDamage(glm::vec2 at, float radius, float amount, std::uint8_t team, int owner, entt::entity source, DamageType type,
+                         entt::entity skip) {
+    if (radius <= 0.0f)
+        return;
+    std::vector<std::pair<entt::entity, float>> hits;
+    for (auto [e, pos, unit, t] : registry_.view<const Position, const Unit, const Team>().each()) {
+        if (t.id == team || e == skip || !alive(e))
+            continue;
+        const float d = glm::distance(pos.value, at) - unit.radius;
+        if (d < radius)
+            hits.emplace_back(e, amount * (1.0f - 0.5f * std::max(d, 0.0f) / radius));
+    }
+    for (const auto& [e, dmg] : hits)
+        damage(e, dmg, owner, source, type);
+}
+
+void World::updateShields() {
+    for (auto [e, h] : registry_.view<Health>().each()) {
+        if (h.shieldMax <= 0.0f || h.hp <= 0.0f)
+            continue;
+        if (h.shieldDelay > 0.0f) {
+            h.shieldDelay -= kTickDt;
+            continue;
+        }
+        h.shield = std::min(h.shieldMax, h.shield + data_->unit(registry_.get<Unit>(e).def).shieldRegen * kTickDt);
+    }
 }
 
 void World::updateTurrets() {
@@ -776,9 +817,11 @@ void World::updateWeapons() {
             const auto p = registry_.create();
             registry_.emplace<Position>(p, s.from);
             registry_.emplace<PrevPosition>(p, s.from);
-            registry_.emplace<Projectile>(p, Projectile{s.source, s.target, s.to, s.def.projectileSpeed, s.def.damage, s.team, s.owner, s.unit});
+            registry_.emplace<Projectile>(
+                p, Projectile{s.source, s.target, s.to, s.def.projectileSpeed, s.def.damage, s.def.type, s.def.splash, s.team, s.owner, s.unit});
         } else {
-            damage(s.target, s.def.damage, s.owner, s.source);
+            damage(s.target, s.def.damage, s.owner, s.source, s.def.type);
+            splashDamage(s.to, s.def.splash, s.def.damage, s.team, s.owner, s.source, s.def.type, s.target);
         }
     }
 }
@@ -795,7 +838,9 @@ void World::updateProjectiles() {
         if (dist <= step) {
             pos.value = proj.targetPos;
             if (targetAlive)
-                damage(proj.target, proj.damage, proj.owner, proj.source);
+                damage(proj.target, proj.damage, proj.owner, proj.source, proj.type);
+            splashDamage(proj.targetPos, proj.splash, proj.damage, proj.team, proj.owner, proj.source, proj.type,
+                         targetAlive ? proj.target : entt::null);
             done.push_back(e);
         } else {
             pos.value += d / dist * step;

@@ -328,8 +328,15 @@ void App::drawInspect() {
     std::snprintf(label, sizeof(label), "%u / %u", e->hp, e->maxHp);
     bar(frac, {w, 16.0f * s}, hpColor(frac), label);
     if (def.weapon)
-        ImGui::TextDisabled("damage %.0f  range %.1f  every %.1fs", def.weapon->damage, def.weapon->range, def.weapon->cooldown);
-    ImGui::TextDisabled("armor %.0f%s", def.armor, def.speed > 0.0f ? "" : "  structure");
+        ImGui::TextDisabled("%s damage %.0f%s  range %.1f  every %.1fs", damageTypeName(def.weapon->type), def.weapon->damage,
+                                def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown);
+    ImGui::TextDisabled("%s armor %.0f", armorTypeName(def.armorType), def.armor);
+    if (def.shield > 0.0f) {
+        ImGui::SameLine();
+        ImGui::TextColored({0.35f, 0.85f, 1.0f, 1.0f}, "shield %u / %.0f", e->shield, def.shield);
+    }
+    if (e->flags & net::kStateBuilding)
+        ImGui::TextColored(toVec(kEnergy), "under construction - right click with an engineer to help");
     if (def.speed > 0.0f) {
         ImGui::SameLine();
         ImGui::TextDisabled("speed %.1f", def.speed);

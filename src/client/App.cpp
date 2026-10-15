@@ -1243,6 +1243,18 @@ void App::renderWorld() {
             renderer_.draw(Mesh::Cube, {e.pos.x - barW * 0.5f + barW * frac * 0.5f, y, e.pos.y - 0.05f}, {barW * frac, 0.17f, 0.1f}, 0.0f,
                            hpColor, Unlit);
         }
+        if (const float shieldMax = data_->unit(e.def).shield; shieldMax > 0.0f && e.shield > 0) {
+            const float frac = std::clamp(static_cast<float>(e.shield) / shieldMax, 0.0f, 1.0f);
+            const float barW = std::max(1.0f, d);
+            const float y = height + 0.72f;
+            renderer_.draw(Mesh::Cube, {e.pos.x - barW * 0.5f + barW * frac * 0.5f, y, e.pos.y - 0.05f}, {barW * frac, 0.1f, 0.1f}, 0.0f,
+                           {0.35f, 0.85f, 1.0f, 1.0f}, Unlit);
+        }
+        if (e.flags & net::kStateBuilding) {
+            const float h = std::max(height, 1.0f) * (0.3f + 0.7f * std::clamp(static_cast<float>(e.hp) / maxHp, 0.0f, 1.0f));
+            renderer_.draw(Mesh::Cube, {e.pos.x, h * 0.5f, e.pos.y}, {d * 1.05f, h, d * 1.05f}, 0.0f, glm::vec4{0.85f, 0.55f, 1.0f, 0.3f},
+                           Unlit | Alpha);
+        }
     }
 
     std::erase_if(shells_, [](const auto& kv) { return !kv.second.seen; });

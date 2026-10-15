@@ -449,6 +449,8 @@ Snapshot Server::buildSnapshot() const {
         }
         st.hp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.hp), 0.0f, 65535.0f));
         st.maxHp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.max), 1.0f, 65535.0f));
+        st.shield = static_cast<std::uint16_t>(std::clamp(std::ceil(health.shield), 0.0f, 65535.0f));
+        st.flags = reg.all_of<Construction>(e) ? kStateBuilding : 0;
         s.entities.push_back(st);
     }
 

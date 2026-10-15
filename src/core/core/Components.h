@@ -46,6 +46,9 @@ struct Health {
     float max = 100.0f;
     float armor = 0.0f;
     int lastHitBy = -1;
+    float shield = 0.0f;
+    float shieldMax = 0.0f;
+    float shieldDelay = 0.0f;
 };
 
 struct Weapon {
@@ -134,6 +137,8 @@ struct Projectile {
     glm::vec2 targetPos{};
     float speed = 10.0f;
     float damage = 0.0f;
+    DamageType type = DamageType::Kinetic;
+    float splash = 0.0f;
     std::uint8_t team = 0;
     int owner = -1;
     UnitDefId def = kInvalidUnitDef;
