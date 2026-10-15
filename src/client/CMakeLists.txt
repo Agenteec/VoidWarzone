@@ -7,6 +7,7 @@ set(VW_CLIENT_SOURCES
     render/Mesh.cpp
     render/Pie.cpp
     render/Renderer.cpp
+    render/Gltf.cpp
     render/Shaders.cpp
     ui/ImGuiLayer.cpp
     Ui.cpp
@@ -62,7 +63,7 @@ endif()
 
 target_include_directories(vw_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${VW_SHADER_DIR} ${CMAKE_CURRENT_BINARY_DIR}/imgui_assets
                                               ${bgfx_SOURCE_DIR}/bgfx/3rdparty/iconfontheaders)
-target_link_libraries(vw_client PRIVATE vw_imgui vw_core vw_net vw_host SDL3::SDL3 bgfx bimg_decode bimg bx nlohmann_json::nlohmann_json spdlog::spdlog)
+target_link_libraries(vw_client PRIVATE cgltf vw_imgui vw_core vw_net vw_host SDL3::SDL3 bgfx bimg_decode bimg bx nlohmann_json::nlohmann_json spdlog::spdlog)
 if(ANDROID)
     target_link_libraries(vw_client PRIVATE EGL GLESv3 android log)
 endif()

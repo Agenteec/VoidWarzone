@@ -472,7 +472,7 @@ void Renderer::submitTextured(bool alpha) {
         if (instances.empty() || ((key.flags & Alpha) != 0) != alpha || key.mesh >= texMeshes_.size())
             continue;
         const auto& gpu = texMeshes_[key.mesh];
-        const float params[4] = {(key.flags & Unlit) ? 1.0f : 0.0f, (key.flags & Tint) ? 0.35f : 0.0f, 0.0f, 0.0f};
+        const float params[4] = {(key.flags & Unlit) ? 1.0f : 0.0f, (key.flags & Tint) ? 0.35f : 0.0f, (key.flags & Glow) ? 1.0f : 0.0f, (key.flags & Glow) ? 1.0f : 0.0f};
         const auto texture = textures_[key.texture];
         const auto mask = textures_[key.mask];
         submitInstances(kWorldView, texProgram_, alpha ? kAlphaState : kOpaqueState, instances, [&] {

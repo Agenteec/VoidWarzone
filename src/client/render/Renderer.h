@@ -33,6 +33,7 @@ enum DrawFlags : std::uint8_t {
     Alpha = 2,
     Tint = 4,
     NoShadow = 8,
+    Glow = 16,
 };
 
 struct TerrainVertex {

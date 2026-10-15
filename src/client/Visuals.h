@@ -21,6 +21,7 @@ struct Model {
     MeshId mesh = 0;
     TextureId texture = 0;
     TextureId mask = 0;
+    bool glow = false;
     glm::vec3 min{0.0f};
     glm::vec3 max{0.0f};
     std::vector<glm::vec3> connectors;
@@ -58,6 +59,7 @@ public:
 
     const Model* model(const std::string& name);
     TextureId texture(const std::string& file);
+    void loadGlb(const std::string& file);
 
 private:
     Renderer& renderer_;

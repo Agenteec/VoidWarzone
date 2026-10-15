@@ -1259,7 +1259,7 @@ void App::renderWorld() {
                     makeTurretMatrix(mtx, base, hullYaw, vis.pivot, e.aim + kModelYaw, part.pitch ? e.pitch : 0.0f, vis.scale * grow);
                 else
                     makeModelMatrix(mtx, base, hullYaw, vis.scale * grow, part.offset);
-                renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, Tint);
+                renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, part.model->glow ? Tint | Glow : Tint);
             }
             if (vis.parts.empty())
                 renderer_.draw(vis.shape, {e.pos.x, lift + bob + vis.height * 0.5f, e.pos.y}, {d, vis.height, d}, e.facing, color);
@@ -1276,7 +1276,7 @@ void App::renderWorld() {
                     makeTurretMatrix(mtx, base, hullYaw, vis.pivot, e.aim + kModelYaw, part.pitch ? e.pitch : 0.0f, vis.scale * grow);
                 else
                     makeModelMatrix(mtx, base, hullYaw, vis.scale * grow, part.offset);
-                renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, Tint);
+                renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, part.model->glow ? Tint | Glow : Tint);
             }
             renderModules(e, vis, base, grow, color);
         }

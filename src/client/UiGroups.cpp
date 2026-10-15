@@ -472,7 +472,7 @@ void App::renderModules(const net::InterpolatedEntity& e, const UnitVisual& vis,
                     continue;
                 makeTurretMatrix(mtx, base, hullYaw, pivot / kSmall, e.aim + kModelYaw, part == moduleLooks_[m].weapon ? e.pitch : 0.0f,
                                  vis.scale * grow * kSmall);
-                renderer_.drawMesh(part->mesh, part->texture, part->mask, mtx, color, Tint);
+                renderer_.drawMesh(part->mesh, part->texture, part->mask, mtx, color, part->glow ? Tint | Glow : Tint);
             }
         }
     }

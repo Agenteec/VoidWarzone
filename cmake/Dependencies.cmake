@@ -45,6 +45,12 @@ if(VW_BUILD_MASTER)
 endif()
 
 if(VW_BUILD_CLIENT)
+    CPMAddPackage(NAME cgltf GITHUB_REPOSITORY jkuhlmann/cgltf GIT_TAG v1.14 DOWNLOAD_ONLY YES)
+    if(cgltf_ADDED)
+        add_library(cgltf INTERFACE)
+        target_include_directories(cgltf SYSTEM INTERFACE ${cgltf_SOURCE_DIR})
+    endif()
+
     CPMAddPackage(NAME SDL3 GITHUB_REPOSITORY libsdl-org/SDL GIT_TAG release-3.4.16
         OPTIONS "SDL_SHARED OFF" "SDL_STATIC ON" "SDL_TEST_LIBRARY OFF" "SDL_EXAMPLES OFF")
 

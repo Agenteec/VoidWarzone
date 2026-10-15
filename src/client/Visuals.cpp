@@ -13,6 +13,7 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+#include "render/Gltf.h"
 #include "render/Pie.h"
 
 namespace vw::client {
@@ -21,6 +22,7 @@ namespace {
 
 constexpr const char* kModelDir = "data/wz2100/models/";
 constexpr const char* kTextureDir = "data/wz2100/textures/";
+constexpr const char* kGlbDir = "data/models/";
 
 std::string defaultMask(const std::string& page) {
     if (page.rfind("page-", 0) != 0)
@@ -85,11 +87,63 @@ TextureId ModelLibrary::texture(const std::string& file) {
     return id;
 }
 
+void ModelLibrary::loadGlb(const std::string& file) {
+    GltfModel glb;
+    try {
+        glb = parseGlb(load_(kGlbDir + file + ".glb"));
+    } catch (const std::exception& e) {
+        spdlog::warn("model {}: {}", file, e.what());
+    }
+    auto image = [&](const std::string& bytes, const std::string& uri, TextureId fallback) {
+        if (!bytes.empty())
+            return renderer_.createTexture(bytes.data(), static_cast<std::uint32_t>(bytes.size()));
+        if (uri.empty())
+            return fallback;
+        const std::string key = kGlbDir + uri;
+        if (const auto it = textures_.find(key); it != textures_.end())
+            return it->second;
+        TextureId id = fallback;
+        try {
+            const std::string data = load_(key);
+            id = renderer_.createTexture(data.data(), static_cast<std::uint32_t>(data.size()));
+        } catch (const std::exception& e) {
+            spdlog::warn("texture {}: {}", key, e.what());
+        }
+        textures_[key] = id;
+        return id;
+    };
+    const TextureId color = image(glb.color, glb.colorUri, renderer_.whiteTexture());
+    const TextureId mask = image(glb.mask, glb.maskUri, renderer_.blackTexture());
+    for (auto& [part, data] : glb.parts) {
+        auto m = std::make_unique<Model>();
+        m->mesh = renderer_.createMesh(data.vertices, data.indices);
+        m->texture = color;
+        m->mask = mask;
+        m->glow = true;
+        m->min = data.min;
+        m->max = data.max;
+        const auto point = glb.points.find(part == "hull" ? "pivot" : part == "barrel" ? "muzzle" : "");
+        if (point != glb.points.end())
+            m->connectors.push_back(point->second);
+        m->vertices = std::move(data.vertices);
+        m->indices = std::move(data.indices);
+        models_[file + ":" + part] = std::move(m);
+    }
+    models_.try_emplace(file + ":", nullptr);
+}
+
 const Model* ModelLibrary::model(const std::string& name) {
     if (name.empty())
         return nullptr;
     if (const auto it = models_.find(name); it != models_.end())
         return it->second.get();
+    if (const auto colon = name.find(':'); colon != std::string::npos) {
+        const std::string file = name.substr(0, colon);
+        if (!models_.contains(file + ":"))
+            loadGlb(file);
+        const auto it = models_.find(name);
+        return it != models_.end() ? it->second.get() : nullptr;
+    }
     std::unique_ptr<Model> result;
     try {
         const PieModel pie = parsePie(load_(kModelDir + name + ".pie"));
@@ -148,7 +202,24 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
             return model;
         };
         const Model* hull = nullptr;
-        if (const auto pie = m->find("pie"); pie != m->end()) {
+        if (const auto glb = m->find("glb"); glb != m->end()) {
+            const std::string file = glb->get<std::string>();
+            hull = add(file + ":hull", {}, true);
+            v.yaw = kModelYaw;
+            v.pivot = hull && !hull->connectors.empty() ? hull->connectors[0] : glm::vec3(0.0f, hi.y, 0.0f);
+            const std::string turretFile = m->value("turret", file);
+            if (const Model* turret = models.model(turretFile + ":turret")) {
+                v.parts.push_back({turret, {}, true, false});
+                hi.y = std::max(hi.y, v.pivot.y + turret->max.y);
+                v.turret = true;
+            }
+            if (const Model* barrel = models.model(turretFile + ":barrel")) {
+                v.parts.push_back({barrel, {}, true, true});
+                hi.y = std::max(hi.y, v.pivot.y + barrel->max.y);
+                v.muzzle = barrel->connectors.empty() ? glm::vec3(0.0f, (barrel->min.y + barrel->max.y) * 0.5f, barrel->min.z) : barrel->connectors[0];
+                v.turret = true;
+            }
+        } else if (const auto pie = m->find("pie"); pie != m->end()) {
             hull = add(pie->get<std::string>(), {}, true);
         } else {
             add(m->value("prop", ""), {}, true);
