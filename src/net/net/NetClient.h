@@ -43,6 +43,8 @@ struct InterpolatedEntity {
 struct UnitDeath {
     glm::vec2 pos{};
     std::uint8_t team = 0;
+    std::uint16_t def = 0;
+    std::uint8_t flags = 0;
 };
 
 class NetClient {

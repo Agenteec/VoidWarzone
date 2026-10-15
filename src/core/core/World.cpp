@@ -868,6 +868,20 @@ void World::splashDamage(glm::vec2 at, float radius, float amount, std::uint8_t 
         damage(e, dmg, owner, source, type);
 }
 
+void World::applySlow(entt::entity target, float move, float attack, float time) {
+    if (time <= 0.0f || !alive(target) || registry_.all_of<Structure>(target) || !registry_.all_of<BaseStats>(target))
+        return;
+    ActiveBuff buff;
+    buff.mods.speedMul = move;
+    buff.mods.attackSpeedMul = attack;
+    buff.remaining = time;
+    buff.skill = kFrostBuff;
+    auto& list = registry_.get_or_emplace<Buffs>(target).list;
+    std::erase_if(list, [](const ActiveBuff& b) { return b.skill == kFrostBuff; });
+    list.push_back(buff);
+    refreshStats(target);
+}
+
 void World::updateShields() {
     for (auto [e, h] : registry_.view<Health>().each()) {
         if (h.shieldMax <= 0.0f || h.hp <= 0.0f)
@@ -953,10 +967,11 @@ void World::updateWeapons() {
             const auto p = registry_.create();
             registry_.emplace<Position>(p, s.from);
             registry_.emplace<PrevPosition>(p, s.from);
-            registry_.emplace<Projectile>(
-                p, Projectile{s.source, s.target, s.to, s.def.projectileSpeed, s.def.damage, s.def.type, s.def.splash, s.team, s.owner, s.unit});
+            registry_.emplace<Projectile>(p, Projectile{s.source, s.target, s.to, s.def.projectileSpeed, s.def.damage, s.def.type, s.def.splash,
+                                                        s.def.slowMove, s.def.slowAttack, s.def.slowTime, s.team, s.owner, s.unit});
         } else {
             damage(s.target, s.def.damage, s.owner, s.source, s.def.type);
+            applySlow(s.target, s.def.slowMove, s.def.slowAttack, s.def.slowTime);
             splashDamage(s.to, s.def.splash, s.def.damage, s.team, s.owner, s.source, s.def.type, s.target);
         }
     }
@@ -974,7 +989,10 @@ void World::updateProjectiles() {
         if (dist <= step) {
             pos.value = proj.targetPos;
             if (targetAlive)
+            {
                 damage(proj.target, proj.damage, proj.owner, proj.source, proj.type);
+                applySlow(proj.target, proj.slowMove, proj.slowAttack, proj.slowTime);
+            }
             splashDamage(proj.targetPos, proj.splash, proj.damage, proj.team, proj.owner, proj.source, proj.type,
                          targetAlive ? proj.target : entt::null);
             done.push_back(e);

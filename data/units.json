@@ -54,14 +54,20 @@
         "cooldown": 1.0,
         "projectileSpeed": 18,
         "type": "piercing",
-        "targets": "both"
+        "targets": "both",
+        "slow": {
+          "move": 0.5,
+          "attack": 0.75,
+          "duration": 5
+        }
       },
       "visual": {
         "shape": "cube",
         "height": 4.0,
         "model": {
           "glb": "colony_core"
-        }
+        },
+        "shot": "frost"
       }
     },
     {
@@ -77,14 +83,20 @@
         "cooldown": 0.45,
         "projectileSpeed": 30,
         "type": "kinetic",
-        "targets": "both"
+        "targets": "both",
+        "slow": {
+          "move": 0.65,
+          "attack": 0.85,
+          "duration": 2
+        }
       },
       "visual": {
         "shape": "cylinder",
         "height": 3.0,
         "model": {
           "glb": "colony_mg_tower"
-        }
+        },
+        "shot": "frost"
       }
     },
     {
@@ -1471,14 +1483,20 @@
         "cooldown": 0.45,
         "projectileSpeed": 30,
         "type": "kinetic",
-        "targets": "both"
+        "targets": "both",
+        "slow": {
+          "move": 0.65,
+          "attack": 0.85,
+          "duration": 2
+        }
       },
       "visual": {
         "shape": "cylinder",
         "height": 3.0,
         "model": {
           "glb": "colony_mg_tower"
-        }
+        },
+        "shot": "frost"
       },
       "buildTime": 8
     },

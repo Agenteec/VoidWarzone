@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <random>
 #include <set>
 #include <string>
 #include <string_view>
@@ -277,7 +278,36 @@ private:
         glm::vec2 start;
         float lob;
         bool seen;
+        bool frost = false;
+        float frostScale = 1.0f;
+        glm::vec3 last{};
     };
+    enum class ParticleKind : std::uint8_t { Glow, Smoke, Debris, Shard, Decal };
+    struct Particle {
+        glm::vec3 pos;
+        glm::vec3 vel;
+        glm::vec4 color;
+        float size0;
+        float size1;
+        float life;
+        float t;
+        float gravity;
+        float drag;
+        float spin;
+        ParticleKind kind;
+    };
+    std::vector<Particle> particles_;
+    std::mt19937 fxRng_{12345u};
+    float fxRandom(float lo, float hi);
+    glm::vec3 fxDirection(float up);
+    int fxCount(float n) const;
+    void addParticle(const Particle& p);
+    void spawnExplosion(glm::vec3 at, float size, bool structure, bool voidSide, glm::vec4 hull);
+    void spawnFrostBurst(glm::vec3 at, float scale);
+    void renderFrostShot(const net::InterpolatedEntity& e, glm::vec3 p, float scale);
+    void updateParticles(float dt);
+    void renderParticles();
+    void onUnitDeath(const net::UnitDeath& d);
     std::unordered_map<std::uint32_t, Shell> shells_;
     std::string banner_;
     float bannerTime_ = 0.0f;

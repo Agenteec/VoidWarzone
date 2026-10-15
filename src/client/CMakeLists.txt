@@ -14,6 +14,7 @@ set(VW_CLIENT_SOURCES
     UiDesktop.cpp
     UiDock.cpp
     UiGroups.cpp
+    UiFx.cpp
     UiGuide.cpp
     UiMenu.cpp
 )

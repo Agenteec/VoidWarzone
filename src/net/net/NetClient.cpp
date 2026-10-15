@@ -375,7 +375,7 @@ bool NetClient::onSnapshot(Reader& r) {
         if (const Snapshot* prev = latest())
             for (const auto& e : prev->entities)
                 if (e.kind == EntityKind::Unit && !snap.find(e.id))
-                    deaths_.push_back({{dequantizePos(e.x), dequantizePos(e.y)}, e.team});
+                    deaths_.push_back({{dequantizePos(e.x), dequantizePos(e.y)}, e.team, e.def, e.flags});
         events_.insert(events_.end(), snap.events.begin(), snap.events.end());
         latestTick_ = snap.tick;
     }

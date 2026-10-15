@@ -214,6 +214,7 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
         const auto& def = data.unit(id);
         v.shape = parseShape(it->value("shape", "cube"));
         v.crystalShot = it->value("shot", "") == "crystal";
+        v.frostShot = it->value("shot", "") == "frost";
         v.height = it->value("height", v.height);
 
         const auto m = it->find("model");

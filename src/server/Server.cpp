@@ -455,7 +455,11 @@ Snapshot Server::buildSnapshot() const {
         if (const auto* modules = reg.try_get<Modules>(e))
             for (std::size_t i = 0; i < 3; ++i)
                 st.modules[i] = modules->slots[i] < 0xff ? static_cast<std::uint8_t>(modules->slots[i]) : 0xff;
-        st.flags = static_cast<std::uint8_t>((reg.all_of<Construction>(e) ? kStateBuilding : 0) | (reg.all_of<Carried>(e) ? kStateCarried : 0));
+        bool frozen = false;
+        if (const auto* buffs = reg.try_get<Buffs>(e))
+            frozen = std::any_of(buffs->list.begin(), buffs->list.end(), [](const ActiveBuff& b) { return b.skill == kFrostBuff; });
+        st.flags = static_cast<std::uint8_t>((reg.all_of<Construction>(e) ? kStateBuilding : 0) | (reg.all_of<Carried>(e) ? kStateCarried : 0) |
+                                             (frozen ? kStateFrozen : 0));
         s.entities.push_back(st);
     }
 

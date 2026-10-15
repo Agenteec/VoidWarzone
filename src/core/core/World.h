@@ -30,6 +30,7 @@ inline constexpr int kHeroShards = 2;
 inline constexpr int kMaxHeroes = 3;
 inline constexpr int kMaxHeroLevel = 10;
 inline constexpr std::size_t kMaxSkills = 4;
+inline constexpr SkillId kFrostBuff = 0xfffe;
 inline constexpr std::uint8_t kMaxSkillLevel = 3;
 inline constexpr std::size_t kStashSize = 12;
 
@@ -196,6 +197,7 @@ private:
     void splashDamage(glm::vec2 at, float radius, float amount, std::uint8_t team, int owner, entt::entity source, DamageType type,
                       entt::entity skip);
     void updateShields();
+    void applySlow(entt::entity target, float move, float attack, float time);
 
     const GameData* data_ = nullptr;
     const Map* map_ = nullptr;

@@ -47,6 +47,7 @@ struct NetEvent {
 inline constexpr std::uint32_t kNoEntity = 0xffffffffu;
 inline constexpr std::uint8_t kStateBuilding = 1;
 inline constexpr std::uint8_t kStateCarried = 2;
+inline constexpr std::uint8_t kStateFrozen = 4;
 
 struct PointInfo {
     std::int8_t control = 0;

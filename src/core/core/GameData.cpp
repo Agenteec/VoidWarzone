@@ -39,6 +39,11 @@ WeaponDef parseWeapon(const json& w, bool structure) {
     wd.splash = w.value("splash", wd.splash);
     const std::string targets = w.value("targets", "ground");
     wd.targets = targets == "both" ? 3 : targets == "air" ? 2 : 1;
+    if (const auto slow = w.find("slow"); slow != w.end()) {
+        wd.slowMove = slow->value("move", wd.slowMove);
+        wd.slowAttack = slow->value("attack", wd.slowAttack);
+        wd.slowTime = slow->value("duration", 2.0f);
+    }
     return wd;
 }
 

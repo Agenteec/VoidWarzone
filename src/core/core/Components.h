@@ -160,6 +160,9 @@ struct Projectile {
     float damage = 0.0f;
     DamageType type = DamageType::Kinetic;
     float splash = 0.0f;
+    float slowMove = 1.0f;
+    float slowAttack = 1.0f;
+    float slowTime = 0.0f;
     std::uint8_t team = 0;
     int owner = -1;
     UnitDefId def = kInvalidUnitDef;

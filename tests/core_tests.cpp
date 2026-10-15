@@ -368,3 +368,22 @@ TEST_CASE("air units, anti-air and transports") {
     run(0.2f);
     CHECK_FALSE(reg.valid(a));
 }
+
+TEST_CASE("frost shots slow their target") {
+    const auto data = vw::GameData::parse(R"({"units":[
+        {"id":"frost","structure":true,"maxHp":500,"radius":1,"weapon":{"damage":5,"range":8,"cooldown":0.5,"projectileSpeed":20,"slow":{"move":0.5,"attack":0.75,"duration":3}}},
+        {"id":"runner","maxHp":5000,"radius":0.5,"speed":4,"sight":2}
+    ]})");
+    vw::Map map(40, 40);
+    vw::World world(data, map);
+    auto& reg = world.registry();
+    world.spawn(data.find("frost"), 0, {10.5f, 10.5f});
+    const auto runner = world.spawn(data.find("runner"), 1, {15.5f, 10.5f});
+    for (int i = 0; i < vw::kTickRate * 2; ++i)
+        world.step();
+    CHECK(reg.get<vw::Unit>(runner).speed == doctest::Approx(2.0f));
+    reg.destroy(*reg.view<vw::Structure>().begin());
+    for (int i = 0; i < vw::kTickRate * 4; ++i)
+        world.step();
+    CHECK(reg.get<vw::Unit>(runner).speed == doctest::Approx(4.0f));
+}

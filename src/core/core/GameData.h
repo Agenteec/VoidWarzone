@@ -47,6 +47,9 @@ struct WeaponDef {
     DamageType type = DamageType::Kinetic;
     float splash = 0.0f;
     std::uint8_t targets = 1;
+    float slowMove = 1.0f;
+    float slowAttack = 1.0f;
+    float slowTime = 0.0f;
     float damage = 0.0f;
     float range = 0.0f;
     float cooldown = 1.0f;

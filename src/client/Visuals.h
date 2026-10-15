@@ -54,6 +54,7 @@ struct UnitVisual {
     std::vector<glm::vec3> tips;
     glm::vec4 gate{0.0f};
     bool crystalShot = false;
+    bool frostShot = false;
 };
 
 inline constexpr float kModelYaw = 1.5707963f;

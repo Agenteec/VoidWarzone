@@ -1113,7 +1113,8 @@ void App::updateGame(float dt) {
     for (const auto& ev : net_.takeEvents())
         handleNetEvent(ev);
     for (const auto& d : net_.takeDeaths())
-        addEffect(Mesh::Sphere, {d.pos.x, 0.6f, d.pos.y}, {1.0f, 0.8f, 0.4f, 0.7f}, 1.0f, 3.5f, 0.45f);
+        onUnitDeath(d);
+    updateParticles(dt);
     bannerTime_ = std::max(0.0f, bannerTime_ - dt);
 
     for (auto& [id, s] : shells_)
@@ -1186,11 +1187,11 @@ glm::vec4 App::playerColor(std::uint8_t owner) const {
 }
 
 glm::vec4 App::unitColor(const net::InterpolatedEntity& e) const {
-    if (e.owner != net::kNoOwner)
-        return playerColor(e.owner);
-    glm::vec4 c = kTeamColors[e.team & 1];
-    if (data_->unit(e.def).structure)
+    glm::vec4 c = e.owner != net::kNoOwner ? playerColor(e.owner) : kTeamColors[e.team & 1];
+    if (e.owner == net::kNoOwner && data_->unit(e.def).structure)
         c = glm::vec4(glm::vec3(c) * 0.7f, 1.0f);
+    if (e.flags & net::kStateFrozen)
+        c = glm::vec4(glm::mix(glm::vec3(c), glm::vec3(0.75f, 0.9f, 1.0f), 0.55f), 1.0f);
     return c;
 }
 
@@ -1240,6 +1241,14 @@ void App::renderWorld() {
             continue;
         if (e.kind == net::EntityKind::Projectile) {
             const glm::vec3 p = projectilePos(e);
+            if (e.def < visuals_.size() && visuals_[e.def].frostShot) {
+                auto& shell = shells_[e.id];
+                shell.frost = true;
+                shell.frostScale = data_->unit(e.def).structure && data_->unit(e.def).radius > 2.0f ? 1.5f : 1.0f;
+                shell.last = p;
+                renderFrostShot(e, p, shell.frostScale);
+                continue;
+            }
             if (e.def < visuals_.size() && visuals_[e.def].crystalShot) {
                 const float pulse = 0.85f + 0.15f * std::sin(static_cast<float>(now_) * 30.0f + static_cast<float>(e.id));
                 const glm::vec2 back = glm::length(e.target - e.pos) > 1e-3f ? glm::normalize(e.pos - e.target) : glm::vec2(0.0f);
@@ -1346,7 +1355,11 @@ void App::renderWorld() {
         }
     }
 
+    for (const auto& [id, shell] : shells_)
+        if (!shell.seen && shell.frost)
+            spawnFrostBurst(shell.last, shell.frostScale);
     std::erase_if(shells_, [](const auto& kv) { return !kv.second.seen; });
+    renderParticles();
     renderResourcePoints();
 
     for (const auto& fx : effects_) {
@@ -1447,8 +1460,15 @@ void App::handleNetEvent(const net::NetEvent& ev) {
                 shooter = &u;
             }
         }
-        if (shooter && visuals_[shooter->def].crystalShot)
+        if (shooter && visuals_[shooter->def].crystalShot) {
             crystalFire(*shooter);
+        } else if (shooter && visuals_[shooter->def].frostShot) {
+            const glm::vec3 m = muzzleOf(*shooter);
+            addParticle({m, {}, {0.85f, 0.95f, 1.0f, 1.0f}, 0.9f, 0.1f, 0.14f, 0.0f, 0.0f, 0.0f, 0.0f, ParticleKind::Glow});
+            for (int i = 0; i < fxCount(5.0f); ++i)
+                addParticle({m, fxDirection(-0.3f) * fxRandom(1.0f, 2.5f), {0.35f, 0.7f, 1.0f, 1.0f}, 0.08f, 0.02f, 0.3f, 0.0f, 2.0f, 1.0f, 0.0f,
+                             ParticleKind::Shard});
+        }
         else if (shooter)
             addEffect(Mesh::Sphere, muzzleOf(*shooter), {1.0f, 0.85f, 0.4f, 0.9f}, 0.25f, 0.7f, 0.09f);
         break;
