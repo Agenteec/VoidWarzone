@@ -233,6 +233,39 @@
           }
         }
       ]
+    },
+    {
+      "id": "radar_aura2",
+      "name": "Sensor Net",
+      "passive": true,
+      "effects": [
+        {
+          "type": "aura",
+          "radius": 12,
+          "who": "allies",
+          "mods": {
+            "range": 2.5,
+            "damageMul": 1.12
+          }
+        }
+      ]
+    },
+    {
+      "id": "command_link2",
+      "name": "Battle Command",
+      "passive": true,
+      "effects": [
+        {
+          "type": "aura",
+          "radius": 10,
+          "who": "allies",
+          "mods": {
+            "damageMul": 1.22,
+            "speedMul": 1.15,
+            "armor": 2
+          }
+        }
+      ]
     }
   ]
 }

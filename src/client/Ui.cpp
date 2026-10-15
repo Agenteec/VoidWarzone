@@ -56,6 +56,10 @@ void App::drawHud() {
         drawDesktopHud();
     if (showStats_)
         drawStats();
+    drawFloaters();
+    drawLevelUps();
+    if (guideOpen_)
+        drawGuide();
 
     const float s = uiScale();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
@@ -619,6 +623,10 @@ void App::drawPauseMenu() {
     ImGui::Spacing();
     if (accentButton(ICON_FA_PLAY "  Resume", {full, 44.0f * s}))
         pauseOpen_ = false;
+    if (ImGui::Button(ICON_FA_BOOK "  Guide  [F1]", {full, 36.0f * s})) {
+        pauseOpen_ = false;
+        guideOpen_ = true;
+    }
     ImGui::Spacing();
     drawSettings();
     ImGui::Spacing();

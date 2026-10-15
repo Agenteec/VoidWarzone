@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <SDL3/SDL_events.h>
+#include <imgui.h>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -47,6 +48,7 @@ struct LaunchOptions {
     float uiScale = 0.0f;
     bool touch = false;
     std::string renderer;
+    int guide = -1;
     std::optional<glm::vec2> camera;
     float zoom = 0.0f;
     int shadows = -1;
@@ -77,7 +79,33 @@ private:
         float to;
         float life;
         float t = 0.0f;
+        float rise = 0.0f;
+        float delay = 0.0f;
     };
+    struct Floater {
+        glm::vec3 pos;
+        std::string text;
+        std::uint32_t color;
+        float t = 0.0f;
+        float life = 2.2f;
+    };
+    struct Known {
+        std::uint8_t rank = 0;
+        std::uint8_t level = 0;
+    };
+    std::vector<Floater> floaters_;
+    std::unordered_map<std::uint32_t, Known> known_;
+    std::set<std::uint32_t> unseen_;
+    bool refitDot_ = false;
+    bool modulesDot_ = false;
+    bool guideOpen_ = false;
+    int guideTab_ = 0;
+    void trackLevelUps();
+    void levelUpEffect(glm::vec2 pos, const std::string& label);
+    void drawFloaters();
+    void drawLevelUps();
+    void drawGuide();
+    static void redDot(ImDrawList* dl, ImVec2 at, float radius);
 
     void loadContent();
     void setScreen(Screen screen);

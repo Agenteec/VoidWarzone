@@ -289,6 +289,8 @@ void App::drawGroupBar() {
         ImGui::PushStyleColor(ImGuiCol_Button, group.empty() ? ImVec4{0.12f, 0.13f, 0.16f, 0.7f} : ImVec4{0.16f, 0.32f, 0.45f, 0.9f});
         const bool clicked = ImGui::Button(label, size);
         ImGui::PopStyleColor();
+        if (std::any_of(group.begin(), group.end(), [&](std::uint32_t id) { return unseen_.contains(id); }))
+            redDot(ImGui::GetWindowDrawList(), {ImGui::GetItemRectMax().x - 4.0f * s, ImGui::GetItemRectMin().y + 4.0f * s}, 4.0f * s);
         const bool hold = ImGui::IsItemActive() && ImGui::GetIO().MouseDownDuration[0] > 0.5f;
         if (hold && !groupHeld_) {
             groupHeld_ = true;
@@ -498,6 +500,93 @@ void App::renderSkillPreview() {
     const bool inRange = skill.range <= 0.0f || glm::distance(*ground, caster->pos) <= skill.range + 0.5f;
     const glm::vec4 color = inRange ? glm::vec4{1.0f, 0.7f, 0.2f, 0.3f} : glm::vec4{1.0f, 0.2f, 0.2f, 0.3f};
     renderer_.draw(Mesh::Cylinder, {ground->x, 0.04f, ground->y}, {radius * 2.0f, 0.04f, radius * 2.0f}, 0.0f, color, Unlit | Alpha);
+}
+
+}
+
+namespace vw::client {
+
+void App::redDot(ImDrawList* dl, ImVec2 at, float radius) {
+    dl->AddCircleFilled(at, radius + 1.5f, IM_COL32(20, 10, 10, 220));
+    dl->AddCircleFilled(at, radius, IM_COL32(235, 45, 45, 255));
+}
+
+void App::levelUpEffect(glm::vec2 pos, const std::string& label) {
+    for (int i = 0; i < 3; ++i) {
+        Effect ring{Mesh::Cylinder, {pos.x, 0.15f, pos.y}, {1.0f, 0.82f, 0.25f, 0.85f}, 0.6f, 2.6f, 0.9f};
+        ring.rise = 2.2f;
+        ring.delay = 0.18f * static_cast<float>(i);
+        effects_.push_back(ring);
+    }
+    Effect beam{Mesh::Cube, {pos.x, 1.6f, pos.y}, {1.0f, 0.9f, 0.45f, 0.55f}, 3.0f, 3.4f, 0.7f};
+    effects_.push_back(beam);
+    addEffect(Mesh::Sphere, {pos.x, 0.8f, pos.y}, {1.0f, 0.85f, 0.3f, 0.6f}, 0.4f, 2.6f, 0.5f);
+    floaters_.push_back({{pos.x, 2.2f, pos.y}, label, IM_COL32(255, 214, 90, 255)});
+}
+
+void App::trackLevelUps() {
+    const auto* latest = net_.latest();
+    if (!latest)
+        return;
+    std::set<std::uint32_t> present;
+    for (const auto& u : latest->view.units) {
+        present.insert(u.id);
+        const auto it = known_.find(u.id);
+        if (it != known_.end() && (u.rank > it->second.rank || (u.rank == it->second.rank && u.level > it->second.level))) {
+            if (const auto* e = findEntity(u.id)) {
+                static constexpr const char* kRanks[] = {"RECRUIT", "VETERAN", "ELITE", "HERO"};
+                const std::string label = u.rank > it->second.rank ? kRanks[std::min<int>(u.rank, 3)] : "LEVEL " + std::to_string(u.level);
+                levelUpEffect(e->pos, ICON_FA_ARROW_UP " " + label);
+            }
+            if (std::find(selected_.begin(), selected_.end(), u.id) == selected_.end())
+                unseen_.insert(u.id);
+            if (u.rank > it->second.rank && u.rank >= static_cast<std::uint8_t>(Rank::Veteran))
+                modulesDot_ = true;
+            if (u.rank > it->second.rank && u.rank >= static_cast<std::uint8_t>(Rank::Elite) && !data_->refitOptions(findEntity(u.id) ? findEntity(u.id)->def : 0).empty())
+                refitDot_ = true;
+        }
+        known_[u.id] = {u.rank, u.level};
+    }
+    std::erase_if(known_, [&](const auto& kv) { return !present.contains(kv.first); });
+    std::erase_if(unseen_, [&](std::uint32_t id) {
+        return !present.contains(id) || std::find(selected_.begin(), selected_.end(), id) != selected_.end();
+    });
+}
+
+void App::drawFloaters() {
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    const float size = 22.0f * uiScale();
+    for (const auto& f : floaters_) {
+        const float k = f.t / f.life;
+        const glm::vec2 p = camera_.worldToScreen({f.pos.x, f.pos.y + k * 2.5f, f.pos.z});
+        const ImVec2 ts = ui_.bold()->CalcTextSizeA(size, FLT_MAX, 0.0f, f.text.c_str());
+        const int alpha = static_cast<int>(255.0f * std::clamp(1.0f - k * k, 0.0f, 1.0f));
+        const ImVec2 at{p.x - ts.x * 0.5f, p.y - ts.y};
+        dl->AddText(ui_.bold(), size, {at.x + 2.0f, at.y + 2.0f}, IM_COL32(0, 0, 0, alpha * 2 / 3), f.text.c_str());
+        dl->AddText(ui_.bold(), size, at, (f.color & 0x00ffffffu) | (static_cast<std::uint32_t>(alpha) << 24), f.text.c_str());
+    }
+}
+
+void App::drawLevelUps() {
+    if (unseen_.empty())
+        return;
+    const float s = uiScale();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowPos({display.x * 0.5f, display.y - hudBottom_ - 52.0f * s}, ImGuiCond_Always, {0.5f, 1.0f});
+    ImGui::SetNextWindowBgAlpha(0.8f);
+    ImGui::Begin("##levelups", nullptr, kHudFlags);
+    char label[64];
+    std::snprintf(label, sizeof(label), ICON_FA_ARROW_UP "  %d unit%s promoted", static_cast<int>(unseen_.size()), unseen_.size() > 1 ? "s" : "");
+    if (ImGui::Button(label)) {
+        const std::uint32_t id = *unseen_.begin();
+        selected_ = {id};
+        if (const auto* e = findEntity(id))
+            camera_.target = e->pos;
+    }
+    redDot(ImGui::GetWindowDrawList(), {ImGui::GetItemRectMax().x - 3.0f * s, ImGui::GetItemRectMin().y + 3.0f * s}, 5.0f * s);
+    ImGui::SetItemTooltip("Click to select it - new modules, refits or skills may be available");
+    trackWindow();
+    ImGui::End();
 }
 
 }

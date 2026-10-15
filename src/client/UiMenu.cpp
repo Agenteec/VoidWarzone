@@ -134,6 +134,8 @@ void App::drawMenu() {
         if (settingsOpen_ && screen_ != Screen::Menu)
             handleMenuKey(SDLK_ESCAPE);
     }
+    if (menuButton(ICON_FA_BOOK "   Guide", guideOpen_, full, h))
+        guideOpen_ = !guideOpen_;
     if (menuButton(ICON_FA_POWER_OFF "   Quit", false, full, h))
         running_ = false;
     ImGui::EndDisabled();
@@ -158,6 +160,8 @@ void App::drawMenu() {
         drawMenuPage();
         ImGui::End();
     }
+    if (guideOpen_)
+        drawGuide();
 }
 
 void App::drawMenuPage() {

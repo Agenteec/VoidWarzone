@@ -263,6 +263,10 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
     spdlog::info("Void Warzone {} | {} | content loaded in {:.2f}s", kVersion, renderer_.name(), now_ - start);
 
     startUpnp();
+    if (options_.guide >= 0) {
+        guideOpen_ = true;
+        guideTab_ = options_.guide;
+    }
     if (options_.host) {
         autoStart_ = true;
         startHost(true);
@@ -831,7 +835,9 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         prediction_.cancel(selected_);
         net_.sendCommand(StopCommand{selectedEntities(), key == SDLK_H});
     } else if (key == SDLK_ESCAPE) {
-        if (pauseOpen_) {
+        if (guideOpen_) {
+            guideOpen_ = false;
+        } else if (pauseOpen_) {
             pauseOpen_ = false;
         } else if ((orderArm_ != Arm::None) || armedSkill_ >= 0 || buildArmed_ >= 0) {
             orderArm_ = Arm::None;
@@ -853,6 +859,8 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         pauseOpen_ = !pauseOpen_;
     } else if ((key == SDLK_RETURN || key == SDLK_KP_ENTER) && !touchLayout()) {
         chatOpen_ = true;
+    } else if (key == SDLK_F1) {
+        guideOpen_ = !guideOpen_;
     } else if (key == SDLK_F3) {
         showStats_ = !showStats_;
         saveSettings();
@@ -1112,7 +1120,11 @@ void App::updateGame(float dt) {
         s.seen = false;
     for (auto& fx : effects_)
         fx.t += dt;
-    std::erase_if(effects_, [](const Effect& fx) { return fx.t >= fx.life; });
+    std::erase_if(effects_, [](const Effect& fx) { return fx.t >= fx.life + fx.delay; });
+    for (auto& f : floaters_)
+        f.t += dt;
+    std::erase_if(floaters_, [](const Floater& f) { return f.t >= f.life; });
+    trackLevelUps();
 
     pruneSelection();
     updateCamera(dt);
@@ -1322,14 +1334,20 @@ void App::renderWorld() {
     renderResourcePoints();
 
     for (const auto& fx : effects_) {
-        const float k = fx.t / fx.life;
+        const float local = fx.t - fx.delay;
+        if (local < 0.0f)
+            continue;
+        const float k = local / fx.life;
         glm::vec4 c = fx.color;
         c.a *= 1.0f - k * k;
         const float s = fx.from + (fx.to - fx.from) * k;
+        const glm::vec3 p{fx.pos.x, fx.pos.y + fx.rise * local, fx.pos.z};
         if (fx.mesh == Mesh::Cylinder)
-            renderer_.draw(Mesh::Cylinder, fx.pos, {s, 0.03f, s}, 0.0f, c, Unlit | Alpha);
+            renderer_.draw(Mesh::Cylinder, p, {s, 0.03f, s}, 0.0f, c, Unlit | Alpha);
+        else if (fx.mesh == Mesh::Cube)
+            renderer_.draw(Mesh::Cube, p, {0.12f, s, 0.12f}, 0.0f, c, Unlit | Alpha);
         else
-            renderer_.draw(fx.mesh, fx.pos, glm::vec3(s), 0.0f, c, Unlit | Alpha);
+            renderer_.draw(fx.mesh, p, glm::vec3(s), 0.0f, c, Unlit | Alpha);
     }
 
     renderBuildGhost();

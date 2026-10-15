@@ -244,7 +244,8 @@ void World::handle(const RefitCommand& cmd) {
         return;
     auto& unit = registry_.get<Unit>(cmd.unit);
     const auto& variant = data_->unit(cmd.variant);
-    if (cmd.variant == unit.def || variant.refitFrom == kInvalidUnitDef || variant.refitFrom != data_->baseOf(unit.def))
+    const auto options = data_->refitOptions(unit.def);
+    if (std::find(options.begin(), options.end(), cmd.variant) == options.end() || static_cast<int>(prog->rank) < variant.refitRank)
         return;
     auto& player = players_[cmd.player];
     if (player.energy < variant.refitCost)

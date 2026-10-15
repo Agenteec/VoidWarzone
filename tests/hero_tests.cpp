@@ -246,6 +246,17 @@ TEST_CASE("refit elite vehicles into classes") {
         world.step();
     CHECK(reg.get<Health>(tower).hp > 130.0f);
 
+    world.apply(RefitCommand{0, tank, data.find("tank_mechanic")});
+    CHECK(reg.get<Unit>(tank).def == data.find("tank_repair"));
+    reg.get<Progression>(tank).rank = Rank::Hero;
+    world.apply(RefitCommand{0, tank, data.find("tank_siege")});
+    CHECK(reg.get<Unit>(tank).def == data.find("tank_repair"));
+    world.apply(RefitCommand{0, tank, data.find("tank_mechanic")});
+    CHECK(reg.get<Unit>(tank).def == data.find("tank_mechanic"));
+    CHECK(data.refitTier(data.find("tank_mechanic")) == 2);
+    world.apply(RefitCommand{0, tank, data.find("tank_radar")});
+    CHECK(reg.get<Unit>(tank).def == data.find("tank_mechanic"));
+    reg.get<Unit>(tank).def = data.find("tank_repair");
     world.apply(RefitCommand{0, tank, data.find("tank_radar")});
     const auto ally = world.spawn(data.find("tank"), 0, {22.5f, 22.5f}, 0);
     for (int i = 0; i < kTickRate; ++i)

@@ -130,6 +130,15 @@ const char* moduleSlotName(ModuleSlot s) {
     return s == ModuleSlot::Weapon ? "weapon" : s == ModuleSlot::System ? "system" : "armor";
 }
 
+std::vector<UnitDefId> GameData::refitOptions(UnitDefId current) const {
+    auto out = refits(current);
+    if (units_[current].refitFrom != kInvalidUnitDef)
+        for (const auto s : refits(units_[current].refitFrom))
+            if (s != current)
+                out.push_back(s);
+    return out;
+}
+
 const char* damageTypeName(DamageType t) {
     return kDamageNames[std::min(static_cast<int>(t), static_cast<int>(DamageType::Count) - 1)];
 }
@@ -238,6 +247,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         if (const auto rf = u.find("refit"); rf != u.end()) {
             refitNames.emplace(d.units_.size(), rf->at("from").get<std::string>());
             def.refitCost = rf->value("cost", def.refitCost);
+            def.refitRank = rf->value("rank", "elite") == "hero" ? 3 : 2;
         }
         for (const auto& a : u.value("auras", json::array())) {
             const auto it = skillIndex.find(a.get<std::string>());

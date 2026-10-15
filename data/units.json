@@ -545,6 +545,49 @@
       }
     },
     {
+      "id": "tank_siege",
+      "name": "Siege Tank",
+      "maxHp": 1150,
+      "armor": 9,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 2.9,
+      "sight": 9,
+      "accel": 3.2,
+      "turnRate": 2.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura",
+        "artillery_strike"
+      ],
+      "weapon": {
+        "type": "piercing",
+        "damage": 95,
+        "range": 7,
+        "cooldown": 1.5,
+        "projectileSpeed": 20,
+        "splash": 1.0
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drhbod10",
+          "prop": "prhtrk3",
+          "weapon": "gnhcan",
+          "mount": "trhcan"
+        }
+      },
+      "refit": {
+        "from": "tank_assault",
+        "cost": 220,
+        "rank": "hero"
+      }
+    },
+    {
       "id": "tank_rocket",
       "name": "Rocket Tank",
       "maxHp": 420,
@@ -584,6 +627,93 @@
       "refit": {
         "from": "tank",
         "cost": 160
+      }
+    },
+    {
+      "id": "tank_artillery",
+      "name": "Artillery Tank",
+      "maxHp": 480,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.0,
+      "sight": 9,
+      "accel": 5.0,
+      "turnRate": 3.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura",
+        "artillery_strike"
+      ],
+      "weapon": {
+        "type": "explosive",
+        "damage": 95,
+        "range": 13,
+        "cooldown": 3.0,
+        "projectileSpeed": 16,
+        "splash": 2.4
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drmbod05",
+          "prop": "prmtrk2",
+          "weapon": "gnmcan",
+          "mount": "trmcan"
+        }
+      },
+      "refit": {
+        "from": "tank_rocket",
+        "cost": 240,
+        "rank": "hero"
+      }
+    },
+    {
+      "id": "tank_missile",
+      "name": "Missile Tank",
+      "maxHp": 520,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.0,
+      "sight": 9,
+      "accel": 5.0,
+      "turnRate": 3.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura",
+        "artillery_strike"
+      ],
+      "weapon": {
+        "type": "explosive",
+        "damage": 40,
+        "range": 10,
+        "cooldown": 1.1,
+        "projectileSpeed": 24,
+        "splash": 1.0,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drmbod05",
+          "prop": "prmtrk2",
+          "weapon": "gnlrckt",
+          "mount": "trlrckt"
+        }
+      },
+      "refit": {
+        "from": "tank_rocket",
+        "cost": 220,
+        "rank": "hero"
       }
     },
     {
@@ -632,6 +762,52 @@
       ]
     },
     {
+      "id": "tank_sensor",
+      "name": "Sensor Tank",
+      "maxHp": 520,
+      "armor": 4,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.0,
+      "sight": 20,
+      "accel": 5.0,
+      "turnRate": 3.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura",
+        "artillery_strike"
+      ],
+      "weapon": {
+        "type": "kinetic",
+        "damage": 14,
+        "range": 7,
+        "cooldown": 0.4,
+        "projectileSpeed": 28,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drmbod05",
+          "prop": "prmtrk2",
+          "weapon": "gnlmg2",
+          "mount": "trlmg2"
+        }
+      },
+      "refit": {
+        "from": "tank_radar",
+        "cost": 200,
+        "rank": "hero"
+      },
+      "auras": [
+        "radar_aura2"
+      ]
+    },
+    {
       "id": "tank_command",
       "name": "Command Tank",
       "maxHp": 650,
@@ -673,6 +849,51 @@
       },
       "auras": [
         "command_link"
+      ]
+    },
+    {
+      "id": "tank_warlord",
+      "name": "Warlord",
+      "maxHp": 900,
+      "armor": 7,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.0,
+      "sight": 9,
+      "accel": 5.0,
+      "turnRate": 3.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura",
+        "artillery_strike"
+      ],
+      "weapon": {
+        "type": "piercing",
+        "damage": 30,
+        "range": 6,
+        "cooldown": 0.9,
+        "projectileSpeed": 22
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drhbod10",
+          "prop": "prmtrk2",
+          "weapon": "gnmcan",
+          "mount": "trmcan"
+        }
+      },
+      "refit": {
+        "from": "tank_command",
+        "cost": 260,
+        "rank": "hero"
+      },
+      "auras": [
+        "command_link2"
       ]
     },
     {
@@ -719,6 +940,52 @@
       "repairRange": 6
     },
     {
+      "id": "tank_mechanic",
+      "name": "Field Mechanic",
+      "maxHp": 700,
+      "armor": 5,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.0,
+      "sight": 9,
+      "accel": 5.0,
+      "turnRate": 3.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura",
+        "artillery_strike"
+      ],
+      "weapon": {
+        "type": "kinetic",
+        "damage": 10,
+        "range": 5,
+        "cooldown": 0.4,
+        "projectileSpeed": 26
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drmbod05",
+          "prop": "prmtrk2",
+          "weapon": "gnlmg1",
+          "mount": "trlmg1"
+        }
+      },
+      "refit": {
+        "from": "tank_repair",
+        "cost": 220,
+        "rank": "hero"
+      },
+      "repair": 28,
+      "repairRange": 8,
+      "shield": 120,
+      "shieldRegen": 10
+    },
+    {
       "id": "scout_raider",
       "name": "Raider",
       "maxHp": 230,
@@ -761,6 +1028,49 @@
       }
     },
     {
+      "id": "scout_hunter",
+      "name": "Hunter",
+      "maxHp": 300,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.45,
+      "speed": 8.2,
+      "sight": 10,
+      "accel": 11.0,
+      "turnRate": 6.0,
+      "skills": [
+        "blink",
+        "rapid_fire",
+        "shock_mine",
+        "drones",
+        "hunter_aura",
+        "emp_burst"
+      ],
+      "weapon": {
+        "type": "kinetic",
+        "damage": 11,
+        "range": 4.5,
+        "cooldown": 0.18,
+        "projectileSpeed": 30,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "sphere",
+        "height": 0.8,
+        "model": {
+          "body": "drlbod04",
+          "prop": "prlwhl1",
+          "weapon": "gnmmg1",
+          "mount": "trmmg"
+        }
+      },
+      "refit": {
+        "from": "scout_raider",
+        "cost": 150,
+        "rank": "hero"
+      }
+    },
+    {
       "id": "scout_emp",
       "name": "EMP Scout",
       "maxHp": 190,
@@ -799,6 +1109,49 @@
       "refit": {
         "from": "scout",
         "cost": 90
+      }
+    },
+    {
+      "id": "scout_jammer",
+      "name": "Jammer",
+      "maxHp": 260,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.45,
+      "speed": 6.5,
+      "sight": 10,
+      "accel": 9.0,
+      "turnRate": 6.0,
+      "skills": [
+        "blink",
+        "rapid_fire",
+        "shock_mine",
+        "drones",
+        "hunter_aura",
+        "emp_burst"
+      ],
+      "weapon": {
+        "type": "emp",
+        "damage": 45,
+        "range": 5.5,
+        "cooldown": 0.9,
+        "projectileSpeed": 24,
+        "splash": 1.5
+      },
+      "visual": {
+        "shape": "sphere",
+        "height": 0.8,
+        "model": {
+          "body": "drlbod03",
+          "prop": "prlwhl1",
+          "weapon": "gnlflmr",
+          "mount": "trlflmr"
+        }
+      },
+      "refit": {
+        "from": "scout_emp",
+        "cost": 170,
+        "rank": "hero"
       }
     },
     {
@@ -853,6 +1206,77 @@
           "weapon": "gnmmg1",
           "mount": "trmmg"
         }
+      }
+    },
+    {
+      "id": "gunship_rocket",
+      "name": "Rocket Gunship",
+      "maxHp": 400,
+      "armor": 2,
+      "armorType": "light",
+      "radius": 0.7,
+      "speed": 6.0,
+      "sight": 10,
+      "accel": 6.0,
+      "turnRate": 3.5,
+      "air": true,
+      "weapon": {
+        "type": "explosive",
+        "damage": 32,
+        "range": 6,
+        "cooldown": 1.0,
+        "projectileSpeed": 22,
+        "splash": 1.2,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drlbod04",
+          "prop": "prmheli1",
+          "weapon": "gnlrckt",
+          "mount": "trlrckt"
+        }
+      },
+      "refit": {
+        "from": "gunship",
+        "cost": 160
+      }
+    },
+    {
+      "id": "gunship_interceptor",
+      "name": "Interceptor",
+      "maxHp": 340,
+      "armor": 2,
+      "armorType": "light",
+      "radius": 0.7,
+      "speed": 7.5,
+      "sight": 10,
+      "accel": 6.0,
+      "turnRate": 3.5,
+      "air": true,
+      "weapon": {
+        "type": "kinetic",
+        "damage": 12,
+        "range": 6,
+        "cooldown": 0.15,
+        "projectileSpeed": 32,
+        "targets": "air"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drlbod04",
+          "prop": "prmheli1",
+          "weapon": "gnmmg1",
+          "mount": "trmmg"
+        }
+      },
+      "refit": {
+        "from": "gunship",
+        "cost": 140
       }
     },
     {

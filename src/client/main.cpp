@@ -80,6 +80,8 @@ int main(int argc, char** argv) {
                 options.camera = glm::vec2{x, y};
         } else if (arg == "--zoom" && hasValue)
             options.zoom = static_cast<float>(std::atof(argv[++i]));
+        else if (arg == "--guide" && hasValue)
+            options.guide = std::atoi(argv[++i]);
         else if (arg == "--renderer" && hasValue)
             options.renderer = argv[++i];
         else if (arg == "--touch")

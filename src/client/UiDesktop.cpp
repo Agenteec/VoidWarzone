@@ -232,6 +232,8 @@ void App::drawSelectionTiles(float width, int perRow, bool horizontal) {
         const ImVec2 b = ImGui::GetItemRectMax();
         const float frac = static_cast<float>(e->hp) / static_cast<float>(std::max<std::uint16_t>(e->maxHp, 1));
         ImGui::GetWindowDrawList()->AddRectFilled({a.x + 3.0f, b.y - 5.0f}, {a.x + 3.0f + (b.x - a.x - 6.0f) * frac, b.y - 2.0f}, hpColor(frac));
+        if (unseen_.contains(id))
+            redDot(ImGui::GetWindowDrawList(), {b.x - 4.0f * s, a.y + 4.0f * s}, 4.0f * s);
         ImGui::SetItemTooltip("%s  %u/%u\nclick: select only, shift: remove, ctrl: all of this type", def.name.c_str(), e->hp, e->maxHp);
         ImGui::PopID();
     }

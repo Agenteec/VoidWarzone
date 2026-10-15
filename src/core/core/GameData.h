@@ -96,6 +96,7 @@ struct UnitDef {
     int transport = 0;
     UnitDefId refitFrom = kInvalidUnitDef;
     float refitCost = 0.0f;
+    std::uint8_t refitRank = 2;
     std::vector<SkillId> auras;
     float repair = 0.0f;
     float repairRange = 0.0f;
@@ -187,6 +188,13 @@ public:
     const std::vector<UnitDefId>& buildable() const { return buildable_; }
     std::vector<UnitDefId> refits(UnitDefId base) const;
     UnitDefId baseOf(UnitDefId id) const { return units_[id].refitFrom != kInvalidUnitDef ? units_[id].refitFrom : id; }
+    UnitDefId rootOf(UnitDefId id) const {
+        while (units_[id].refitFrom != kInvalidUnitDef)
+            id = units_[id].refitFrom;
+        return id;
+    }
+    int refitTier(UnitDefId id) const { return units_[id].refitFrom == kInvalidUnitDef ? 0 : 1 + refitTier(units_[id].refitFrom); }
+    std::vector<UnitDefId> refitOptions(UnitDefId current) const;
 
     const SkillDef& skill(SkillId id) const { return skills_[id]; }
     const std::vector<SkillDef>& skills() const { return skills_; }

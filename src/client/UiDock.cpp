@@ -202,35 +202,43 @@ void App::drawDock() {
             ImGui::TextDisabled("Select an own unit to refit it");
         } else {
             const UnitDefId current = entity->def;
-            const UnitDefId base = data_->baseOf(current);
-            const auto variants = data_->refits(base);
-            const bool elite = own->rank >= static_cast<std::uint8_t>(Rank::Elite);
+            const auto variants = data_->refitOptions(current);
+            ImGui::TextDisabled("%s  -  tier %d", data_->unit(current).name.c_str(), data_->refitTier(current));
             if (variants.empty())
-                ImGui::TextDisabled("%s has no refits", data_->unit(current).name.c_str());
+                ImGui::TextDisabled("end of the branch");
             for (const auto v : variants) {
                 next();
                 const auto& def = data_->unit(v);
-                char cost[16];
-                std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.refitCost);
+                const bool rankOk = own->rank >= def.refitRank;
+                const bool advance = def.refitFrom == current;
+                char cost[24];
+                std::snprintf(cost, sizeof(cost), "%s" ICON_FA_BOLT "%.0f", advance ? ICON_FA_ARROW_UP : "", def.refitCost);
                 std::string name = def.name;
                 if (const auto space = name.find(' '); space != std::string::npos)
                     name = name.substr(0, space);
-                if (cardButton(def.id.c_str(), name.substr(0, 8).c_str(), cost, "", elite && v != current && energy >= def.refitCost, v == current, cell))
+                if (cardButton(def.id.c_str(), name.substr(0, 8).c_str(), cost, "", rankOk && energy >= def.refitCost, false, cell))
                     for (const auto id : selected_)
-                        if (const auto* e = findEntity(id); e && isOwn(*e) && data_->baseOf(e->def) == base && e->def != v)
+                        if (const auto* e = findEntity(id); e && isOwn(*e) && e->def == current)
                             net_.sendCommand(RefitCommand{0, static_cast<entt::entity>(id), v});
                 if (ImGui::BeginItemTooltip()) {
-                    ImGui::Text("Refit to %s", def.name.c_str());
+                    ImGui::Text("%s %s", advance ? "Upgrade to" : "Switch to", def.name.c_str());
                     ImGui::TextDisabled("HP %.0f  %s armor %.0f  speed %.1f", def.maxHp, armorTypeName(def.armorType), def.armor, def.speed);
                     if (def.weapon)
-                        ImGui::TextDisabled("%s damage %.0f%s  range %.1f  every %.1fs", damageTypeName(def.weapon->type), def.weapon->damage,
-                                            def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown);
+                        ImGui::TextDisabled("%s damage %.0f%s  range %.1f  every %.1fs  (%s)", damageTypeName(def.weapon->type), def.weapon->damage,
+                                            def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown,
+                                            def.weapon->targets == 3 ? "ground+air" : def.weapon->targets == 2 ? "air" : "ground");
                     for (const auto a : def.auras)
                         ImGui::TextColored(toVec(kGood), "aura: %s", data_->skill(a).name.c_str());
                     if (def.repair > 0.0f)
                         ImGui::TextColored(toVec(kGood), "repairs nearby vehicles and buildings, %.0f hp/s", def.repair);
-                    if (!elite)
-                        ImGui::TextColored(toVec(kBad), "needs Elite rank");
+                    if (const auto children = data_->refits(v); !children.empty()) {
+                        std::string branch;
+                        for (const auto n : children)
+                            branch += (branch.empty() ? "" : ", ") + data_->unit(n).name;
+                        ImGui::TextDisabled("leads to: %s", branch.c_str());
+                    }
+                    if (!rankOk)
+                        ImGui::TextColored(toVec(kBad), "needs %s rank", def.refitRank >= 3 ? "Hero" : "Elite");
                     ImGui::EndTooltip();
                 }
             }
@@ -299,10 +307,21 @@ void App::drawDock() {
     if (dock_ != Dock::None)
         ImGui::Separator();
 
+    bool skillDot = false;
+    for (const auto& u : latest->view.units)
+        skillDot |= u.skillPoints > 0;
+    if (dock_ == Dock::Refit)
+        refitDot_ = false;
+    if (dock_ == Dock::Modules)
+        modulesDot_ = false;
+    bool dot = false;
     auto tabButton = [&](const char* icon, const char* tip, bool active) {
         ImGui::PushStyleColor(ImGuiCol_Button, active ? toVec(IM_COL32(40, 110, 160, 255)) : ImVec4{0.14f, 0.16f, 0.2f, 0.9f});
         const bool pressed = ImGui::Button(icon, tab);
         ImGui::PopStyleColor();
+        if (dot && !active)
+            redDot(ImGui::GetWindowDrawList(), {ImGui::GetItemRectMax().x - 4.0f * s, ImGui::GetItemRectMin().y + 4.0f * s}, 4.5f * s);
+        dot = false;
         ImGui::SetItemTooltip("%s", tip);
         ImGui::SameLine();
         return pressed;
@@ -313,10 +332,13 @@ void App::drawDock() {
         toggleDock(Dock::Orders);
     if (tabButton(ICON_FA_INDUSTRY "##p", "Production: recruit units", dock_ == Dock::Production))
         toggleDock(Dock::Production);
+    dot = refitDot_;
     if (tabButton(ICON_FA_COGS "##r", "Refit: change the class of an Elite vehicle", dock_ == Dock::Refit))
         toggleDock(Dock::Refit);
+    dot = modulesDot_;
     if (tabButton(ICON_FA_CUBE "##m", "Modules: armor (Veteran), system and weapon (Elite)", dock_ == Dock::Modules))
         toggleDock(Dock::Modules);
+    dot = skillDot;
     if (tabButton(ICON_FA_BOLT "##s", "Hero skills", dock_ == Dock::Skills))
         toggleDock(Dock::Skills);
     if (tabButton(ICON_FA_WRENCH "##b", "Build (select an engineer): walls, turrets, factories", dock_ == Dock::Build))
