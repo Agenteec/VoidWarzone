@@ -314,3 +314,57 @@ TEST_CASE("damage types, shields and splash") {
     CHECK(reg.get<vw::Health>(a).hp < 1000.0f);
     CHECK(reg.get<vw::Health>(b).hp < 1000.0f);
 }
+
+TEST_CASE("air units, anti-air and transports") {
+    const auto data = vw::GameData::parse(R"({"units":[
+        {"id":"tank","maxHp":300,"radius":0.6,"speed":4,"sight":8,"weapon":{"damage":20,"range":5,"cooldown":0.5}},
+        {"id":"aa","maxHp":300,"radius":0.5,"speed":0,"sight":8,"weapon":{"damage":20,"range":6,"cooldown":0.5,"targets":"both"}},
+        {"id":"heli","air":true,"maxHp":200,"radius":0.6,"speed":6,"sight":8},
+        {"id":"lifter","air":true,"transport":2,"maxHp":200,"radius":1,"speed":6,"sight":8}
+    ]})");
+    vw::Map map(40, 40);
+    map.addWall({18, 0, 2, 40});
+    vw::World world(data, map);
+    auto& reg = world.registry();
+    auto run = [&](float s) {
+        for (int i = 0; i < static_cast<int>(s * vw::kTickRate); ++i)
+            world.step();
+    };
+
+    const auto heli = world.spawn(data.find("heli"), 0, {10.5f, 10.5f}, 0);
+    world.apply(vw::MoveCommand{{heli}, {30.5f, 10.5f}});
+    run(6.0f);
+    CHECK(glm::distance(reg.get<vw::Position>(heli).value, glm::vec2{30.5f, 10.5f}) < 1.0f);
+
+    const auto tank = world.spawn(data.find("tank"), 1, {33.5f, 10.5f});
+    const auto aa = world.spawn(data.find("aa"), 1, {30.5f, 14.5f});
+    run(2.0f);
+    CHECK(reg.get<vw::Target>(tank).value != heli);
+    CHECK(reg.get<vw::Target>(aa).value == heli);
+    CHECK(reg.get<vw::Health>(heli).hp < 200.0f);
+    reg.destroy(aa);
+    reg.destroy(tank);
+
+    const auto lifter = world.spawn(data.find("lifter"), 0, {5.5f, 30.5f}, 0);
+    const auto a = world.spawn(data.find("tank"), 0, {8.5f, 30.5f}, 0);
+    const auto b = world.spawn(data.find("tank"), 0, {8.5f, 33.5f}, 0);
+    const auto c = world.spawn(data.find("tank"), 0, {8.5f, 27.5f}, 0);
+    world.apply(vw::AttackCommand{{a, b, c}, lifter});
+    run(3.0f);
+    CHECK(reg.get<vw::Cargo>(lifter).units.size() == 2);
+    CHECK(reg.all_of<vw::Carried>(a));
+    CHECK(reg.all_of<vw::Carried>(b) + reg.all_of<vw::Carried>(c) == 1);
+    world.apply(vw::UnloadCommand{{lifter}, {30.5f, 30.5f}});
+    run(6.0f);
+    CHECK(reg.get<vw::Cargo>(lifter).units.empty());
+    CHECK_FALSE(reg.all_of<vw::Carried>(a));
+    CHECK(glm::distance(reg.get<vw::Position>(a).value, glm::vec2{30.5f, 30.5f}) < 3.0f);
+    CHECK_FALSE(map.blocked(vw::Map::cellOf(reg.get<vw::Position>(a).value)));
+
+    world.apply(vw::AttackCommand{{a}, lifter});
+    run(3.0f);
+    REQUIRE(reg.all_of<vw::Carried>(a));
+    reg.get<vw::Health>(lifter).hp = 0.0f;
+    run(0.2f);
+    CHECK_FALSE(reg.valid(a));
+}

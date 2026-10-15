@@ -35,6 +35,39 @@ std::vector<entt::entity> App::selectedBuilders() const {
     return builders;
 }
 
+std::vector<entt::entity> App::selectedTransports() const {
+    std::vector<entt::entity> out;
+    for (const auto id : selected_)
+        if (const auto* e = findEntity(id); e && isOwn(*e) && data_->unit(e->def).transport > 0)
+            out.push_back(static_cast<entt::entity>(id));
+    return out;
+}
+
+float App::liftOf(const net::InterpolatedEntity& e) const {
+    return data_->unit(e.def).air ? 3.0f : 0.0f;
+}
+
+std::vector<glm::vec2> App::buildLine(glm::vec2 from, glm::vec2 to) const {
+    std::vector<glm::vec2> out;
+    if (buildArmed_ < 0)
+        return out;
+    const auto& def = data_->unit(static_cast<UnitDefId>(buildArmed_));
+    const float step = def.wall ? 1.0f : std::ceil(def.radius * 2.0f + kStructureGap);
+    const glm::vec2 a = snapBuild(from);
+    glm::vec2 d = snapBuild(to) - a;
+    if (std::abs(d.x) >= std::abs(d.y) * 2.0f)
+        d.y = 0.0f;
+    else if (std::abs(d.y) >= std::abs(d.x) * 2.0f)
+        d.x = 0.0f;
+    const float len = std::max(std::abs(d.x), std::abs(d.y));
+    const int count = std::min(40, static_cast<int>(len / step) + 1);
+    for (int i = 0; i < count; ++i) {
+        const float t = count > 1 ? static_cast<float>(i) * step / len : 0.0f;
+        out.push_back(snapBuild(a + d * std::min(t, 1.0f)));
+    }
+    return out;
+}
+
 void App::armBuild(std::size_t index) {
     const auto& list = data_->buildable();
     if (index >= list.size() || selectedBuilders().empty())
@@ -73,6 +106,20 @@ bool App::buildValid(UnitDefId id, glm::vec2 pos) const {
 void App::placeBuild(glm::vec2 screen, bool keep) {
     if (buildArmed_ < 0)
         return;
+    if (lineBuild_) {
+        lineBuild_ = false;
+        if (const auto ground = camera_.screenToGround(screen.x, screen.y)) {
+            const auto def = static_cast<UnitDefId>(buildArmed_);
+            for (const auto p : buildLine(lineStart_, *ground))
+                if (buildValid(def, p)) {
+                    net_.sendCommand(BuildCommand{selectedBuilders(), def, p, true});
+                    pendingBuilds_.push_back({def, p, now_});
+                }
+        }
+        if (!keep)
+            buildArmed_ = -1;
+        return;
+    }
     if (const auto ground = camera_.screenToGround(screen.x, screen.y)) {
         const glm::vec2 pos = snapBuild(*ground);
         const auto def = static_cast<UnitDefId>(buildArmed_);
@@ -124,6 +171,15 @@ void App::renderBuildGhost() {
     if (!ground)
         return;
     const auto def = static_cast<UnitDefId>(buildArmed_);
+    if (lineBuild_) {
+        const float d = data_->unit(def).radius * 2.0f;
+        const float h = std::max(visuals_[def].height, 0.8f);
+        for (const auto p : buildLine(lineStart_, *ground)) {
+            const glm::vec4 c = buildValid(def, p) ? glm::vec4{0.35f, 1.0f, 0.55f, 0.35f} : glm::vec4{1.0f, 0.25f, 0.25f, 0.35f};
+            renderer_.draw(Mesh::Cube, {p.x, h * 0.5f, p.y}, {d, h, d}, 0.0f, c, Unlit | Alpha);
+        }
+        return;
+    }
     const glm::vec2 pos = snapBuild(*ground);
     const float d = data_->unit(def).radius * 2.0f;
     const float h = std::max(visuals_[def].height, 0.8f);

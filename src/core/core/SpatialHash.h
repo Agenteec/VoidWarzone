@@ -19,6 +19,7 @@ public:
         float radius;
         std::uint8_t team;
         bool structure;
+        bool air = false;
     };
 
     void reset(float width, float height, float cellSize) {

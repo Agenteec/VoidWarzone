@@ -40,7 +40,8 @@ void Prediction::onMove(const std::vector<net::InterpolatedEntity>& units, glm::
         p.pos = positions[i];
         p.goal = goals[i];
         p.facing = units[i].facing;
-        p.path = findPath(map, p.pos, p.goal);
+        p.air = def.air;
+        p.path = def.air ? std::vector<glm::vec2>{} : findPath(map, p.pos, p.goal);
         p.speed = def.speed;
         p.radius = def.radius;
         p.accel = def.accel;
@@ -92,7 +93,8 @@ void Prediction::update(float dt, double now, const net::NetClient& net, const G
         const float rate = (target > p.current ? p.accel : p.accel * 1.6f) * dt;
         p.current = p.current < target ? std::min(target, p.current + rate) : std::max(target, p.current - rate);
         p.pos += glm::vec2(std::cos(p.facing), std::sin(p.facing)) * p.current * dt;
-        pushOutOfWalls(map, p.pos, p.radius);
+        if (!p.air)
+            pushOutOfWalls(map, p.pos, p.radius);
 
         bool done = false;
         if (acked >= p.seq) {

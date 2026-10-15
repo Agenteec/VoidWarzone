@@ -53,7 +53,8 @@
         "range": 9,
         "cooldown": 1.0,
         "projectileSpeed": 18,
-        "type": "piercing"
+        "type": "piercing",
+        "targets": "both"
       },
       "visual": {
         "shape": "cube",
@@ -75,7 +76,8 @@
         "range": 8.5,
         "cooldown": 0.45,
         "projectileSpeed": 30,
-        "type": "kinetic"
+        "type": "kinetic",
+        "targets": "both"
       },
       "visual": {
         "shape": "cylinder",
@@ -118,7 +120,8 @@
         "cooldown": 0.9,
         "projectileSpeed": 24,
         "type": "explosive",
-        "splash": 0.9
+        "splash": 0.9,
+        "targets": "both"
       },
       "visual": {
         "shape": "cylinder",
@@ -146,7 +149,8 @@
         "cooldown": 1.1,
         "projectileSpeed": 26,
         "type": "energy",
-        "splash": 1.5
+        "splash": 1.5,
+        "targets": "both"
       },
       "visual": {
         "shape": "cylinder",
@@ -260,7 +264,8 @@
         "cooldown": 1.2,
         "projectileSpeed": 14,
         "type": "explosive",
-        "splash": 0.6
+        "splash": 0.6,
+        "targets": "both"
       },
       "visual": {
         "shape": "sphere",
@@ -482,7 +487,8 @@
         "range": 4,
         "cooldown": 0.3,
         "projectileSpeed": 26,
-        "type": "kinetic"
+        "type": "kinetic",
+        "targets": "both"
       },
       "visual": {
         "shape": "sphere",
@@ -599,7 +605,8 @@
         "damage": 14,
         "range": 7,
         "cooldown": 0.4,
-        "projectileSpeed": 28
+        "projectileSpeed": 28,
+        "targets": "both"
       },
       "visual": {
         "shape": "cube",
@@ -727,7 +734,8 @@
         "damage": 8,
         "range": 4,
         "cooldown": 0.2,
-        "projectileSpeed": 28
+        "projectileSpeed": 28,
+        "targets": "both"
       },
       "visual": {
         "shape": "sphere",
@@ -803,6 +811,61 @@
         "model": {
           "body": "drlbod01",
           "prop": "prlwhl1"
+        }
+      }
+    },
+    {
+      "id": "gunship",
+      "name": "Gunship",
+      "cost": 180,
+      "maxHp": 380,
+      "armor": 2,
+      "armorType": "light",
+      "radius": 0.7,
+      "speed": 6.0,
+      "sight": 10,
+      "accel": 6.0,
+      "turnRate": 3.5,
+      "air": true,
+      "weapon": {
+        "type": "kinetic",
+        "damage": 14,
+        "range": 5,
+        "cooldown": 0.25,
+        "projectileSpeed": 30,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drlbod04",
+          "prop": "prmheli1",
+          "weapon": "gnmmg1",
+          "mount": "trmmg"
+        }
+      }
+    },
+    {
+      "id": "air_transport",
+      "name": "Air Transport",
+      "cost": 150,
+      "maxHp": 600,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 1.2,
+      "speed": 5.5,
+      "sight": 9,
+      "accel": 5.0,
+      "turnRate": 2.5,
+      "air": true,
+      "transport": 6,
+      "visual": {
+        "shape": "cube",
+        "height": 1.4,
+        "model": {
+          "pie": "drtrans",
+          "fit": 1.0
         }
       }
     },
@@ -1039,7 +1102,8 @@
         "range": 8,
         "cooldown": 0.45,
         "projectileSpeed": 30,
-        "type": "kinetic"
+        "type": "kinetic",
+        "targets": "both"
       },
       "visual": {
         "shape": "cylinder",

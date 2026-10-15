@@ -76,6 +76,11 @@ void App::drawDock() {
     const float energy = static_cast<float>(latest->view.energy);
     const bool hasSelection = !selected_.empty();
     const bool builders = !selectedBuilders().empty();
+    if (builders && !hadBuilders_)
+        dock_ = Dock::Build;
+    else if (!builders && hadBuilders_ && dock_ == Dock::Build)
+        dock_ = Dock::None;
+    hadBuilders_ = builders;
 
     ImGui::SetNextWindowPos({display.x - pad, display.y - pad}, ImGuiCond_Always, {1.0f, 1.0f});
     ImGui::SetNextWindowBgAlpha(0.8f);
@@ -108,6 +113,12 @@ void App::drawDock() {
         if (cardButton("hold", ICON_FA_HAND_PAPER_O, "Hold", "H", hasSelection, false, cell))
             pressKey(SDLK_H, false);
         ImGui::SetItemTooltip("Hold position: shoot only what is in range [H]");
+        if (!selectedTransports().empty()) {
+            next();
+            if (cardButton("unload", ICON_FA_ARROW_DOWN, "Unload", "U", true, orderArm_ == Arm::Unload, cell))
+                armOrder(Arm::Unload);
+            ImGui::SetItemTooltip("Unload passengers at a point [U]. Right click a transport with ground units to board it.");
+        }
         next();
         if (cardButton("stop", ICON_FA_STOP, "Stop", "S", hasSelection, false, cell))
             pressKey(SDLK_S, false);
@@ -179,7 +190,7 @@ void App::drawDock() {
             const auto& def = data_->unit(list[i]);
             char cost[16];
             std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
-            const char* key = i < 3 ? kRecruitKeyNames[i] : "";
+            const char* key = i < 5 ? kRecruitKeyNames[i] : "";
             if (cardButton(def.id.c_str(), def.name.substr(0, 7).c_str(), cost, key, energy >= def.cost, false, cell))
                 net_.sendCommand(RecruitCommand{0, list[i]});
             unitTooltip(def, "Recruit", key);

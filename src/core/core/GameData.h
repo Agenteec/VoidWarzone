@@ -46,6 +46,7 @@ struct StatMods {
 struct WeaponDef {
     DamageType type = DamageType::Kinetic;
     float splash = 0.0f;
+    std::uint8_t targets = 1;
     float damage = 0.0f;
     float range = 0.0f;
     float cooldown = 1.0f;
@@ -91,6 +92,8 @@ struct UnitDef {
     float speed = 0.0f;
     float sight = 8.0f;
     float accel = 0.0f;
+    bool air = false;
+    int transport = 0;
     UnitDefId refitFrom = kInvalidUnitDef;
     float refitCost = 0.0f;
     std::vector<SkillId> auras;

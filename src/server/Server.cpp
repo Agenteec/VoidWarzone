@@ -410,6 +410,8 @@ ClientView Server::buildView(const Client& client) const {
             if (o.type == OrderType::Patrol)
                 u.orders.push_back({static_cast<std::uint8_t>(o.type), o.build, quantizePos(o.origin.x), quantizePos(o.origin.y)});
         };
+        if (const auto* cargo = reg.try_get<Cargo>(e))
+            u.cargo = static_cast<std::uint8_t>(cargo->units.size());
         if (const auto* order = reg.try_get<Order>(e))
             addOrder(*order);
         if (const auto* queue = reg.try_get<OrderQueue>(e))
@@ -450,7 +452,7 @@ Snapshot Server::buildSnapshot() const {
         st.hp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.hp), 0.0f, 65535.0f));
         st.maxHp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.max), 1.0f, 65535.0f));
         st.shield = static_cast<std::uint16_t>(std::clamp(std::ceil(health.shield), 0.0f, 65535.0f));
-        st.flags = reg.all_of<Construction>(e) ? kStateBuilding : 0;
+        st.flags = static_cast<std::uint8_t>((reg.all_of<Construction>(e) ? kStateBuilding : 0) | (reg.all_of<Carried>(e) ? kStateCarried : 0));
         s.entities.push_back(st);
     }
 

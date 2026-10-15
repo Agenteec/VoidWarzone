@@ -77,7 +77,7 @@ struct Target {
     entt::entity value = entt::null;
 };
 
-enum class OrderType : std::uint8_t { None, Move, AttackMove, Attack, Patrol, Hold, Follow, Build };
+enum class OrderType : std::uint8_t { None, Move, AttackMove, Attack, Patrol, Hold, Follow, Build, Board, Unload };
 
 struct Order {
     OrderType type = OrderType::None;
@@ -85,6 +85,16 @@ struct Order {
     entt::entity target = entt::null;
     glm::vec2 origin{};
     std::uint16_t build = 0xffff;
+};
+
+struct Air {};
+
+struct Carried {
+    entt::entity transport = entt::null;
+};
+
+struct Cargo {
+    std::vector<entt::entity> units;
 };
 
 struct Construction {

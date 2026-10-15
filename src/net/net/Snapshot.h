@@ -44,6 +44,7 @@ struct NetEvent {
 
 inline constexpr std::uint32_t kNoEntity = 0xffffffffu;
 inline constexpr std::uint8_t kStateBuilding = 1;
+inline constexpr std::uint8_t kStateCarried = 2;
 
 struct PointInfo {
     std::int8_t control = 0;
@@ -75,6 +76,7 @@ struct OwnOrder {
 
 struct OwnUnit {
     std::uint32_t id = 0;
+    std::uint8_t cargo = 0;
     std::vector<OwnOrder> orders;
     std::uint8_t rank = 0;
     std::uint8_t level = 0;

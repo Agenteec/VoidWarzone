@@ -162,7 +162,10 @@ private:
     float enemyDamageScale() const;
     float enemyCountScale() const;
 
-    entt::entity findEnemy(glm::vec2 pos, std::uint8_t team, float radius) const;
+    entt::entity findEnemy(glm::vec2 pos, std::uint8_t team, float radius, std::uint8_t canHit = 3) const;
+    bool canHit(entt::entity shooter, entt::entity target) const;
+    void updateTransport();
+    void unloadAll(entt::entity transport, glm::vec2 at);
     glm::vec2 avoid(entt::entity e, glm::vec2 pos, glm::vec2 vel, float radius, std::uint8_t team) const;
     void rebuildNav();
     template <class F>

@@ -85,6 +85,10 @@ void writeCommand(Writer& w, std::uint32_t seq, const Command& command) {
                 w.f32(c.pos.x);
                 w.f32(c.pos.y);
                 w.u8(c.queue ? 1 : 0);
+            } else if constexpr (std::is_same_v<T, UnloadCommand>) {
+                w.f32(c.point.x);
+                w.f32(c.point.y);
+                w.u8(c.queue ? 1 : 0);
             }
         },
         command);
@@ -172,6 +176,17 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
         c.unit = static_cast<entt::entity>(r.u32());
         c.slot = r.u8();
         command = c;
+        break;
+    }
+    case 12: {
+        UnloadCommand c;
+        if (!readUnits(r, c.units))
+            return false;
+        c.point = {r.f32(), r.f32()};
+        c.queue = r.u8() != 0;
+        if (!std::isfinite(c.point.x) || !std::isfinite(c.point.y))
+            return false;
+        command = std::move(c);
         break;
     }
     case 11: {

@@ -33,6 +33,7 @@ private:
         float current = 0.0f;
         float accel = 10.0f;
         float turnRate = 8.0f;
+        bool air = false;
     };
 
     std::unordered_map<std::uint32_t, Unit> units_;

@@ -108,7 +108,7 @@ private:
     void clickSelect(glm::vec2 screen, bool add);
     void boxSelect(glm::vec2 a, glm::vec2 b, bool add);
     int selectPriority(const net::InterpolatedEntity& e) const;
-    enum class Arm { None, Move, Attack, Patrol };
+    enum class Arm { None, Move, Attack, Patrol, Unload };
     void issueCommand(glm::vec2 screen, bool attackMove, bool patrol = false);
     void issueCommandAt(glm::vec2 ground, bool attackMove, bool patrol = false);
     void issueArmed(glm::vec2 screen);
@@ -116,6 +116,13 @@ private:
     void renderWaypoints();
     static glm::vec4 orderColor(std::uint8_t type);
     std::vector<entt::entity> selectedBuilders() const;
+    std::vector<entt::entity> selectedTransports() const;
+    float liftOf(const net::InterpolatedEntity& e) const;
+    bool hidden(const net::InterpolatedEntity& e) const { return (e.flags & net::kStateCarried) != 0; }
+    bool hadBuilders_ = false;
+    bool lineBuild_ = false;
+    glm::vec2 lineStart_{};
+    std::vector<glm::vec2> buildLine(glm::vec2 from, glm::vec2 to) const;
     std::uint32_t inspected_ = 0;
     struct PendingBuild {
         UnitDefId def;

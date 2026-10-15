@@ -189,6 +189,8 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         def.income = u.value("income", def.income);
         def.buildable = u.value("buildable", def.buildable);
         def.repair = u.value("repair", def.repair);
+        def.air = u.value("air", def.air);
+        def.transport = u.value("transport", def.transport);
         def.repairRange = u.value("repairRange", def.repairRange);
         if (const auto rf = u.find("refit"); rf != u.end()) {
             refitNames.emplace(d.units_.size(), rf->at("from").get<std::string>());
@@ -219,6 +221,8 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             wd.turnRate = w->value("turnRate", def.structure ? 3.5f : 6.0f);
             wd.type = parseDamage(w->value("type", "kinetic"));
             wd.splash = w->value("splash", wd.splash);
+            const std::string targets = w->value("targets", "ground");
+            wd.targets = targets == "both" ? 3 : targets == "air" ? 2 : 1;
             def.weapon = wd;
         }
         if (const auto b = u.find("boss"); b != u.end()) {

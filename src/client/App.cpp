@@ -763,8 +763,13 @@ void App::handleGameEvent(const SDL_Event& e) {
         const glm::vec2 p = glm::vec2(e.button.x, e.button.y) * pixelDensity_;
         mouse_ = p;
         if (e.button.button == SDL_BUTTON_LEFT) {
-            if (buildArmed_ >= 0) {
-                placeBuild(p, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
+            if (buildArmed_ >= 0 && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0) {
+                if (const auto ground = camera_.screenToGround(p.x, p.y)) {
+                    lineBuild_ = true;
+                    lineStart_ = *ground;
+                }
+            } else if (buildArmed_ >= 0) {
+                placeBuild(p, false);
             } else if (armedSkill_ >= 0) {
                 castSlot(static_cast<std::uint8_t>(armedSkill_), camera_.screenToGround(p.x, p.y));
                 armedSkill_ = -1;
@@ -786,6 +791,10 @@ void App::handleGameEvent(const SDL_Event& e) {
         break;
     }
     case SDL_EVENT_MOUSE_BUTTON_UP:
+        if (e.button.button == SDL_BUTTON_LEFT && lineBuild_) {
+            placeBuild(glm::vec2(e.button.x, e.button.y) * pixelDensity_, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
+            break;
+        }
         if (e.button.button == SDL_BUTTON_LEFT && dragging_) {
             dragging_ = false;
             const glm::vec2 p = glm::vec2(e.button.x, e.button.y) * pixelDensity_;
@@ -846,8 +855,10 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         controlGroup(static_cast<int>(key - SDLK_0), ctrl, shift);
     } else if (panel_ != Panel::None && ((key >= SDLK_1 && key <= SDLK_9) || key == SDLK_0)) {
         handlePanelKey(key, shift);
-    } else if (key == SDLK_Z || key == SDLK_X || key == SDLK_C) {
-        const auto index = static_cast<std::size_t>(key == SDLK_Z ? 0 : key == SDLK_X ? 1 : 2);
+    } else if (key == SDLK_U && !selectedTransports().empty()) {
+        armOrder(Arm::Unload);
+    } else if (key == SDLK_Z || key == SDLK_X || key == SDLK_C || key == SDLK_V || key == SDLK_N) {
+        const auto index = static_cast<std::size_t>(key == SDLK_Z ? 0 : key == SDLK_X ? 1 : key == SDLK_C ? 2 : key == SDLK_V ? 3 : 4);
         if (index < data_->recruitable().size())
             net_.sendCommand(RecruitCommand{0, data_->recruitable()[index]});
     } else if (buildKeyIndex(key) >= 0) {
@@ -884,9 +895,15 @@ const net::InterpolatedEntity* App::entityAt(glm::vec2 p, float pad) const {
     const net::InterpolatedEntity* best = nullptr;
     float bestDist = pad;
     for (const auto& e : entities_) {
-        if (e.kind != net::EntityKind::Unit)
+        if (e.kind != net::EntityKind::Unit || hidden(e))
             continue;
-        const float d = glm::distance(e.pos, p) - data_->unit(e.def).radius;
+        float d = glm::distance(e.pos, p) - data_->unit(e.def).radius;
+        if (const float lift = liftOf(e); lift > 0.0f) {
+            const glm::vec2 s = camera_.worldToScreen({e.pos.x, lift, e.pos.y});
+            const glm::vec2 q = camera_.worldToScreen({p.x, 0.0f, p.y});
+            const float px = std::max(1.0f, glm::distance(camera_.worldToScreen({e.pos.x + 1.0f, lift, e.pos.y}), s));
+            d = glm::distance(s, q) / px - data_->unit(e.def).radius;
+        }
         if (d <= bestDist) {
             best = &e;
             bestDist = d;
@@ -905,7 +922,7 @@ std::vector<entt::entity> App::selectedEntities() const {
 void App::pruneSelection() {
     std::erase_if(selected_, [this](std::uint32_t id) {
         const auto* e = findEntity(id);
-        return !e || !isOwn(*e);
+        return !e || !isOwn(*e) || hidden(*e);
     });
 }
 
@@ -937,7 +954,9 @@ void App::boxSelect(glm::vec2 a, glm::vec2 b, bool add) {
     for (const auto& e : entities_) {
         if (e.kind != net::EntityKind::Unit || !isOwn(e))
             continue;
-        const glm::vec2 s = camera_.worldToScreen({e.pos.x, 0.5f, e.pos.y});
+        if (hidden(e))
+            continue;
+        const glm::vec2 s = camera_.worldToScreen({e.pos.x, 0.5f + liftOf(e), e.pos.y});
         if (s.x >= lo.x && s.x <= hi.x && s.y >= lo.y && s.y <= hi.y && std::find(selected_.begin(), selected_.end(), e.id) == selected_.end())
             selected_.push_back(e.id);
     }
@@ -971,6 +990,13 @@ void App::issueArmed(glm::vec2 screen) {
     const bool keep = !touchLayout() && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
     if (!keep)
         orderArm_ = Arm::None;
+    if (arm == Arm::Unload) {
+        if (const auto ground = camera_.screenToGround(screen.x, screen.y)) {
+            net_.sendCommand(UnloadCommand{selectedTransports(), *ground, keep});
+            addEffect(Mesh::Cylinder, {ground->x, 0.1f, ground->y}, {1.0f, 0.85f, 0.25f, 0.8f}, 0.4f, 2.0f, 0.35f);
+        }
+        return;
+    }
     issueCommand(screen, arm == Arm::Attack, arm == Arm::Patrol);
 }
 
@@ -1184,7 +1210,7 @@ void App::renderWorld() {
     }
 
     for (const auto& e : entities_) {
-        if (!inView(e.pos, e.pos))
+        if (!inView(e.pos, e.pos) || hidden(e))
             continue;
         if (e.kind == net::EntityKind::Projectile) {
             const glm::vec4 c = glm::mix(kTeamColors[e.team & 1], glm::vec4(1.0f, 0.9f, 0.6f, 1.0f), 0.6f);
@@ -1196,9 +1222,26 @@ void App::renderWorld() {
         const auto rank = e.rank > 0 ? static_cast<Rank>(e.rank - 1) : Rank::Recruit;
         const float grow = rank == Rank::Hero ? 1.25f : rank == Rank::Elite ? 1.1f : 1.0f;
         const float d = def.radius * 2.0f * grow;
-        const float height = vis.height * grow;
+        const float lift = liftOf(e);
+        const float height = vis.height * grow + lift;
         const glm::vec4 color = unitColor(e);
-        if (vis.parts.empty()) {
+        if (lift > 0.0f) {
+            const float bob = 0.12f * std::sin(static_cast<float>(now_) * 2.0f + static_cast<float>(e.id % 17u));
+            renderer_.draw(Mesh::Cylinder, {e.pos.x, 0.03f, e.pos.y}, {d * 0.6f, 0.03f, d * 0.6f}, 0.0f, glm::vec4{0.0f, 0.0f, 0.0f, 0.15f},
+                           Unlit | Alpha);
+            float mtx[16];
+            const glm::vec3 base{e.pos.x, lift + bob, e.pos.y};
+            const float hullYaw = e.facing + vis.yaw;
+            for (const auto& part : vis.parts) {
+                if (part.turret)
+                    makeTurretMatrix(mtx, base, hullYaw, vis.pivot, e.aim + kModelYaw, part.pitch ? e.pitch : 0.0f, vis.scale * grow);
+                else
+                    makeModelMatrix(mtx, base, hullYaw, vis.scale * grow, part.offset);
+                renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, Tint);
+            }
+            if (vis.parts.empty())
+                renderer_.draw(vis.shape, {e.pos.x, lift + bob + vis.height * 0.5f, e.pos.y}, {d, vis.height, d}, e.facing, color);
+        } else if (vis.parts.empty()) {
             renderer_.draw(vis.shape, {e.pos.x, height * 0.5f, e.pos.y}, {d, height, d}, e.facing, color);
         } else {
             float mtx[16];

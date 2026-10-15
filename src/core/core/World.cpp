@@ -147,6 +147,10 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     } else {
         registry_.emplace<Order>(e);
         registry_.emplace<Motion>(e);
+        if (def.air)
+            registry_.emplace<Air>(e);
+        if (def.transport > 0)
+            registry_.emplace<Cargo>(e);
         registry_.emplace<Progress>(e, Progress{pos});
     }
     if (owner >= 0)
@@ -276,13 +280,22 @@ void World::apply(const Command& command) {
                     if (e == cmd.target)
                         continue;
                     const bool ally = registry_.get<Team>(e).id == targetTeam;
+                    const bool transport = registry_.all_of<Cargo>(cmd.target);
                     if (ally && unfinished && data_->unit(registry_.get<Unit>(e).def).builder)
                         give(e, {OrderType::Build, site, entt::null, site, siteDef});
-                    else if (!ally)
+                    else if (ally && transport && !registry_.all_of<Air>(e) && !registry_.all_of<Cargo>(e))
+                        give(e, {OrderType::Board, {}, cmd.target, {}});
+                    else if (!ally && canHit(e, cmd.target))
                         give(e, {OrderType::Attack, {}, cmd.target, {}});
+                    else if (!ally)
+                        continue;
                     else if (!structure)
                         give(e, {OrderType::Follow, {}, cmd.target, {}});
                 }
+            } else if constexpr (std::is_same_v<T, UnloadCommand>) {
+                for (const auto e : units)
+                    if (registry_.all_of<Cargo>(e))
+                        give(e, {OrderType::Unload, cmd.point, entt::null, cmd.point});
             } else if constexpr (std::is_same_v<T, BuildCommand>) {
                 if (cmd.unit >= data_->units().size() || !data_->unit(cmd.unit).buildable)
                     return;
@@ -334,7 +347,10 @@ void World::step() {
         times_.seconds[index++] += std::chrono::duration<double>(now - last).count();
         last = now;
     };
-    run([&] { rebuildSpatial(); });
+    run([&] {
+        updateTransport();
+        rebuildSpatial();
+    });
     run([&] {
         updateSpawners();
         updateProducers();
@@ -363,9 +379,9 @@ void World::step() {
 void World::rebuildSpatial() {
     spatial_.clear();
     structures_.clear();
-    for (auto [e, pos, unit, team, vel] : registry_.view<const Position, const Unit, const Team, const Velocity>().each()) {
+    for (auto [e, pos, unit, team, vel] : registry_.view<const Position, const Unit, const Team, const Velocity>(entt::exclude<Carried>).each()) {
         const bool structure = registry_.all_of<Structure>(e);
-        (structure ? structures_ : spatial_).insert({e, pos.value, vel.value, unit.radius, team.id, structure});
+        (structure ? structures_ : spatial_).insert({e, pos.value, vel.value, unit.radius, team.id, structure, registry_.all_of<Air>(e)});
     }
 }
 
@@ -442,11 +458,18 @@ void World::updateSpawners() {
         spawnOnLane(p.unit, p.team, p.lane, p.count, p.offset);
 }
 
-entt::entity World::findEnemy(glm::vec2 pos, std::uint8_t team, float radius) const {
+bool World::canHit(entt::entity shooter, entt::entity target) const {
+    const auto* weapon = registry_.try_get<Weapon>(shooter);
+    if (!weapon || registry_.all_of<Carried>(target))
+        return false;
+    return (weapon->def.targets & (registry_.all_of<Air>(target) ? 2 : 1)) != 0;
+}
+
+entt::entity World::findEnemy(glm::vec2 pos, std::uint8_t team, float radius, std::uint8_t canHit) const {
     entt::entity best = entt::null;
     float bestDist = std::numeric_limits<float>::max();
     queryAll(pos, radius, [&](const SpatialHash::Item& item) {
-        if (item.team == team)
+        if (item.team == team || (canHit & (item.air ? 2 : 1)) == 0)
             return;
         const float d = glm::distance(item.pos, pos) - item.radius;
         if (d > radius || !alive(item.entity) || registry_.all_of<Invulnerable>(item.entity))
@@ -470,7 +493,7 @@ glm::vec2 World::avoid(entt::entity e, glm::vec2 pos, glm::vec2 vel, float radiu
     const float tie = (entt::to_integral(e) & 1u) ? 1.0f : -1.0f;
     glm::vec2 steer{};
     queryAll(pos, look, [&](const SpatialHash::Item& o) {
-        if (o.entity == e || (o.team != team && !o.structure))
+        if (o.entity == e || (o.team != team && !o.structure) || o.air != registry_.all_of<Air>(e))
             return;
         const glm::vec2 rel = o.pos - pos;
         const float ahead = glm::dot(rel, dir);
@@ -496,7 +519,7 @@ glm::vec2 World::avoid(entt::entity e, glm::vec2 pos, glm::vec2 vel, float radiu
 }
 
 glm::vec2 World::navigate(entt::entity e, glm::vec2 pos, glm::vec2 goal, float speed) {
-    if (!map_)
+    if (!map_ || registry_.all_of<Air>(e))
         return seek(pos, goal, speed);
     const Map& nav = navMap();
     auto& n = registry_.get_or_emplace<Navigator>(e);
@@ -551,10 +574,12 @@ glm::vec2 World::laneVelocity(LaneFollower& lane, glm::vec2 pos, float speed) {
 }
 
 void World::updateUnits() {
-    auto view = registry_.view<const Position, const Unit, const Team, Velocity, Target, Facing>();
+    auto view = registry_.view<const Position, const Unit, const Team, Velocity, Target, Facing>(entt::exclude<Carried>);
     for (auto [e, pos, unit, team, vel, target, facing] : view.each()) {
         vel.value = {};
         auto* order = registry_.try_get<Order>(e);
+        if (target.value != entt::null && (registry_.all_of<Carried>(target.value) || !alive(target.value)))
+            target.value = entt::null;
         const auto* weapon = registry_.try_get<Weapon>(e);
         if (!alive(target.value))
             target.value = entt::null;
@@ -577,7 +602,7 @@ void World::updateUnits() {
                     target.value = entt::null;
             }
             if (target.value == entt::null && (tick_ + entt::to_integral(e)) % kScanInterval == 0)
-                target.value = findEnemy(pos.value, team.id, acquire);
+                target.value = findEnemy(pos.value, team.id, acquire, weapon->def.targets);
         }
 
         if (target.value != entt::null && weapon) {
@@ -588,6 +613,30 @@ void World::updateUnits() {
                 vel.value = navigate(e, pos.value, tp, unit.speed);
         } else if (order && order->type == OrderType::Build) {
             vel.value = builderStep(e, pos.value, unit, team.id, *order);
+        } else if (order && order->type == OrderType::Board) {
+            auto* cargo = alive(order->target) ? registry_.try_get<Cargo>(order->target) : nullptr;
+            if (!cargo || static_cast<int>(cargo->units.size()) >= data_->unit(registry_.get<Unit>(order->target).def).transport) {
+                finishOrder(e, *order);
+            } else {
+                const glm::vec2 tp = registry_.get<Position>(order->target).value;
+                if (glm::distance(tp, pos.value) > unit.radius + registry_.get<Unit>(order->target).radius + 1.2f) {
+                    vel.value = registry_.all_of<Air>(order->target) ? seek(pos.value, tp, unit.speed) : navigate(e, pos.value, tp, unit.speed);
+                } else {
+                    cargo->units.push_back(e);
+                    registry_.emplace_or_replace<Carried>(e, order->target);
+                    registry_.remove<Navigator>(e);
+                    registry_.remove<OrderQueue>(e);
+                    *order = {};
+                    target.value = entt::null;
+                }
+            }
+        } else if (order && order->type == OrderType::Unload) {
+            if (glm::distance(pos.value, order->point) < 1.0f) {
+                unloadAll(e, order->point);
+                finishOrder(e, *order);
+            } else {
+                vel.value = navigate(e, pos.value, order->point, unit.speed);
+            }
         } else if (order && order->type == OrderType::Follow) {
             if (!alive(order->target)) {
                 finishOrder(e, *order);
@@ -646,6 +695,39 @@ void World::updateUnits() {
     }
 }
 
+void World::updateTransport() {
+    for (auto [t, cargo, pos] : registry_.view<Cargo, const Position>().each()) {
+        std::erase_if(cargo.units, [&](entt::entity u) { return !registry_.valid(u) || !registry_.all_of<Carried>(u); });
+        const bool dead = registry_.get<Health>(t).hp <= 0.0f;
+        for (const auto u : cargo.units) {
+            registry_.get<Position>(u).value = pos.value;
+            registry_.get<Velocity>(u).value = {};
+            if (dead)
+                registry_.get<Health>(u).hp = 0.0f;
+        }
+    }
+}
+
+void World::unloadAll(entt::entity transport, glm::vec2 at) {
+    auto* cargo = registry_.try_get<Cargo>(transport);
+    if (!cargo)
+        return;
+    int i = 0;
+    for (const auto u : cargo->units) {
+        if (!registry_.valid(u))
+            continue;
+        const float a = static_cast<float>(i) * 2.4f;
+        const float r = 1.0f + 0.35f * static_cast<float>(i++);
+        glm::vec2 p = at + glm::vec2(std::cos(a), std::sin(a)) * r;
+        if (map_)
+            p = Map::center(nearestFree(navMap(), Map::cellOf(p)));
+        registry_.get<Position>(u).value = p;
+        registry_.get<PrevPosition>(u).value = p;
+        registry_.remove<Carried>(u);
+    }
+    cargo->units.clear();
+}
+
 void World::finishOrder(entt::entity e, Order& order) {
     registry_.remove<Navigator>(e);
     if (order.type == OrderType::Patrol) {
@@ -685,15 +767,16 @@ void World::applyMotion(entt::entity e, const Unit& unit, glm::vec2& vel, float&
 }
 
 void World::integrate() {
-    for (auto [e, pos, vel] : registry_.view<Position, const Velocity>(entt::exclude<Structure>).each())
+    for (auto [e, pos, vel] : registry_.view<Position, const Velocity>(entt::exclude<Structure, Carried>).each())
         pos.value += vel.value * kTickDt;
 }
 
 void World::resolveCollisions() {
-    for (auto [e, pos, unit] : registry_.view<Position, const Unit>(entt::exclude<Structure>).each()) {
+    for (auto [e, pos, unit] : registry_.view<Position, const Unit>(entt::exclude<Structure, Carried>).each()) {
         glm::vec2 push{};
+        const bool air = registry_.all_of<Air>(e);
         queryAll(pos.value, unit.radius, [&](const SpatialHash::Item& item) {
-            if (item.entity == e)
+            if (item.entity == e || item.air != air)
                 return;
             const float minDist = unit.radius + item.radius;
             glm::vec2 d = pos.value - item.pos;
@@ -711,8 +794,10 @@ void World::resolveCollisions() {
             push += n * (minDist - dist) * share;
         });
         pos.value += push;
-        if (map_)
+        if (map_ && !air)
             pushOutOfWalls(*map_, pos.value, unit.radius);
+        else if (map_)
+            pos.value = glm::clamp(pos.value, glm::vec2(1.0f), glm::vec2(static_cast<float>(map_->width()), static_cast<float>(map_->height())) - 1.0f);
     }
 }
 
@@ -740,9 +825,10 @@ void World::splashDamage(glm::vec2 at, float radius, float amount, std::uint8_t 
                          entt::entity skip) {
     if (radius <= 0.0f)
         return;
+    const bool air = skip != entt::null && registry_.valid(skip) && registry_.all_of<Air>(skip);
     std::vector<std::pair<entt::entity, float>> hits;
-    for (auto [e, pos, unit, t] : registry_.view<const Position, const Unit, const Team>().each()) {
-        if (t.id == team || e == skip || !alive(e))
+    for (auto [e, pos, unit, t] : registry_.view<const Position, const Unit, const Team>(entt::exclude<Carried>).each()) {
+        if (t.id == team || e == skip || !alive(e) || registry_.all_of<Air>(e) != air)
             continue;
         const float d = glm::distance(pos.value, at) - unit.radius;
         if (d < radius)
@@ -795,9 +881,9 @@ void World::updateWeapons() {
     std::vector<PendingShot> shots;
 
     for (auto [e, pos, unit, team, weapon, target] :
-         registry_.view<const Position, const Unit, const Team, Weapon, const Target>(entt::exclude<Construction>).each()) {
+         registry_.view<const Position, const Unit, const Team, Weapon, const Target>(entt::exclude<Construction, Carried>).each()) {
         weapon.cooldown = std::max(0.0f, weapon.cooldown - kTickDt);
-        if (weapon.cooldown > 0.0f || !alive(target.value))
+        if (weapon.cooldown > 0.0f || !alive(target.value) || !canHit(e, target.value))
             continue;
         const glm::vec2 tp = registry_.get<Position>(target.value).value;
         const float reach = weapon.def.range + unit.radius + registry_.get<Unit>(target.value).radius + kRangeSlack;
@@ -857,6 +943,11 @@ void World::removeDead() {
         int lastHitBy;
     };
     std::vector<Kill> kills;
+    for (auto [t, cargo, th] : registry_.view<Cargo, const Health>().each())
+        if (th.hp <= 0.0f)
+            for (const auto u : cargo.units)
+                if (registry_.valid(u))
+                    registry_.get<Health>(u).hp = 0.0f;
     for (auto [e, h, pos, unit, team] : registry_.view<const Health, const Position, const Unit, const Team>().each()) {
         if (h.hp > 0.0f)
             continue;

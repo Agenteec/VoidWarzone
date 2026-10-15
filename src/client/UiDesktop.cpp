@@ -158,7 +158,7 @@ void App::drawMinimap(float size) {
     }
     const float unitR = std::max(1.5f, 1.6f * s);
     for (const auto& e : entities_) {
-        if (e.kind != net::EntityKind::Unit)
+        if (e.kind != net::EntityKind::Unit || hidden(e))
             continue;
         const bool structure = data_->unit(e.def).structure;
         ImU32 c = e.team == 1 ? kVoid : IM_COL32(70, 160, 255, 255);

@@ -81,8 +81,14 @@ struct RefitCommand {
     std::uint16_t variant = 0;
 };
 
+struct UnloadCommand {
+    std::vector<entt::entity> units;
+    glm::vec2 point{};
+    bool queue = false;
+};
+
 using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand, PromoteCommand, CastCommand, LearnCommand, BuyCommand,
-                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand>;
+                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand, UnloadCommand>;
 
 template <class T>
 concept UnitCommand = requires(T t) { t.units; };
