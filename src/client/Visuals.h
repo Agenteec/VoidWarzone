@@ -44,6 +44,8 @@ struct UnitVisual {
     bool turret = false;
     glm::vec3 pivot{0.0f};
     glm::vec3 muzzle{0.0f};
+    glm::vec3 lo{0.0f};
+    glm::vec3 hi{0.0f};
 };
 
 inline constexpr float kModelYaw = 1.5707963f;

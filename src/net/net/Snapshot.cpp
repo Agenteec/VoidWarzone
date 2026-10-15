@@ -20,7 +20,7 @@ constexpr std::uint8_t kAll = kStatic | kPos | kVel | kFacing | kHp | kAim | kTa
 
 std::uint8_t diff(const EntityState& a, const EntityState& b) {
     std::uint8_t m = 0;
-    if (a.kind != b.kind || a.def != b.def || a.team != b.team || a.owner != b.owner || a.rank != b.rank)
+    if (a.kind != b.kind || a.def != b.def || a.team != b.team || a.owner != b.owner || a.rank != b.rank || a.modules != b.modules)
         m |= kStatic;
     if (a.x != b.x || a.y != b.y)
         m |= kPos;
@@ -170,6 +170,8 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const 
             changed.u8(e.team);
             changed.u8(e.owner);
             changed.u8(e.rank);
+            for (const auto m : e.modules)
+                changed.u8(m);
         }
         if (mask & kPos) {
             changed.u16(e.x);
@@ -277,6 +279,8 @@ bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
             e->team = r.u8();
             e->owner = r.u8();
             e->rank = r.u8();
+            for (auto& m : e->modules)
+                m = r.u8();
         }
         if (mask & kPos) {
             e->x = r.u16();

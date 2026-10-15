@@ -47,6 +47,7 @@ InterpolatedEntity toEntity(const EntityState& s) {
     e.maxHp = std::max<std::uint16_t>(s.maxHp, 1);
     e.shield = s.shield;
     e.flags = s.flags;
+    e.modules = s.modules;
     e.rank = s.rank;
     return e;
 }

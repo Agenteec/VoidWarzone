@@ -155,6 +155,23 @@ struct ItemDef {
     StatMods mods;
 };
 
+enum class ModuleSlot : std::uint8_t { Armor, System, Weapon, Count };
+inline constexpr int kModuleSlots = static_cast<int>(ModuleSlot::Count);
+using ModuleId = std::uint16_t;
+
+struct ModuleDef {
+    std::string id;
+    std::string name;
+    ModuleSlot slot = ModuleSlot::Armor;
+    float cost = 0.0f;
+    StatMods mods;
+    float shield = 0.0f;
+    std::optional<WeaponDef> weapon;
+    std::string look;
+};
+
+const char* moduleSlotName(ModuleSlot s);
+
 class GameData {
 public:
     static GameData parse(std::string_view units, std::string_view skills = {}, std::string_view items = {});
@@ -175,6 +192,9 @@ public:
     const std::vector<ItemDef>& items() const { return items_; }
     ItemId findItem(std::string_view id) const;
     const std::vector<ItemId>& shop() const { return shop_; }
+    const ModuleDef& module(ModuleId id) const { return modules_[id]; }
+    const std::vector<ModuleDef>& modules() const { return modules_; }
+    ModuleId findModule(std::string_view id) const;
 
     float maxRadius() const { return maxRadius_; }
     const CombatTable& combat() const { return combat_; }
@@ -188,6 +208,7 @@ private:
     std::vector<SkillDef> skills_;
     std::vector<ItemDef> items_;
     std::vector<ItemId> shop_;
+    std::vector<ModuleDef> modules_;
     float maxRadius_ = 0.0f;
     CombatTable combat_;
     std::uint64_t hash_ = 0;

@@ -302,6 +302,15 @@ void App::loadContent() {
 
     models_ = std::make_unique<ModelLibrary>(renderer_, loadText);
     visuals_ = loadUnitVisuals(unitsText, *data_, *models_);
+    moduleLooks_.clear();
+    for (const auto& m : data_->modules()) {
+        ModuleLook look;
+        if (const auto slash = m.look.find('/'); slash != std::string::npos) {
+            look.mount = models_->model(m.look.substr(0, slash));
+            look.weapon = models_->model(m.look.substr(slash + 1));
+        }
+        moduleLooks_.push_back(look);
+    }
     const auto catalog = nlohmann::json::parse(loadText("data/maps/maps.json"));
     for (const char* key : {"maps", "modes"}) {
         auto& list = std::string_view(key) == "maps" ? maps_ : modes_;
@@ -1242,6 +1251,8 @@ void App::renderWorld() {
             }
             if (vis.parts.empty())
                 renderer_.draw(vis.shape, {e.pos.x, lift + bob + vis.height * 0.5f, e.pos.y}, {d, vis.height, d}, e.facing, color);
+            else
+                renderModules(e, vis, base, grow, color);
         } else if (vis.parts.empty()) {
             renderer_.draw(vis.shape, {e.pos.x, height * 0.5f, e.pos.y}, {d, height, d}, e.facing, color);
         } else {
@@ -1255,6 +1266,7 @@ void App::renderWorld() {
                     makeModelMatrix(mtx, base, hullYaw, vis.scale * grow, part.offset);
                 renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, Tint);
             }
+            renderModules(e, vis, base, grow, color);
         }
         if (e.rank > 0 && rank != Rank::Recruit) {
             const glm::vec4 gold{1.0f, 0.82f, 0.25f, 1.0f};

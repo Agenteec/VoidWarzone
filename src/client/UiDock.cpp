@@ -235,6 +235,49 @@ void App::drawDock() {
                 }
             }
         }
+    } else if (dock_ == Dock::Modules) {
+        const auto* own = focusedOwn();
+        const auto* entity = !selected_.empty() ? findEntity(selected_.front()) : nullptr;
+        if (!own || !entity) {
+            ImGui::TextDisabled("Select an own unit to fit modules");
+        } else {
+            for (int slot = 0; slot < kModuleSlots; ++slot) {
+                const auto need = slot == static_cast<int>(ModuleSlot::Armor) ? Rank::Veteran : Rank::Elite;
+                const bool unlocked = own->rank >= static_cast<std::uint8_t>(need);
+                column = 0;
+                ImGui::TextDisabled("%s%s", moduleSlotName(static_cast<ModuleSlot>(slot)), unlocked ? "" : need == Rank::Veteran ? "  (Veteran)" : "  (Elite)");
+                for (std::size_t i = 0; i < data_->modules().size(); ++i) {
+                    const auto& def = data_->module(static_cast<ModuleId>(i));
+                    if (static_cast<int>(def.slot) != slot)
+                        continue;
+                    next();
+                    const bool fitted = entity->modules[static_cast<std::size_t>(slot)] == i;
+                    char cost[16];
+                    std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
+                    std::string name = def.name;
+                    if (const auto space = name.find(' '); space != std::string::npos && name.size() > 9)
+                        name = name.substr(0, space);
+                    if (cardButton(def.id.c_str(), name.substr(0, 9).c_str(), cost, "", unlocked && !fitted && energy >= def.cost, fitted, cell))
+                        for (const auto id : selected_)
+                            if (const auto* e = findEntity(id); e && isOwn(*e) && e->modules[static_cast<std::size_t>(slot)] != i)
+                                net_.sendCommand(ModuleCommand{0, static_cast<entt::entity>(id), static_cast<std::uint16_t>(i)});
+                    if (ImGui::BeginItemTooltip()) {
+                        ImGui::Text("%s  (%s slot)", def.name.c_str(), moduleSlotName(def.slot));
+                        const std::string mods = modsText(def.mods);
+                        if (!mods.empty())
+                            ImGui::TextUnformatted(mods.c_str());
+                        if (def.shield > 0.0f)
+                            ImGui::TextColored({0.35f, 0.85f, 1.0f, 1.0f}, "+%.0f energy shield", def.shield);
+                        if (def.weapon)
+                            ImGui::TextDisabled("second weapon: %s %.0f dmg, range %.1f, every %.1fs, hits %s", damageTypeName(def.weapon->type),
+                                                def.weapon->damage, def.weapon->range, def.weapon->cooldown,
+                                                def.weapon->targets == 3 ? "ground and air" : def.weapon->targets == 2 ? "air" : "ground");
+                        ImGui::TextDisabled("replaces the module in this slot");
+                        ImGui::EndTooltip();
+                    }
+                }
+            }
+        }
     } else if (dock_ == Dock::Build) {
         const auto& list = data_->buildable();
         for (std::size_t i = 0; i < list.size() && i < 8; ++i) {
@@ -272,6 +315,8 @@ void App::drawDock() {
         toggleDock(Dock::Production);
     if (tabButton(ICON_FA_COGS "##r", "Refit: change the class of an Elite vehicle", dock_ == Dock::Refit))
         toggleDock(Dock::Refit);
+    if (tabButton(ICON_FA_CUBE "##m", "Modules: armor (Veteran), system and weapon (Elite)", dock_ == Dock::Modules))
+        toggleDock(Dock::Modules);
     if (tabButton(ICON_FA_BOLT "##s", "Hero skills", dock_ == Dock::Skills))
         toggleDock(Dock::Skills);
     if (tabButton(ICON_FA_WRENCH "##b", "Build (select an engineer): walls, turrets, factories", dock_ == Dock::Build))

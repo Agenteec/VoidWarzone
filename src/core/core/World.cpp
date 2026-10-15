@@ -68,6 +68,18 @@ World::World(const GameData& data, const Map& map, Difficulty difficulty, GameMo
         if (id == kInvalidUnitDef)
             throw std::runtime_error("unknown unit: " + u.unit);
         const auto e = spawn(id, u.team, u.pos, u.owner);
+        for (const auto& name : u.modules) {
+            const ModuleId m = data.findModule(name);
+            if (m == kInvalidId)
+                throw std::runtime_error("unknown module: " + name);
+            if (data.unit(id).structure)
+                continue;
+            registry_.get_or_emplace<Modules>(e).slots[static_cast<std::size_t>(data.module(m).slot)] = m;
+            if (data.module(m).slot == ModuleSlot::Weapon && data.module(m).weapon)
+                registry_.emplace_or_replace<SecondaryWeapon>(e, SecondaryWeapon{*data.module(m).weapon, 0.0f, entt::null});
+        }
+        if (!u.modules.empty() && !data.unit(id).structure)
+            refreshStats(e);
         if (!u.tag.empty())
             tagged[u.tag] = e;
         if (u.role == "core")
@@ -131,6 +143,8 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     registry_.emplace<BaseStats>(e, base);
     if (owner >= 0 && !def.structure)
         registry_.emplace<Progression>(e);
+    if (owner >= 0 && !def.structure)
+        registry_.emplace<Modules>(e);
     if (def.boss) {
         Boss boss;
         for (const auto& a : def.boss->abilities)
@@ -846,7 +860,8 @@ void World::updateShields() {
             h.shieldDelay -= kTickDt;
             continue;
         }
-        h.shield = std::min(h.shieldMax, h.shield + data_->unit(registry_.get<Unit>(e).def).shieldRegen * kTickDt);
+        const float regen = std::max(data_->unit(registry_.get<Unit>(e).def).shieldRegen, h.shieldMax * 0.06f);
+        h.shield = std::min(h.shieldMax, h.shield + regen * kTickDt);
     }
 }
 
@@ -895,6 +910,25 @@ void World::updateWeapons() {
         weapon.cooldown = weapon.def.cooldown;
         const auto* owner = registry_.try_get<Owner>(e);
         shots.push_back({e, target.value, pos.value, tp, weapon.def, team.id, owner ? static_cast<int>(owner->player) : -1, unit.def});
+    }
+
+    for (auto [e, pos, unit, team, weapon] :
+         registry_.view<const Position, const Unit, const Team, SecondaryWeapon>(entt::exclude<Construction, Carried>).each()) {
+        weapon.cooldown = std::max(0.0f, weapon.cooldown - kTickDt);
+        const float reach = weapon.def.range + unit.radius + kRangeSlack;
+        auto valid = [&](entt::entity t) {
+            if (!alive(t) || registry_.all_of<Carried>(t) || (weapon.def.targets & (registry_.all_of<Air>(t) ? 2 : 1)) == 0)
+                return false;
+            return glm::distance(registry_.get<Position>(t).value, pos.value) - registry_.get<Unit>(t).radius <= reach;
+        };
+        if (!valid(weapon.target))
+            weapon.target = (tick_ + entt::to_integral(e)) % kScanInterval == 0 ? findEnemy(pos.value, team.id, reach, weapon.def.targets) : entt::null;
+        if (weapon.cooldown > 0.0f || weapon.target == entt::null || !valid(weapon.target))
+            continue;
+        weapon.cooldown = weapon.def.cooldown;
+        const auto* owner = registry_.try_get<Owner>(e);
+        shots.push_back({e, weapon.target, pos.value, registry_.get<Position>(weapon.target).value, weapon.def, team.id,
+                         owner ? static_cast<int>(owner->player) : -1, unit.def});
     }
 
     for (const auto& s : shots) {

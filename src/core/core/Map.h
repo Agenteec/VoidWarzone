@@ -29,6 +29,7 @@ struct PlacedUnit {
     std::uint8_t team = 0;
     int owner = -1;
     glm::vec2 pos{};
+    std::vector<std::string> modules;
 };
 
 struct SpawnerDef {

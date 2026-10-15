@@ -252,3 +252,42 @@ TEST_CASE("refit elite vehicles into classes") {
         world.step();
     CHECK(reg.get<Weapon>(ally).def.range > data.unit(data.find("tank")).weapon->range);
 }
+
+TEST_CASE("vehicle modules") {
+    auto read = [](const std::string& rel) {
+        std::ifstream f(std::string(VW_DATA_DIR) + "/" + rel, std::ios::binary);
+        std::stringstream ss;
+        ss << f.rdbuf();
+        return ss.str();
+    };
+    const auto data = GameData::parse(read("units.json"), read("skills.json"), read("items.json"));
+    REQUIRE(data.modules().size() >= 6);
+    Map map(60, 60);
+    World world(data, map);
+    world.spawnPlayer(0);
+    auto& reg = world.registry();
+    const auto tank = world.spawn(data.find("tank"), 0, {20.5f, 20.5f}, 0);
+    world.devBoost(0);
+    const float hp = reg.get<Health>(tank).max;
+
+    world.apply(ModuleCommand{0, tank, data.findModule("armor_plates")});
+    CHECK(reg.get<Modules>(tank).slots[0] == 0xffff);
+    reg.get<Progression>(tank).rank = Rank::Veteran;
+    world.apply(ModuleCommand{0, tank, data.findModule("armor_plates")});
+    CHECK(reg.get<Modules>(tank).slots[0] == data.findModule("armor_plates"));
+    CHECK(reg.get<Health>(tank).max > hp + 100.0f);
+    world.apply(ModuleCommand{0, tank, data.findModule("shield_gen")});
+    CHECK(reg.get<Health>(tank).shieldMax == doctest::Approx(0.0f));
+
+    world.apply(PromoteCommand{0, tank});
+    REQUIRE(reg.get<Progression>(tank).rank == Rank::Elite);
+    world.apply(ModuleCommand{0, tank, data.findModule("shield_gen")});
+    CHECK(reg.get<Health>(tank).shieldMax == doctest::Approx(160.0f));
+    world.apply(ModuleCommand{0, tank, data.findModule("aa_missiles")});
+    REQUIRE(reg.all_of<SecondaryWeapon>(tank));
+
+    const auto heli = world.spawn(data.find("gunship"), 1, {25.5f, 20.5f});
+    for (int i = 0; i < kTickRate * 3; ++i)
+        world.step();
+    CHECK(reg.get<Health>(heli).hp < reg.get<Health>(heli).max);
+}

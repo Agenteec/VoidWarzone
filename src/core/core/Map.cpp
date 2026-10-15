@@ -71,6 +71,8 @@ Map Map::parse(std::string_view text) {
         pu.team = u.value("team", std::uint8_t{0});
         pu.owner = u.value("owner", -1);
         pu.pos = toVec2(u.at("pos"));
+        for (const auto& m : u.value("modules", json::array()))
+            pu.modules.push_back(m.get<std::string>());
         m.units_.push_back(std::move(pu));
     }
 

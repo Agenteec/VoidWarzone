@@ -452,6 +452,9 @@ Snapshot Server::buildSnapshot() const {
         st.hp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.hp), 0.0f, 65535.0f));
         st.maxHp = static_cast<std::uint16_t>(std::clamp(std::ceil(health.max), 1.0f, 65535.0f));
         st.shield = static_cast<std::uint16_t>(std::clamp(std::ceil(health.shield), 0.0f, 65535.0f));
+        if (const auto* modules = reg.try_get<Modules>(e))
+            for (std::size_t i = 0; i < 3; ++i)
+                st.modules[i] = modules->slots[i] < 0xff ? static_cast<std::uint8_t>(modules->slots[i]) : 0xff;
         st.flags = static_cast<std::uint8_t>((reg.all_of<Construction>(e) ? kStateBuilding : 0) | (reg.all_of<Carried>(e) ? kStateCarried : 0));
         s.entities.push_back(st);
     }

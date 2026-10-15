@@ -28,6 +28,20 @@ ArmorType parseArmor(const std::string& name) {
     throw std::runtime_error("unknown armor type: " + name);
 }
 
+WeaponDef parseWeapon(const json& w, bool structure) {
+    WeaponDef wd;
+    wd.damage = w.value("damage", wd.damage);
+    wd.range = w.value("range", wd.range);
+    wd.cooldown = w.value("cooldown", wd.cooldown);
+    wd.projectileSpeed = w.value("projectileSpeed", wd.projectileSpeed);
+    wd.turnRate = w.value("turnRate", structure ? 3.5f : 6.0f);
+    wd.type = parseDamage(w.value("type", "kinetic"));
+    wd.splash = w.value("splash", wd.splash);
+    const std::string targets = w.value("targets", "ground");
+    wd.targets = targets == "both" ? 3 : targets == "air" ? 2 : 1;
+    return wd;
+}
+
 StatMods parseMods(const json& j) {
     StatMods m;
     m.hp = j.value("hp", m.hp);
@@ -105,6 +119,17 @@ std::vector<UnitDefId> GameData::refits(UnitDefId base) const {
     return out;
 }
 
+ModuleId GameData::findModule(std::string_view id) const {
+    for (std::size_t i = 0; i < modules_.size(); ++i)
+        if (modules_[i].id == id)
+            return static_cast<ModuleId>(i);
+    return kInvalidId;
+}
+
+const char* moduleSlotName(ModuleSlot s) {
+    return s == ModuleSlot::Weapon ? "weapon" : s == ModuleSlot::System ? "system" : "armor";
+}
+
 const char* damageTypeName(DamageType t) {
     return kDamageNames[std::min(static_cast<int>(t), static_cast<int>(DamageType::Count) - 1)];
 }
@@ -153,6 +178,22 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
                 d.shop_.push_back(id);
             d.items_.push_back(std::move(def));
         }
+
+    for (const auto& m : itemsJson.value("modules", json::array())) {
+        ModuleDef def;
+        def.id = m.at("id").get<std::string>();
+        def.name = m.value("name", def.id);
+        const std::string slot = m.value("slot", "armor");
+        def.slot = slot == "weapon" ? ModuleSlot::Weapon : slot == "system" ? ModuleSlot::System : ModuleSlot::Armor;
+        def.cost = m.value("cost", def.cost);
+        if (const auto mods = m.find("mods"); mods != m.end())
+            def.mods = parseMods(*mods);
+        def.shield = m.value("shield", def.shield);
+        def.look = m.value("look", "");
+        if (const auto w = m.find("weapon"); w != m.end())
+            def.weapon = parseWeapon(*w, false);
+        d.modules_.push_back(std::move(def));
+    }
 
     const json unitsJson = json::parse(unitsText);
     if (const auto c = unitsJson.find("combat"); c != unitsJson.end()) {
@@ -212,19 +253,8 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             def.produceInterval = pr->value("interval", def.produceInterval);
             def.produceMax = pr->value("max", def.produceMax);
         }
-        if (const auto w = u.find("weapon"); w != u.end()) {
-            WeaponDef wd;
-            wd.damage = w->value("damage", wd.damage);
-            wd.range = w->value("range", wd.range);
-            wd.cooldown = w->value("cooldown", wd.cooldown);
-            wd.projectileSpeed = w->value("projectileSpeed", wd.projectileSpeed);
-            wd.turnRate = w->value("turnRate", def.structure ? 3.5f : 6.0f);
-            wd.type = parseDamage(w->value("type", "kinetic"));
-            wd.splash = w->value("splash", wd.splash);
-            const std::string targets = w->value("targets", "ground");
-            wd.targets = targets == "both" ? 3 : targets == "air" ? 2 : 1;
-            def.weapon = wd;
-        }
+        if (const auto w = u.find("weapon"); w != u.end())
+            def.weapon = parseWeapon(*w, def.structure);
         if (const auto b = u.find("boss"); b != u.end()) {
             BossDef bd;
             bd.title = b->value("title", def.name);

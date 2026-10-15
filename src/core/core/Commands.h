@@ -87,8 +87,14 @@ struct UnloadCommand {
     bool queue = false;
 };
 
+struct ModuleCommand {
+    std::uint8_t player = 0;
+    entt::entity unit = entt::null;
+    std::uint16_t module = 0;
+};
+
 using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand, PromoteCommand, CastCommand, LearnCommand, BuyCommand,
-                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand, UnloadCommand>;
+                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand, UnloadCommand, ModuleCommand>;
 
 template <class T>
 concept UnitCommand = requires(T t) { t.units; };

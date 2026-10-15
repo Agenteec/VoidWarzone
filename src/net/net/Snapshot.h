@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <numbers>
@@ -29,6 +30,7 @@ struct EntityState {
     std::uint16_t shield = 0;
     std::uint8_t flags = 0;
     std::uint8_t rank = 0;
+    std::array<std::uint8_t, 3> modules{0xff, 0xff, 0xff};
     std::uint8_t aim = 0;
     std::uint8_t pitch = 0;
     std::uint16_t tx = 0;

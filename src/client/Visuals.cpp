@@ -173,6 +173,8 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
         const float fit = m->value("fit", def.structure ? 1.0f : 1.3f);
         v.scale = def.radius * 2.0f * fit / extent;
         v.height = std::max(0.3f, hi.y * v.scale);
+        v.lo = lo;
+        v.hi = hi;
         v.yaw += m->value("yaw", 0.0f) * std::numbers::pi_v<float> / 180.0f;
     }
     return visuals;

@@ -37,6 +37,7 @@ struct InterpolatedEntity {
     std::uint16_t shield = 0;
     std::uint8_t flags = 0;
     std::uint8_t rank = 0;
+    std::array<std::uint8_t, 3> modules{0xff, 0xff, 0xff};
 };
 
 struct UnitDeath {

@@ -438,6 +438,44 @@ void App::drawInspect() {
 
 namespace vw::client {
 
+void App::renderModules(const net::InterpolatedEntity& e, const UnitVisual& vis, glm::vec3 base, float grow, const glm::vec4& color) {
+    const float d = data_->unit(e.def).radius * 2.0f * grow;
+    const float hullYaw = e.facing + vis.yaw;
+    for (const auto m : e.modules) {
+        if (m >= data_->modules().size())
+            continue;
+        const auto& def = data_->module(m);
+        if (def.look == "plates") {
+            const glm::vec2 side{-std::sin(e.facing), std::cos(e.facing)};
+            const float h = vis.height * grow * 0.4f;
+            for (const float s : {-1.0f, 1.0f}) {
+                const glm::vec2 p = glm::vec2(base.x, base.z) + side * (s * d * 0.56f);
+                renderer_.draw(Mesh::Cube, {p.x, base.y + h * 0.95f, p.y}, {d * 0.8f, h, 0.16f * grow}, e.facing,
+                               glm::vec4(glm::vec3(0.42f, 0.44f, 0.4f) + glm::vec3(color) * 0.15f, 1.0f));
+            }
+        } else if (def.look == "bubble" && e.shield > 0) {
+            renderer_.draw(Mesh::Sphere, {base.x, base.y + vis.height * grow * 0.45f, base.z}, glm::vec3(d * 1.35f), 0.0f,
+                           glm::vec4{0.35f, 0.85f, 1.0f, 0.13f}, Unlit | Alpha);
+        } else if (def.look == "booster") {
+            const glm::vec2 back = glm::vec2(base.x, base.z) - glm::vec2(std::cos(e.facing), std::sin(e.facing)) * d * 0.5f;
+            const float glow = 0.6f + 0.4f * std::sin(static_cast<float>(now_) * 18.0f + static_cast<float>(e.id));
+            renderer_.draw(Mesh::Sphere, {back.x, base.y + vis.height * grow * 0.4f, back.y}, glm::vec3(0.22f * grow * glow), 0.0f,
+                           glm::vec4{1.0f, 0.6f, 0.2f, 0.85f}, Unlit | Alpha);
+        } else if (m < moduleLooks_.size() && moduleLooks_[m].weapon) {
+            constexpr float kSmall = 0.7f;
+            const glm::vec3 pivot{vis.pivot.x, vis.pivot.y, vis.pivot.z + (vis.hi.z - vis.pivot.z) * 0.55f};
+            float mtx[16];
+            for (const Model* part : {moduleLooks_[m].mount, moduleLooks_[m].weapon}) {
+                if (!part)
+                    continue;
+                makeTurretMatrix(mtx, base, hullYaw, pivot / kSmall, e.aim + kModelYaw, part == moduleLooks_[m].weapon ? e.pitch : 0.0f,
+                                 vis.scale * grow * kSmall);
+                renderer_.drawMesh(part->mesh, part->texture, part->mask, mtx, color, Tint);
+            }
+        }
+    }
+}
+
 void App::renderSkillPreview() {
     if (armedSkill_ < 0)
         return;

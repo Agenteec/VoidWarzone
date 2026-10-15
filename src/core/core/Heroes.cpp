@@ -93,6 +93,13 @@ void World::refreshStats(entt::entity e) {
         for (const auto item : prog->items)
             mods.add(data_->item(item).mods);
     }
+    float shieldMax = data_->unit(registry_.get<Unit>(e).def).shield;
+    if (const auto* modules = registry_.try_get<Modules>(e))
+        for (const auto m : modules->slots)
+            if (m < data_->modules().size()) {
+                mods.add(data_->module(m).mods);
+                shieldMax += data_->module(m).shield;
+            }
     if (const auto* buffs = registry_.try_get<Buffs>(e))
         for (const auto& b : buffs->list)
             mods.add(b.mods);
@@ -110,6 +117,10 @@ void World::refreshStats(entt::entity e) {
     health.max = std::max(1.0f, (base->maxHp + mods.hp) * mods.hpMul);
     health.hp = std::min(health.max, std::max(health.hp > 0.0f ? 1.0f : 0.0f, ratio * health.max));
     health.armor = base->armor + mods.armor;
+    if (shieldMax != health.shieldMax) {
+        health.shield = std::min(health.shield + std::max(0.0f, shieldMax - health.shieldMax), shieldMax);
+        health.shieldMax = shieldMax;
+    }
 
     registry_.get<Unit>(e).speed = base->speed * std::max(0.1f, mods.speedMul);
     if (auto* w = registry_.try_get<Weapon>(e)) {
@@ -262,6 +273,30 @@ void World::handle(const RefitCommand& cmd) {
     refreshStats(cmd.unit);
     const glm::vec2 pos = registry_.get<Position>(cmd.unit).value;
     events_.push_back({EventType::Promote, cmd.unit, entt::null, pos, pos, static_cast<float>(prog->rank)});
+}
+
+void World::handle(const ModuleCommand& cmd) {
+    auto* prog = ownedProgression(cmd.player, cmd.unit);
+    auto* modules = registry_.try_get<Modules>(cmd.unit);
+    if (!prog || !modules || cmd.player >= kMaxPlayers || cmd.module >= data_->modules().size())
+        return;
+    const auto& def = data_->module(cmd.module);
+    const int slot = static_cast<int>(def.slot);
+    const Rank need = def.slot == ModuleSlot::Armor ? Rank::Veteran : Rank::Elite;
+    if (prog->rank < need || modules->slots[static_cast<std::size_t>(slot)] == cmd.module)
+        return;
+    auto& player = players_[cmd.player];
+    if (player.energy < def.cost)
+        return;
+    player.energy -= def.cost;
+    modules->slots[static_cast<std::size_t>(slot)] = cmd.module;
+    if (def.slot == ModuleSlot::Weapon) {
+        if (def.weapon)
+            registry_.emplace_or_replace<SecondaryWeapon>(cmd.unit, SecondaryWeapon{*def.weapon, 0.0f, entt::null});
+        else
+            registry_.remove<SecondaryWeapon>(cmd.unit);
+    }
+    refreshStats(cmd.unit);
 }
 
 void World::updateRepair() {

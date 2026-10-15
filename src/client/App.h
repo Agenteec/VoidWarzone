@@ -177,7 +177,13 @@ private:
     void drawSelection();
     void drawSelectionTiles(float width, int perRow, bool horizontal);
     void drawDock();
-    enum class Dock { None, Orders, Production, Skills, Build, Refit };
+    enum class Dock { None, Orders, Production, Skills, Build, Refit, Modules };
+    struct ModuleLook {
+        const Model* mount = nullptr;
+        const Model* weapon = nullptr;
+    };
+    std::vector<ModuleLook> moduleLooks_;
+    void renderModules(const net::InterpolatedEntity& e, const UnitVisual& vis, glm::vec3 base, float grow, const glm::vec4& color);
     void renderSkillPreview();
     Dock dock_ = Dock::None;
     void drawGroupBar();

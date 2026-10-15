@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -88,6 +89,16 @@ struct Order {
 };
 
 struct Air {};
+
+struct Modules {
+    std::array<std::uint16_t, 3> slots{0xffff, 0xffff, 0xffff};
+};
+
+struct SecondaryWeapon {
+    WeaponDef def;
+    float cooldown = 0.0f;
+    entt::entity target = entt::null;
+};
 
 struct Carried {
     entt::entity transport = entt::null;
