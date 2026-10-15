@@ -227,6 +227,68 @@ void World::handle(const PromoteCommand& cmd) {
     events_.push_back({EventType::Promote, cmd.unit, entt::null, registry_.get<Position>(cmd.unit).value, registry_.get<Position>(cmd.unit).value, static_cast<float>(prog->rank)});
 }
 
+void World::handle(const RefitCommand& cmd) {
+    auto* prog = ownedProgression(cmd.player, cmd.unit);
+    if (!prog || cmd.player >= kMaxPlayers || cmd.variant >= data_->units().size() || prog->rank < Rank::Elite)
+        return;
+    auto& unit = registry_.get<Unit>(cmd.unit);
+    const auto& variant = data_->unit(cmd.variant);
+    if (cmd.variant == unit.def || variant.refitFrom == kInvalidUnitDef || variant.refitFrom != data_->baseOf(unit.def))
+        return;
+    auto& player = players_[cmd.player];
+    if (player.energy < variant.refitCost)
+        return;
+    player.energy -= variant.refitCost;
+
+    unit.def = cmd.variant;
+    unit.radius = variant.radius;
+    unit.sight = variant.sight;
+    auto& base = registry_.get<BaseStats>(cmd.unit);
+    base = {variant.maxHp, variant.armor, variant.speed};
+    if (variant.weapon) {
+        base.damage = variant.weapon->damage;
+        base.cooldown = variant.weapon->cooldown;
+        base.range = variant.weapon->range;
+        registry_.emplace_or_replace<Weapon>(cmd.unit, *variant.weapon, 0.0f);
+        if (!registry_.all_of<Turret>(cmd.unit))
+            registry_.emplace<Turret>(cmd.unit, Turret{registry_.get<Facing>(cmd.unit).angle, 0.0f});
+    } else {
+        registry_.remove<Weapon>(cmd.unit);
+        registry_.remove<Turret>(cmd.unit);
+    }
+    auto& health = registry_.get<Health>(cmd.unit);
+    health.shieldMax = variant.shield;
+    health.shield = std::min(health.shield, health.shieldMax);
+    refreshStats(cmd.unit);
+    const glm::vec2 pos = registry_.get<Position>(cmd.unit).value;
+    events_.push_back({EventType::Promote, cmd.unit, entt::null, pos, pos, static_cast<float>(prog->rank)});
+}
+
+void World::updateRepair() {
+    if (tick_ % kAuraPeriod != 0)
+        return;
+    for (auto [e, pos, unit, team] : registry_.view<const Position, const Unit, const Team>().each()) {
+        const auto& def = data_->unit(unit.def);
+        if (def.repair <= 0.0f || !alive(e))
+            continue;
+        entt::entity best = entt::null;
+        float worst = 1.0f;
+        for (auto [o, op, ou, ot, oh] : registry_.view<const Position, const Unit, const Team, const Health>(entt::exclude<Construction>).each()) {
+            if (o == e || ot.id != team.id || oh.hp <= 0.0f || oh.hp >= oh.max ||
+                glm::distance(op.value, pos.value) - ou.radius > def.repairRange + unit.radius)
+                continue;
+            if (oh.hp / oh.max < worst) {
+                worst = oh.hp / oh.max;
+                best = o;
+            }
+        }
+        if (best == entt::null)
+            continue;
+        auto& h = registry_.get<Health>(best);
+        h.hp = std::min(h.max, h.hp + def.repair * static_cast<float>(kAuraPeriod) * kTickDt);
+    }
+}
+
 void World::handle(const LearnCommand& cmd) {
     auto* prog = ownedProgression(cmd.player, cmd.unit);
     if (!prog || prog->rank != Rank::Hero || prog->skillPoints <= 0)
@@ -414,6 +476,10 @@ void World::updateHeroes() {
             for (const auto& s : prog.skills)
                 if (data_->skill(s.skill).passive && alive(e))
                     auras.push_back({e, s.skill, s.level, pos.value});
+        for (auto [e, unit, pos] : registry_.view<const Unit, const Position>().each())
+            if (alive(e))
+                for (const auto skill : data_->unit(unit.def).auras)
+                    auras.push_back({e, skill, 1, pos.value});
         for (const auto& a : auras)
             for (const auto& fx : data_->skill(a.skill).effects) {
                 if (fx.type != EffectType::Aura)

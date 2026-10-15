@@ -1,3 +1,7 @@
+#include <fstream>
+#include <sstream>
+#include <string>
+
 #include <doctest/doctest.h>
 #include <glm/geometric.hpp>
 
@@ -202,4 +206,49 @@ TEST_CASE_FIXTURE(Fixture, "dead hero respawns with progression") {
             CHECK(p.level == 2);
         }
     CHECK(heroes == 1);
+}
+
+TEST_CASE("refit elite vehicles into classes") {
+    auto read = [](const std::string& rel) {
+        std::ifstream f(std::string(VW_DATA_DIR) + "/" + rel, std::ios::binary);
+        std::stringstream ss;
+        ss << f.rdbuf();
+        return ss.str();
+    };
+    const auto data = GameData::parse(read("units.json"), read("skills.json"), read("items.json"));
+    Map map(60, 60);
+    World world(data, map);
+    world.spawnPlayer(0);
+    auto& reg = world.registry();
+    const auto tank = world.spawn(data.find("tank"), 0, {20.5f, 20.5f}, 0);
+    world.devBoost(0);
+    CHECK(data.refits(data.find("tank")).size() == 5);
+
+    world.apply(RefitCommand{0, tank, data.find("tank_rocket")});
+    CHECK(reg.get<Unit>(tank).def == data.find("tank"));
+    world.apply(PromoteCommand{0, tank});
+    REQUIRE(reg.get<Progression>(tank).rank == Rank::Elite);
+    const float energy = world.player(0).energy;
+    world.apply(RefitCommand{0, tank, data.find("scout_emp")});
+    CHECK(reg.get<Unit>(tank).def == data.find("tank"));
+    world.apply(RefitCommand{0, tank, data.find("tank_rocket")});
+    CHECK(reg.get<Unit>(tank).def == data.find("tank_rocket"));
+    CHECK(reg.get<Weapon>(tank).def.type == DamageType::Explosive);
+    CHECK(reg.get<Weapon>(tank).def.splash > 0.0f);
+    CHECK(world.player(0).energy == doctest::Approx(energy - data.unit(data.find("tank_rocket")).refitCost));
+    CHECK(reg.get<Progression>(tank).rank == Rank::Elite);
+
+    world.apply(RefitCommand{0, tank, data.find("tank_repair")});
+    REQUIRE(reg.get<Unit>(tank).def == data.find("tank_repair"));
+    const auto tower = world.spawn(data.find("gun_tower"), 0, {23.5f, 20.5f}, 0);
+    reg.get<Health>(tower).hp = 100.0f;
+    for (int i = 0; i < kTickRate * 3; ++i)
+        world.step();
+    CHECK(reg.get<Health>(tower).hp > 130.0f);
+
+    world.apply(RefitCommand{0, tank, data.find("tank_radar")});
+    const auto ally = world.spawn(data.find("tank"), 0, {22.5f, 22.5f}, 0);
+    for (int i = 0; i < kTickRate; ++i)
+        world.step();
+    CHECK(reg.get<Weapon>(ally).def.range > data.unit(data.find("tank")).weapon->range);
 }

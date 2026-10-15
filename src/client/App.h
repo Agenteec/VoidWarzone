@@ -168,7 +168,8 @@ private:
     void drawSelection();
     void drawSelectionTiles(float width, int perRow, bool horizontal);
     void drawDock();
-    enum class Dock { None, Orders, Production, Skills, Build };
+    enum class Dock { None, Orders, Production, Skills, Build, Refit };
+    void renderSkillPreview();
     Dock dock_ = Dock::None;
     void drawGroupBar();
     void renderBuildGhost();

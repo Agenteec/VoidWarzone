@@ -348,3 +348,31 @@ void App::drawInspect() {
 }
 
 }
+
+namespace vw::client {
+
+void App::renderSkillPreview() {
+    if (armedSkill_ < 0)
+        return;
+    const auto* own = focusedOwn();
+    const auto* caster = selected_.empty() ? nullptr : findEntity(selected_.front());
+    if (!own || !caster || static_cast<std::size_t>(armedSkill_) >= own->skills.size()) {
+        armedSkill_ = -1;
+        return;
+    }
+    const auto& skill = data_->skill(own->skills[static_cast<std::size_t>(armedSkill_)].skill);
+    const auto ground = camera_.screenToGround(mouse_.x, mouse_.y);
+    if (skill.range > 0.0f)
+        renderer_.draw(Mesh::Cylinder, {caster->pos.x, 0.02f, caster->pos.y}, {skill.range * 2.0f, 0.02f, skill.range * 2.0f}, 0.0f,
+                       glm::vec4{1.0f, 1.0f, 1.0f, 0.07f}, Unlit | Alpha);
+    if (!ground)
+        return;
+    float radius = 0.6f;
+    for (const auto& fx : skill.effects)
+        radius = std::max(radius, fx.radius);
+    const bool inRange = skill.range <= 0.0f || glm::distance(*ground, caster->pos) <= skill.range + 0.5f;
+    const glm::vec4 color = inRange ? glm::vec4{1.0f, 0.7f, 0.2f, 0.3f} : glm::vec4{1.0f, 0.2f, 0.2f, 0.3f};
+    renderer_.draw(Mesh::Cylinder, {ground->x, 0.04f, ground->y}, {radius * 2.0f, 0.04f, radius * 2.0f}, 0.0f, color, Unlit | Alpha);
+}
+
+}

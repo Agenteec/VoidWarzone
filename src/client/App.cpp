@@ -765,6 +765,9 @@ void App::handleGameEvent(const SDL_Event& e) {
         if (e.button.button == SDL_BUTTON_LEFT) {
             if (buildArmed_ >= 0) {
                 placeBuild(p, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
+            } else if (armedSkill_ >= 0) {
+                castSlot(static_cast<std::uint8_t>(armedSkill_), camera_.screenToGround(p.x, p.y));
+                armedSkill_ = -1;
             } else if (orderArm_ != Arm::None) {
                 issueArmed(p);
             } else {
@@ -773,10 +776,12 @@ void App::handleGameEvent(const SDL_Event& e) {
             }
         } else if (e.button.button == SDL_BUTTON_RIGHT) {
             orderArm_ = Arm::None;
-            if (buildArmed_ >= 0)
+            if (buildArmed_ >= 0 || armedSkill_ >= 0) {
                 buildArmed_ = -1;
-            else
+                armedSkill_ = -1;
+            } else {
                 issueCommand(p, false);
+            }
         }
         break;
     }
@@ -855,18 +860,18 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
             net_.sendCommand(PromoteCommand{0, static_cast<entt::entity>(id)});
     } else if (key == SDLK_Q || key == SDLK_W || key == SDLK_E || key == SDLK_R) {
         const std::uint8_t slot = key == SDLK_Q ? 0 : key == SDLK_W ? 1 : key == SDLK_E ? 2 : 3;
-        if (touchUi_) {
-            bool self = false;
-            if (const auto* own = focusedOwn(); own && slot < own->skills.size())
-                self = data_->skill(own->skills[slot].skill).target == SkillTarget::Self;
-            if (self)
-                castSlot(slot, std::nullopt);
-            else
-                armedSkill_ = slot;
-            orderArm_ = Arm::None;
-        } else {
-            castSlot(slot, camera_.screenToGround(mouse_.x, mouse_.y));
+        bool self = false;
+        bool has = false;
+        if (const auto* own = focusedOwn(); own && slot < own->skills.size()) {
+            has = !data_->skill(own->skills[slot].skill).passive;
+            self = data_->skill(own->skills[slot].skill).target == SkillTarget::Self;
         }
+        if (self)
+            castSlot(slot, std::nullopt);
+        else if (has)
+            armedSkill_ = armedSkill_ == slot ? -1 : slot;
+        orderArm_ = Arm::None;
+        buildArmed_ = -1;
     }
 }
 
@@ -1273,6 +1278,7 @@ void App::renderWorld() {
 
     renderBuildGhost();
     renderWaypoints();
+    renderSkillPreview();
 
     if (dragging_ && glm::distance(mouse_, dragStart_) >= kDragThreshold) {
         const glm::vec2 lo = glm::min(mouse_, dragStart_);

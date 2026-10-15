@@ -496,6 +496,295 @@
       }
     },
     {
+      "id": "tank_assault",
+      "name": "Assault Tank",
+      "maxHp": 800,
+      "armor": 7,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 3.4,
+      "sight": 9,
+      "accel": 4.0,
+      "turnRate": 2.8,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura"
+      ],
+      "weapon": {
+        "type": "piercing",
+        "damage": 58,
+        "range": 6,
+        "cooldown": 1.15,
+        "projectileSpeed": 20
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drmbod07",
+          "prop": "prmtrk2",
+          "weapon": "gnhcan",
+          "mount": "trhcan"
+        }
+      },
+      "refit": {
+        "from": "tank",
+        "cost": 150
+      }
+    },
+    {
+      "id": "tank_rocket",
+      "name": "Rocket Tank",
+      "maxHp": 420,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.0,
+      "sight": 9,
+      "accel": 5.0,
+      "turnRate": 3.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura"
+      ],
+      "weapon": {
+        "type": "explosive",
+        "damage": 46,
+        "range": 9.5,
+        "cooldown": 1.8,
+        "projectileSpeed": 18,
+        "splash": 1.6
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drmbod05",
+          "prop": "prmtrk2",
+          "weapon": "gnlrckt",
+          "mount": "trlrckt"
+        }
+      },
+      "refit": {
+        "from": "tank",
+        "cost": 160
+      }
+    },
+    {
+      "id": "tank_radar",
+      "name": "Radar Tank",
+      "maxHp": 450,
+      "armor": 4,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.0,
+      "sight": 16,
+      "accel": 5.0,
+      "turnRate": 3.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura"
+      ],
+      "weapon": {
+        "type": "kinetic",
+        "damage": 14,
+        "range": 7,
+        "cooldown": 0.4,
+        "projectileSpeed": 28
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drmbod05",
+          "prop": "prmtrk2",
+          "weapon": "gnlmg2",
+          "mount": "trlmg2"
+        }
+      },
+      "refit": {
+        "from": "tank",
+        "cost": 120
+      },
+      "auras": [
+        "radar_aura"
+      ]
+    },
+    {
+      "id": "tank_command",
+      "name": "Command Tank",
+      "maxHp": 650,
+      "armor": 5,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.0,
+      "sight": 9,
+      "accel": 5.0,
+      "turnRate": 3.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura"
+      ],
+      "weapon": {
+        "type": "piercing",
+        "damage": 30,
+        "range": 6,
+        "cooldown": 0.9,
+        "projectileSpeed": 22
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drmbod07",
+          "prop": "prmtrk2",
+          "weapon": "gnmcan",
+          "mount": "trmcan"
+        }
+      },
+      "refit": {
+        "from": "tank",
+        "cost": 180
+      },
+      "auras": [
+        "command_link"
+      ]
+    },
+    {
+      "id": "tank_repair",
+      "name": "Repair Tank",
+      "maxHp": 550,
+      "armor": 5,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.0,
+      "sight": 9,
+      "accel": 5.0,
+      "turnRate": 3.2,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura"
+      ],
+      "weapon": {
+        "type": "kinetic",
+        "damage": 10,
+        "range": 5,
+        "cooldown": 0.4,
+        "projectileSpeed": 26
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "body": "drmbod05",
+          "prop": "prmtrk2",
+          "weapon": "gnlmg1",
+          "mount": "trlmg1"
+        }
+      },
+      "refit": {
+        "from": "tank",
+        "cost": 140
+      },
+      "repair": 14,
+      "repairRange": 6
+    },
+    {
+      "id": "scout_raider",
+      "name": "Raider",
+      "maxHp": 230,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.45,
+      "speed": 7.5,
+      "sight": 10,
+      "accel": 11.0,
+      "turnRate": 6.0,
+      "skills": [
+        "blink",
+        "rapid_fire",
+        "shock_mine",
+        "drones",
+        "hunter_aura"
+      ],
+      "weapon": {
+        "type": "kinetic",
+        "damage": 8,
+        "range": 4,
+        "cooldown": 0.2,
+        "projectileSpeed": 28
+      },
+      "visual": {
+        "shape": "sphere",
+        "height": 0.8,
+        "model": {
+          "body": "drlbod04",
+          "prop": "prlwhl1",
+          "weapon": "gnmmg1",
+          "mount": "trmmg"
+        }
+      },
+      "refit": {
+        "from": "scout",
+        "cost": 80
+      }
+    },
+    {
+      "id": "scout_emp",
+      "name": "EMP Scout",
+      "maxHp": 190,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.45,
+      "speed": 6.5,
+      "sight": 10,
+      "accel": 9.0,
+      "turnRate": 6.0,
+      "skills": [
+        "blink",
+        "rapid_fire",
+        "shock_mine",
+        "drones",
+        "hunter_aura"
+      ],
+      "weapon": {
+        "type": "emp",
+        "damage": 30,
+        "range": 5,
+        "cooldown": 0.8,
+        "projectileSpeed": 24
+      },
+      "visual": {
+        "shape": "sphere",
+        "height": 0.8,
+        "model": {
+          "body": "drlbod03",
+          "prop": "prlwhl1",
+          "weapon": "gnlflmr",
+          "mount": "trlflmr"
+        }
+      },
+      "refit": {
+        "from": "scout",
+        "cost": 90
+      }
+    },
+    {
       "id": "engineer",
       "name": "Engineer",
       "cost": 50,

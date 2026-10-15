@@ -97,6 +97,14 @@ std::uint64_t fnv1a(std::string_view data, std::uint64_t seed) {
     return h;
 }
 
+std::vector<UnitDefId> GameData::refits(UnitDefId base) const {
+    std::vector<UnitDefId> out;
+    for (std::size_t i = 0; i < units_.size(); ++i)
+        if (units_[i].refitFrom == base)
+            out.push_back(static_cast<UnitDefId>(i));
+    return out;
+}
+
 const char* damageTypeName(DamageType t) {
     return kDamageNames[std::min(static_cast<int>(t), static_cast<int>(DamageType::Count) - 1)];
 }
@@ -157,6 +165,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             d.combat_.shield[static_cast<int>(parseDamage(dname))] = v.get<float>();
     }
     std::unordered_map<std::size_t, std::string> produceNames;
+    std::unordered_map<std::size_t, std::string> refitNames;
     for (const auto& u : unitsJson.at("units")) {
         UnitDef def;
         def.id = u.at("id").get<std::string>();
@@ -179,6 +188,18 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         def.shieldRegen = u.value("shieldRegen", def.shield * 0.05f);
         def.income = u.value("income", def.income);
         def.buildable = u.value("buildable", def.buildable);
+        def.repair = u.value("repair", def.repair);
+        def.repairRange = u.value("repairRange", def.repairRange);
+        if (const auto rf = u.find("refit"); rf != u.end()) {
+            refitNames.emplace(d.units_.size(), rf->at("from").get<std::string>());
+            def.refitCost = rf->value("cost", def.refitCost);
+        }
+        for (const auto& a : u.value("auras", json::array())) {
+            const auto it = skillIndex.find(a.get<std::string>());
+            if (it == skillIndex.end())
+                throw std::runtime_error("unknown aura: " + a.get<std::string>());
+            def.auras.push_back(it->second);
+        }
         def.builder = u.value("builder", def.builder);
         def.wall = u.value("wall", def.wall);
         def.buildTime = u.value("buildTime", def.buildTime);
@@ -247,6 +268,12 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         d.maxRadius_ = std::max(d.maxRadius_, def.radius);
         d.index_.emplace(def.id, static_cast<UnitDefId>(d.units_.size()));
         d.units_.push_back(std::move(def));
+    }
+
+    for (const auto& [i, name] : refitNames) {
+        d.units_[i].refitFrom = d.find(name);
+        if (d.units_[i].refitFrom == kInvalidUnitDef)
+            throw std::runtime_error("unknown refit base: " + name);
     }
 
     for (const auto& [i, name] : produceNames) {

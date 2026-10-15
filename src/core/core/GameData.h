@@ -91,6 +91,11 @@ struct UnitDef {
     float speed = 0.0f;
     float sight = 8.0f;
     float accel = 0.0f;
+    UnitDefId refitFrom = kInvalidUnitDef;
+    float refitCost = 0.0f;
+    std::vector<SkillId> auras;
+    float repair = 0.0f;
+    float repairRange = 0.0f;
     ArmorType armorType = ArmorType::Light;
     float shield = 0.0f;
     float shieldRegen = 0.0f;
@@ -156,6 +161,8 @@ public:
     const std::vector<UnitDef>& units() const { return units_; }
     const std::vector<UnitDefId>& recruitable() const { return recruitable_; }
     const std::vector<UnitDefId>& buildable() const { return buildable_; }
+    std::vector<UnitDefId> refits(UnitDefId base) const;
+    UnitDefId baseOf(UnitDefId id) const { return units_[id].refitFrom != kInvalidUnitDef ? units_[id].refitFrom : id; }
 
     const SkillDef& skill(SkillId id) const { return skills_[id]; }
     const std::vector<SkillDef>& skills() const { return skills_; }

@@ -184,6 +184,46 @@ void App::drawDock() {
                 net_.sendCommand(RecruitCommand{0, list[i]});
             unitTooltip(def, "Recruit", key);
         }
+    } else if (dock_ == Dock::Refit) {
+        const auto* own = focusedOwn();
+        const auto* entity = !selected_.empty() ? findEntity(selected_.front()) : nullptr;
+        if (!own || !entity) {
+            ImGui::TextDisabled("Select an own unit to refit it");
+        } else {
+            const UnitDefId current = entity->def;
+            const UnitDefId base = data_->baseOf(current);
+            const auto variants = data_->refits(base);
+            const bool elite = own->rank >= static_cast<std::uint8_t>(Rank::Elite);
+            if (variants.empty())
+                ImGui::TextDisabled("%s has no refits", data_->unit(current).name.c_str());
+            for (const auto v : variants) {
+                next();
+                const auto& def = data_->unit(v);
+                char cost[16];
+                std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.refitCost);
+                std::string name = def.name;
+                if (const auto space = name.find(' '); space != std::string::npos)
+                    name = name.substr(0, space);
+                if (cardButton(def.id.c_str(), name.substr(0, 8).c_str(), cost, "", elite && v != current && energy >= def.refitCost, v == current, cell))
+                    for (const auto id : selected_)
+                        if (const auto* e = findEntity(id); e && isOwn(*e) && data_->baseOf(e->def) == base && e->def != v)
+                            net_.sendCommand(RefitCommand{0, static_cast<entt::entity>(id), v});
+                if (ImGui::BeginItemTooltip()) {
+                    ImGui::Text("Refit to %s", def.name.c_str());
+                    ImGui::TextDisabled("HP %.0f  %s armor %.0f  speed %.1f", def.maxHp, armorTypeName(def.armorType), def.armor, def.speed);
+                    if (def.weapon)
+                        ImGui::TextDisabled("%s damage %.0f%s  range %.1f  every %.1fs", damageTypeName(def.weapon->type), def.weapon->damage,
+                                            def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown);
+                    for (const auto a : def.auras)
+                        ImGui::TextColored(toVec(kGood), "aura: %s", data_->skill(a).name.c_str());
+                    if (def.repair > 0.0f)
+                        ImGui::TextColored(toVec(kGood), "repairs nearby vehicles and buildings, %.0f hp/s", def.repair);
+                    if (!elite)
+                        ImGui::TextColored(toVec(kBad), "needs Elite rank");
+                    ImGui::EndTooltip();
+                }
+            }
+        }
     } else if (dock_ == Dock::Build) {
         const auto& list = data_->buildable();
         for (std::size_t i = 0; i < list.size() && i < 8; ++i) {
@@ -219,6 +259,8 @@ void App::drawDock() {
         toggleDock(Dock::Orders);
     if (tabButton(ICON_FA_INDUSTRY "##p", "Production: recruit units", dock_ == Dock::Production))
         toggleDock(Dock::Production);
+    if (tabButton(ICON_FA_COGS "##r", "Refit: change the class of an Elite vehicle", dock_ == Dock::Refit))
+        toggleDock(Dock::Refit);
     if (tabButton(ICON_FA_BOLT "##s", "Hero skills", dock_ == Dock::Skills))
         toggleDock(Dock::Skills);
     if (tabButton(ICON_FA_WRENCH "##b", "Build (select an engineer): walls, turrets, factories", dock_ == Dock::Build))

@@ -227,6 +227,7 @@ glm::vec2 World::builderStep(entt::entity e, glm::vec2 pos, const Unit& unit, st
 
 void World::updateConstruction() {
     assistConstruction();
+    updateRepair();
     for (auto [s, construction, pos, unit] : registry_.view<Construction, const Position, const Unit>().each()) {
         if (!alive(s))
             continue;
