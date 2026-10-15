@@ -1075,6 +1075,7 @@ void App::updateCamera(float dt) {
 void App::updateGame(float dt) {
     net_.interpolate(now_, entities_);
     prediction_.update(dt, now_, net_, *data_, *map_, entities_);
+    updateAirLift(dt);
 
     if (!cameraPlaced_ && net_.hasSnapshot()) {
         glm::vec2 center{};

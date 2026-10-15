@@ -118,6 +118,8 @@ private:
     std::vector<entt::entity> selectedBuilders() const;
     std::vector<entt::entity> selectedTransports() const;
     float liftOf(const net::InterpolatedEntity& e) const;
+    void updateAirLift(float dt);
+    std::unordered_map<std::uint32_t, float> airLift_;
     bool hidden(const net::InterpolatedEntity& e) const { return (e.flags & net::kStateCarried) != 0; }
     bool hadBuilders_ = false;
     bool lineBuild_ = false;

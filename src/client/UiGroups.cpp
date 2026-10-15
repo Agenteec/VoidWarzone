@@ -44,7 +44,38 @@ std::vector<entt::entity> App::selectedTransports() const {
 }
 
 float App::liftOf(const net::InterpolatedEntity& e) const {
-    return data_->unit(e.def).air ? 3.0f : 0.0f;
+    if (!data_->unit(e.def).air)
+        return 0.0f;
+    const auto it = airLift_.find(e.id);
+    return it != airLift_.end() ? it->second : 3.0f;
+}
+
+void App::updateAirLift(float dt) {
+    constexpr float kCruise = 3.0f;
+    constexpr float kClearance = 1.4f;
+    std::erase_if(airLift_, [&](const auto& kv) { return findEntity(kv.first) == nullptr; });
+    for (const auto& e : entities_) {
+        if (e.kind != net::EntityKind::Unit || !data_->unit(e.def).air)
+            continue;
+        const float r = data_->unit(e.def).radius;
+        float top = 0.0f;
+        for (const glm::vec2 at : {e.pos, e.pos + e.vel * 0.8f}) {
+            for (const glm::vec2 o : {glm::vec2{0.0f, 0.0f}, glm::vec2{r, 0.0f}, glm::vec2{-r, 0.0f}, glm::vec2{0.0f, r}, glm::vec2{0.0f, -r}})
+                top = std::max(top, mapVisuals_.heightAt(at.x + o.x, at.y + o.y));
+            for (const auto& s : entities_) {
+                if (s.kind != net::EntityKind::Unit || !data_->unit(s.def).structure)
+                    continue;
+                if (glm::distance(s.pos, at) < r + data_->unit(s.def).radius + 0.3f)
+                    top = std::max(top, visuals_[s.def].height);
+            }
+        }
+        const float target = std::max(kCruise, top + kClearance);
+        auto [it, fresh] = airLift_.try_emplace(e.id, target);
+        if (!fresh) {
+            const float rate = target > it->second ? 5.0f : 1.5f;
+            it->second += (target - it->second) * (1.0f - std::exp(-dt * rate));
+        }
+    }
 }
 
 std::vector<glm::vec2> App::buildLine(glm::vec2 from, glm::vec2 to) const {

@@ -865,7 +865,8 @@
         "height": 1.4,
         "model": {
           "pie": "drtrans",
-          "fit": 1.0
+          "fit": 1.0,
+          "yaw": 90
         }
       }
     },
