@@ -534,13 +534,17 @@ void App::drawSidePanel() {
                 ImGui::BeginGroup();
                 ImGui::TextColored(toVec(level > 0 ? kGood : kAccent), "%s", skill.name.c_str());
                 ImGui::SameLine();
-                ImGui::TextDisabled("%s lvl %d/%d", skill.passive ? "passive" : "active", level, static_cast<int>(kMaxSkillLevel));
+                ImGui::TextDisabled("%s lvl %d/%d", skill.passive ? "passive" : "active", level, skill.ultimate ? 1 : static_cast<int>(kMaxSkillLevel));
                 ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x - buttonW);
                 for (const auto& fx : skill.effects)
                     ImGui::TextUnformatted(effectText(fx, std::max(level, 1)).c_str());
                 ImGui::PopTextWrapPos();
                 ImGui::EndGroup();
-                const bool can = own->skillPoints > 0 && level < kMaxSkillLevel && (level > 0 || own->skills.size() < kMaxSkills);
+                const int maxLevel = skill.ultimate ? 1 : kMaxSkillLevel;
+                const bool can = own->skillPoints > 0 && level < maxLevel && own->level >= skill.minLevel &&
+                                 (level > 0 || own->skills.size() < kMaxSkills);
+                if (skill.ultimate)
+                    ImGui::TextColored(toVec(own->level >= skill.minLevel ? kEnergy : kDim), ICON_FA_STAR " ultimate - hero level %d", skill.minLevel);
                 if (rightButton(level > 0 ? "Upgrade" : "Learn", can))
                     net_.sendCommand(LearnCommand{0, focused, pool[i]});
                 ImGui::Separator();

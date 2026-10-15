@@ -299,6 +299,27 @@ void World::handle(const ModuleCommand& cmd) {
     refreshStats(cmd.unit);
 }
 
+void World::updateStrikes() {
+    for (auto& s : strikes_)
+        s.timer -= kTickDt;
+    std::vector<Strike> due;
+    std::erase_if(strikes_, [&](const Strike& s) {
+        if (s.timer > 0.0f)
+            return false;
+        due.push_back(s);
+        return true;
+    });
+    for (const auto& s : due) {
+        std::vector<entt::entity> hits;
+        for (auto [e, pos, unit, t] : registry_.view<const Position, const Unit, const Team>(entt::exclude<Carried, Air>).each())
+            if (t.id != s.team && alive(e) && !registry_.all_of<Invulnerable>(e) && glm::distance(pos.value, s.pos) - unit.radius <= s.radius)
+                hits.push_back(e);
+        for (const auto e : hits)
+            damage(e, s.amount, s.owner, registry_.valid(s.source) ? s.source : entt::null, s.type);
+        events_.push_back({EventType::Slam, entt::null, entt::null, s.pos, s.pos, s.radius});
+    }
+}
+
 void World::updateRepair() {
     if (tick_ % kAuraPeriod != 0)
         return;
@@ -331,9 +352,11 @@ void World::handle(const LearnCommand& cmd) {
     const auto& pool = data_->unit(registry_.get<Unit>(cmd.unit).def).skills;
     if (std::find(pool.begin(), pool.end(), cmd.skill) == pool.end())
         return;
+    if (prog->level < data_->skill(cmd.skill).minLevel)
+        return;
     auto it = std::find_if(prog->skills.begin(), prog->skills.end(), [&](const SkillSlot& s) { return s.skill == cmd.skill; });
     if (it != prog->skills.end()) {
-        if (it->level >= kMaxSkillLevel)
+        if (it->level >= (data_->skill(cmd.skill).ultimate ? 1 : kMaxSkillLevel))
             return;
         ++it->level;
     } else {
@@ -385,9 +408,14 @@ void World::applySkillEffect(entt::entity caster, const SkillEffect& fx, std::ui
 
     switch (fx.type) {
     case EffectType::Damage:
+        if (fx.delay > 0.0f) {
+            strikes_.push_back({center, fx.radius, fx.amount * scale * power, fx.damageType, team, player, caster, fx.delay});
+            events_.push_back({EventType::SlamWarn, caster, entt::null, center, center, fx.radius});
+            break;
+        }
         for (const auto t : unitsInRadius(center, fx.radius, team, false))
             if (!registry_.all_of<Invulnerable>(t))
-                damage(t, fx.amount * scale * power, player, caster);
+                damage(t, fx.amount * scale * power, player, caster, fx.damageType);
         break;
     case EffectType::Heal:
         for (const auto t : unitsInRadius(center, fx.radius, team, true)) {

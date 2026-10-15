@@ -132,6 +132,8 @@ struct SkillEffect {
     StatMods mods;
     UnitDefId unit = kInvalidUnitDef;
     int count = 0;
+    float delay = 0.0f;
+    DamageType damageType = DamageType::Kinetic;
 };
 
 struct SkillDef {
@@ -139,6 +141,8 @@ struct SkillDef {
     std::string name;
     SkillTarget target = SkillTarget::Self;
     bool passive = false;
+    bool ultimate = false;
+    int minLevel = 1;
     float range = 0.0f;
     float cooldown = 10.0f;
     std::vector<SkillEffect> effects;

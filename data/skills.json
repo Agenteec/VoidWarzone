@@ -191,6 +191,48 @@
           }
         }
       ]
+    },
+    {
+      "id": "artillery_strike",
+      "name": "Artillery Strike",
+      "ultimate": true,
+      "target": "point",
+      "range": 16,
+      "cooldown": 60,
+      "effects": [
+        {
+          "type": "damage",
+          "radius": 4,
+          "amount": 320,
+          "delay": 1.6,
+          "damageType": "explosive"
+        }
+      ]
+    },
+    {
+      "id": "emp_burst",
+      "name": "EMP Burst",
+      "ultimate": true,
+      "target": "self",
+      "cooldown": 50,
+      "effects": [
+        {
+          "type": "damage",
+          "radius": 7,
+          "amount": 260,
+          "damageType": "emp"
+        },
+        {
+          "type": "buff",
+          "who": "enemies",
+          "radius": 7,
+          "duration": 3,
+          "mods": {
+            "speedMul": 0.4,
+            "attackSpeedMul": 0.5
+          }
+        }
+      ]
     }
   ]
 }

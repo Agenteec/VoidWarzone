@@ -150,6 +150,8 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             def.name = s.value("name", def.id);
             def.target = s.value("target", "self") == "point" ? SkillTarget::Point : SkillTarget::Self;
             def.passive = s.value("passive", false);
+            def.ultimate = s.value("ultimate", false);
+            def.minLevel = s.value("minLevel", def.ultimate ? 3 : 1);
             def.range = s.value("range", def.range);
             def.cooldown = s.value("cooldown", def.cooldown);
             if (skillIndex.contains(def.id))
@@ -342,6 +344,8 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             fx.amount = e.value("amount", fx.amount);
             fx.duration = e.value("duration", fx.duration);
             fx.count = e.value("count", fx.count);
+            fx.delay = e.value("delay", fx.delay);
+            fx.damageType = parseDamage(e.value("damageType", "kinetic"));
             if (const auto m = e.find("mods"); m != e.end())
                 fx.mods = parseMods(*m);
             if (fx.type == EffectType::Summon) {

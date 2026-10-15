@@ -443,7 +443,8 @@
         "fortify",
         "rally",
         "repair_field",
-        "command_aura"
+        "command_aura",
+        "artillery_strike"
       ],
       "weapon": {
         "damage": 35,
@@ -480,7 +481,8 @@
         "rapid_fire",
         "shock_mine",
         "drones",
-        "hunter_aura"
+        "hunter_aura",
+        "emp_burst"
       ],
       "weapon": {
         "damage": 9,
@@ -517,7 +519,8 @@
         "fortify",
         "rally",
         "repair_field",
-        "command_aura"
+        "command_aura",
+        "artillery_strike"
       ],
       "weapon": {
         "type": "piercing",
@@ -557,7 +560,8 @@
         "fortify",
         "rally",
         "repair_field",
-        "command_aura"
+        "command_aura",
+        "artillery_strike"
       ],
       "weapon": {
         "type": "explosive",
@@ -598,7 +602,8 @@
         "fortify",
         "rally",
         "repair_field",
-        "command_aura"
+        "command_aura",
+        "artillery_strike"
       ],
       "weapon": {
         "type": "kinetic",
@@ -642,7 +647,8 @@
         "fortify",
         "rally",
         "repair_field",
-        "command_aura"
+        "command_aura",
+        "artillery_strike"
       ],
       "weapon": {
         "type": "piercing",
@@ -685,7 +691,8 @@
         "fortify",
         "rally",
         "repair_field",
-        "command_aura"
+        "command_aura",
+        "artillery_strike"
       ],
       "weapon": {
         "type": "kinetic",
@@ -727,7 +734,8 @@
         "rapid_fire",
         "shock_mine",
         "drones",
-        "hunter_aura"
+        "hunter_aura",
+        "emp_burst"
       ],
       "weapon": {
         "type": "kinetic",
@@ -768,7 +776,8 @@
         "rapid_fire",
         "shock_mine",
         "drones",
-        "hunter_aura"
+        "hunter_aura",
+        "emp_burst"
       ],
       "weapon": {
         "type": "emp",

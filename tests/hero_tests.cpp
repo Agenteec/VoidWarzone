@@ -291,3 +291,40 @@ TEST_CASE("vehicle modules") {
         world.step();
     CHECK(reg.get<Health>(heli).hp < reg.get<Health>(heli).max);
 }
+
+TEST_CASE("hero ultimate strikes after a telegraph") {
+    auto read = [](const std::string& rel) {
+        std::ifstream f(std::string(VW_DATA_DIR) + "/" + rel, std::ios::binary);
+        std::stringstream ss;
+        ss << f.rdbuf();
+        return ss.str();
+    };
+    const auto data = GameData::parse(read("units.json"), read("skills.json"), read("items.json"));
+    Map map(60, 60);
+    World world(data, map);
+    world.spawnPlayer(0);
+    auto& reg = world.registry();
+    const auto tank = world.spawn(data.find("tank"), 0, {10.5f, 10.5f}, 0);
+    world.devBoost(0);
+    world.apply(PromoteCommand{0, tank});
+    world.apply(PromoteCommand{0, tank});
+    REQUIRE(reg.get<Progression>(tank).rank == Rank::Hero);
+    const auto ult = data.findSkill("artillery_strike");
+    reg.get<Progression>(tank).skillPoints = 3;
+    world.apply(LearnCommand{0, tank, ult});
+    CHECK(reg.get<Progression>(tank).skills.empty());
+    reg.get<Progression>(tank).level = 3;
+    world.apply(LearnCommand{0, tank, ult});
+    REQUIRE(reg.get<Progression>(tank).skills.size() == 1);
+
+    const auto target = world.spawn(data.find("void_brute"), 1, {20.5f, 10.5f});
+    reg.remove<Weapon>(target);
+    const float hp0 = reg.get<Health>(target).hp + reg.get<Health>(target).shield;
+    world.apply(CastCommand{0, tank, 0, {20.5f, 10.5f}});
+    for (int i = 0; i < kTickRate; ++i)
+        world.step();
+    CHECK(reg.get<Health>(target).hp + reg.get<Health>(target).shield == doctest::Approx(hp0));
+    for (int i = 0; i < kTickRate; ++i)
+        world.step();
+    CHECK(reg.get<Health>(target).hp + reg.get<Health>(target).shield < hp0 - 150.0f);
+}

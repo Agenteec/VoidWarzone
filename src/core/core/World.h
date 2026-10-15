@@ -144,6 +144,18 @@ private:
     void handle(const UnequipCommand& cmd);
     void handle(const RefitCommand& cmd);
     void handle(const ModuleCommand& cmd);
+    struct Strike {
+        glm::vec2 pos;
+        float radius;
+        float amount;
+        DamageType type;
+        std::uint8_t team;
+        int owner;
+        entt::entity source;
+        float timer;
+    };
+    std::vector<Strike> strikes_;
+    void updateStrikes();
     void updateRepair();
     glm::vec2 builderStep(entt::entity e, glm::vec2 pos, const Unit& unit, std::uint8_t team, Order& order);
     entt::entity structureAt(glm::vec2 pos, UnitDefId def) const;
