@@ -88,7 +88,10 @@ public:
     void step();
     void apply(const Command& command);
     entt::entity spawn(UnitDefId def, std::uint8_t team, glm::vec2 pos, int owner = -1);
-    std::vector<entt::entity> spawnOnLane(UnitDefId def, std::uint8_t team, int lane, int count, float offset);
+    std::vector<entt::entity> spawnOnLane(UnitDefId def, std::uint8_t team, int lane, int count, float offset,
+                                          std::optional<glm::vec2> origin = std::nullopt);
+    std::optional<glm::vec2> portalMouth() const;
+    int anchorsAlive() const;
     std::vector<entt::entity> spawnPlayer(std::uint8_t player, std::uint8_t team = 0);
     void releasePlayer(std::uint8_t player);
     void devBoost(std::uint8_t player);

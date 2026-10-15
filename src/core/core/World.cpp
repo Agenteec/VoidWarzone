@@ -426,7 +426,21 @@ void World::rebuildNav() {
     }
 }
 
-std::vector<entt::entity> World::spawnOnLane(UnitDefId def, std::uint8_t team, int lane, int count, float offset) {
+std::optional<glm::vec2> World::portalMouth() const {
+    if (portal_ == entt::null || !alive(portal_) || !map_)
+        return std::nullopt;
+    const glm::vec2 p = registry_.get<Position>(portal_).value + glm::vec2(0.0f, registry_.get<Unit>(portal_).radius + 1.6f);
+    return Map::center(nearestFree(navMap(), Map::cellOf(p)));
+}
+
+int World::anchorsAlive() const {
+    int n = 0;
+    for (auto [e, unit] : registry_.view<const Unit, const Structure>().each())
+        n += data_->unit(unit.def).anchor && alive(e);
+    return n;
+}
+
+std::vector<entt::entity> World::spawnOnLane(UnitDefId def, std::uint8_t team, int lane, int count, float offset, std::optional<glm::vec2> origin) {
     std::vector<entt::entity> spawned;
     const auto& points = map_->lanes()[static_cast<std::size_t>(lane)].points;
     const bool reverse = team != 0;
@@ -440,7 +454,9 @@ std::vector<entt::entity> World::spawnOnLane(UnitDefId def, std::uint8_t team, i
         const int row = i / perRow;
         const int inRow = std::min(perRow, count - row * perRow);
         const float across = (static_cast<float>(i % perRow) - static_cast<float>(inRow - 1) * 0.5f) * spacing;
-        const glm::vec2 pos = a + dir * (offset + static_cast<float>(row) * spacing) + side * across;
+        glm::vec2 pos = a + dir * (offset + static_cast<float>(row) * spacing) + side * across;
+        if (origin)
+            pos = Map::center(nearestFree(navMap(), Map::cellOf(*origin + glm::vec2(across, static_cast<float>(row) * spacing))));
         const auto u = spawn(def, team, pos);
         registry_.emplace<LaneFollower>(u, LaneFollower{lane, 1, reverse});
         spawned.push_back(u);

@@ -168,6 +168,7 @@ class Mesh:
             j = (i + 1) % n
             self.face([ring[i], tip, ring[j]][::-1], mat)
             self.face([low[i], ring[i], ring[j], low[j]][::-1], base if base is not None else mat)
+        return tip
 
 
 def glb(path, parts, points, images):
@@ -532,55 +533,91 @@ def void_walker(size=1.0, crystals=3, legs=4, seed=1):
     hull.cyl((0, y, 0.15 * k), 0.42 * k, 1.3 * k, MAT["void_shell"], n=6, axis="z", r2=0.26 * k)
     hull.cyl((0, y + 0.05 * k, -0.6 * k), 0.3 * k, 0.4 * k, MAT["void_purple"], n=6, axis="z", r2=0.18 * k)
     hull.box((0, y + 0.32 * k, 0.15 * k), (0.5 * k, 0.12 * k, 1.1 * k), MAT["void_purple"], top=(0.6, 0.85))
+    parts = {"hull": (hull, (0, 0, 0))}
+    points = {}
     for i in range(legs):
         sx = -1 if i % 2 else 1
         z = (-0.45 + (i // 2) * (0.9 / max(1, legs // 2 - 1))) * k
         hip = (sx * 0.3 * k, y, z)
-        knee = (sx * 0.9 * k, y + 0.35 * k, z * 1.2)
-        foot = (sx * 1.15 * k, 0.0, z * 1.35)
-        hull.strut(hip, knee, 0.07 * k, MAT["void_purple"])
-        hull.strut(knee, foot, 0.06 * k, MAT["void_shell"])
-        hull.cyl(knee, 0.08 * k, 0.12 * k, MAT["void_vein"], n=5)
+        leg = Mesh()
+        knee = (sx * 0.6 * k, 0.35 * k, z * 0.2)
+        foot = (sx * 0.85 * k, -y, z * 0.35)
+        leg.strut((0, 0, 0), knee, 0.07 * k, MAT["void_purple"])
+        leg.strut(knee, foot, 0.06 * k, MAT["void_shell"])
+        leg.cyl(knee, 0.08 * k, 0.12 * k, MAT["void_vein"], n=5)
+        parts["leg%d" % i] = (leg, hip)
+        points["hip%d" % i] = (hip, None)
     for i in range(crystals):
-        hull.crystal((rnd.uniform(-0.22, 0.22) * k, y + 0.3 * k, rnd.uniform(-0.1, 0.7) * k), 0.12 * k, rnd.uniform(0.35, 0.7) * k,
-                     MAT["void_crystal"], tilt=(rnd.uniform(-0.15, 0.15) * k, rnd.uniform(0.0, 0.25) * k), base=MAT["void_vein"])
+        tip = hull.crystal((rnd.uniform(-0.22, 0.22) * k, y + 0.3 * k, rnd.uniform(-0.1, 0.7) * k), 0.12 * k, rnd.uniform(0.35, 0.7) * k,
+                           MAT["void_crystal"], tilt=(rnd.uniform(-0.15, 0.15) * k, rnd.uniform(0.0, 0.25) * k), base=MAT["void_vein"])
+        points["tip%d" % i] = (tip, None)
     pivot = (0.0, y + 0.1 * k, -0.7 * k)
     tur.crystal((0, -0.1 * k, 0), 0.16 * k, 0.22 * k, MAT["void_purple"], n=6, base=MAT["void_shell"])
     bar.strut((0, 0.06 * k, -0.05 * k), (0, 0.06 * k, -0.6 * k), 0.07 * k, MAT["void_shell"])
     bar.crystal((0, 0.06 * k, -0.62 * k), 0.06 * k, 0.16 * k, MAT["void_vein"], n=4)
-    return ({"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)},
-            {"pivot": (pivot, None), "muzzle": ((0, 0.06 * k, -0.75 * k), "barrel")})
+    parts["turret"] = (tur, pivot)
+    parts["barrel"] = (bar, pivot)
+    points["pivot"] = (pivot, None)
+    points["muzzle"] = ((0, 0.06 * k, -0.75 * k), "barrel")
+    return parts, points
 
 
 def void_spire(h=3.0, seed=3, turret=True):
     rnd = random.Random(seed)
     hull, tur, bar = Mesh(), Mesh(), Mesh()
     hull.cyl((0, 0.25, 0), 1.2, 0.5, MAT["void_shell"], n=7, r2=1.0, capmat=MAT["void_purple"])
+    tips = {}
     for i in range(7):
         a = 2 * math.pi * i / 7
-        hull.crystal((math.cos(a) * 0.8, 0.3, math.sin(a) * 0.8), 0.18, rnd.uniform(0.5, 1.1), MAT["void_vein"], tilt=(math.cos(a) * 0.3, math.sin(a) * 0.3),
-                     base=MAT["void_shell"])
-    hull.crystal((0, 0.4, 0), 0.55, h, MAT["void_crystal"], n=6, base=MAT["void_purple"])
+        t = hull.crystal((math.cos(a) * 0.8, 0.3, math.sin(a) * 0.8), 0.18, rnd.uniform(0.5, 1.1), MAT["void_vein"], tilt=(math.cos(a) * 0.3, math.sin(a) * 0.3),
+                         base=MAT["void_shell"])
+        if i % 2 == 0:
+            tips["tip%d" % len(tips)] = (t, None)
+    tips["tip%d" % len(tips)] = (hull.crystal((0, 0.4, 0), 0.55, h, MAT["void_crystal"], n=6, base=MAT["void_purple"]), None)
     pivot = (0, 0.4 + h * 0.55, 0)
     if turret:
         tur.crystal((0, -0.2, 0), 0.35, 0.5, MAT["void_purple"], n=5)
         bar.box((0, 0.1, -0.4), (0.18, 0.18, 0.8), MAT["void_shell"], top=(0.5, 1.0))
         bar.crystal((0, 0.1, -0.8), 0.1, 0.25, MAT["void_vein"], n=4)
         return ({"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)},
-                {"pivot": (pivot, None), "muzzle": ((0, 0.1, -0.95), "barrel")})
-    return {"hull": (hull, (0, 0, 0))}, {"pivot": (pivot, None)}
+                dict({"pivot": (pivot, None), "muzzle": ((0, 0.1, -0.95), "barrel")}, **tips))
+    return {"hull": (hull, (0, 0, 0))}, dict({"pivot": (pivot, None)}, **tips)
 
 
 def portal():
     m = Mesh()
+    rnd = random.Random(9)
     m.cyl((0, 0.3, 0), 3.0, 0.6, MAT["void_shell"], n=9, r2=2.7, capmat=MAT["void_purple"])
-    for i in range(9):
-        a = 2 * math.pi * i / 9
-        m.crystal((math.cos(a) * 2.3, 0.5, math.sin(a) * 2.3), 0.35, 2.4 + (i % 3) * 0.6, MAT["void_crystal"], tilt=(-math.cos(a) * 0.9, -math.sin(a) * 0.9),
-                  base=MAT["void_shell"])
-    m.cyl((0, 1.6, 0), 1.2, 0.3, MAT["void_vein"], n=12, r2=1.0)
-    m.crystal((0, 0.6, 0), 0.6, 3.6, MAT["void_vein"], n=7, base=MAT["void_purple"])
-    return {"hull": (m, (0, 0, 0))}, {}
+    m.box((0, 0.75, 0), (4.6, 0.3, 1.6), MAT["void_purple"], top=(0.9, 0.8))
+    cy, R = 3.2, 2.3
+    seg = 14
+    ring = []
+    for i in range(seg + 1):
+        a = math.pi * 2 * i / seg
+        ring.append((math.cos(a) * R, cy + math.sin(a) * R, 0.0))
+    for i in range(seg):
+        m.strut(ring[i], ring[i + 1], 0.32 if i % 2 else 0.26, MAT["void_shell"] if i % 3 else MAT["void_purple"])
+    for i in range(0, seg, 2):
+        a = math.pi * 2 * (i + 0.5) / seg
+        base = (math.cos(a) * (R + 0.2), cy + math.sin(a) * (R + 0.2), 0.0)
+        out = (math.cos(a) * (R + 1.2 + rnd.uniform(0.0, 0.6)), cy + math.sin(a) * (R + 1.2 + rnd.uniform(0.0, 0.6)), rnd.uniform(-0.2, 0.2))
+        m.strut(base, out, 0.16, MAT["void_crystal"])
+    for sx in (-1, 1):
+        m.strut((sx * 1.6, 0.8, 0.3), (sx * 2.2, cy - 0.6, 0.0), 0.35, MAT["void_shell"])
+        m.crystal((sx * 2.6, 0.6, 0.4), 0.45, 2.6, MAT["void_crystal"], tilt=(sx * 0.6, 0.2), base=MAT["void_purple"])
+        m.crystal((sx * 2.2, 0.6, -0.6), 0.3, 1.8, MAT["void_vein"], tilt=(sx * 0.4, -0.3), base=MAT["void_purple"])
+    return {"hull": (m, (0, 0, 0))}, {"gate": ((0.0, cy, 0.0), None), "gate_edge": ((R - 0.15, cy, 0.0), None)}
+
+
+def pylon():
+    m = Mesh()
+    m.cyl((0, 0.25, 0), 1.0, 0.5, MAT["void_shell"], n=6, r2=0.8, capmat=MAT["void_purple"])
+    for i in range(3):
+        a = 2 * math.pi * i / 3
+        m.strut((math.cos(a) * 0.8, 0.4, math.sin(a) * 0.8), (math.cos(a) * 0.25, 2.2, math.sin(a) * 0.25), 0.12, MAT["void_purple"])
+    tip = m.crystal((0, 1.6, 0), 0.4, 2.6, MAT["void_crystal"], n=6, base=MAT["void_vein"])
+    m.crystal((0, 0.5, 0), 0.3, 1.0, MAT["void_vein"], n=5)
+    return {"hull": (m, (0, 0, 0))}, {"tip0": (tip, None), "pivot": ((0, 3.6, 0), None)}
 
 
 def void_hive(kind):
@@ -742,6 +779,7 @@ MODELS = {
     "void_mortar": lambda: void_spire(2.0, 5),
     "void_citadel": lambda: void_spire(4.0, 6),
     "void_portal": portal,
+    "void_pylon": pylon,
     "void_factory": lambda: void_hive("factory"),
     "void_generator": lambda: void_hive("generator"),
     "void_lab": lambda: void_hive("lab"),

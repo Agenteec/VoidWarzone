@@ -44,6 +44,7 @@ bool fillWindowHandle(SDL_Window* window, bgfx::Init& init) {
 
 constexpr std::uint64_t kOpaqueState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA;
 constexpr std::uint64_t kAlphaState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA | BGFX_STATE_BLEND_ALPHA;
+constexpr std::uint64_t kGlowState = BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA | BGFX_STATE_BLEND_ADD;
 constexpr std::uint64_t kOverlayState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA;
 constexpr std::uint64_t kShadowState = BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS;
 constexpr std::uint32_t kShadowSamplerFlags = BGFX_SAMPLER_COMPARE_LEQUAL | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
@@ -106,6 +107,20 @@ bool Renderer::init(SDL_Window* window, float scale, const std::string& backend)
         .end();
     white_ = solidTexture(0xffffffffu);
     black_ = solidTexture(0xff000000u);
+    portalProgram_ = createPortalProgram();
+    timeUniform_ = bgfx::createUniform("u_time", bgfx::UniformType::Vec4);
+    {
+        std::vector<TexVertex> v{{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.5f, 0.5f}};
+        std::vector<std::uint32_t> idx;
+        constexpr int kSides = 48;
+        for (int i = 0; i <= kSides; ++i) {
+            const float a = 6.2831853f * static_cast<float>(i) / kSides;
+            v.push_back({std::cos(a), std::sin(a), 0.0f, 0.0f, 0.0f, 1.0f, 0.5f + 0.5f * std::cos(a), 0.5f + 0.5f * std::sin(a)});
+            if (i > 0)
+                idx.insert(idx.end(), {0u, static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(i + 1)});
+        }
+        portalDisc_ = createMesh(v, idx);
+    }
 
     terrainProgram_ = createTerrainProgram();
     shadowProgram_ = createShadowProgram();
@@ -182,6 +197,10 @@ void Renderer::shutdown() {
     }
     if (bgfx::isValid(params_))
         bgfx::destroy(params_);
+    if (bgfx::isValid(timeUniform_))
+        bgfx::destroy(timeUniform_);
+    if (bgfx::isValid(portalProgram_))
+        bgfx::destroy(portalProgram_);
     if (bgfx::isValid(program_))
         bgfx::destroy(program_);
     bgfx::shutdown();
@@ -319,6 +338,9 @@ void Renderer::begin(const Camera& camera) {
     for (auto& [key, list] : texBatches_)
         list.clear();
     overlay_.clear();
+    for (auto& g : glow_)
+        g.clear();
+    portals_.clear();
 }
 
 TextureId Renderer::solidTexture(std::uint32_t abgr) {
@@ -395,6 +417,37 @@ void Renderer::draw(Mesh mesh, glm::vec3 center, glm::vec3 size, float yaw, cons
     batches_[static_cast<std::size_t>(mesh) * kFlagVariants + (flags & 3)].push_back(inst);
 }
 
+void Renderer::drawGlow(Mesh mesh, glm::vec3 center, glm::vec3 size, const glm::vec4& color) {
+    Instance inst;
+    bx::mtxSRT(inst.mtx, size.x, size.y, size.z, 0.0f, 0.0f, 0.0f, center.x, center.y, center.z);
+    std::memcpy(inst.color, &color.x, sizeof(inst.color));
+    glow_[static_cast<std::size_t>(mesh)].push_back(inst);
+}
+
+void Renderer::drawBeam(glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color) {
+    const glm::vec3 d = b - a;
+    const float len = glm::length(d);
+    if (len < 1e-4f)
+        return;
+    const glm::vec3 dir = d / len;
+    const glm::vec3 up = std::abs(dir.y) < 0.9f ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+    const glm::vec3 side = glm::normalize(glm::cross(dir, up)) * width;
+    const glm::vec3 norm = glm::normalize(glm::cross(side, dir)) * width;
+    const glm::vec3 mid = (a + b) * 0.5f;
+    Instance inst;
+    const float m[16] = {d.x, d.y, d.z, 0.0f, norm.x, norm.y, norm.z, 0.0f, side.x, side.y, side.z, 0.0f, mid.x, mid.y, mid.z, 1.0f};
+    std::memcpy(inst.mtx, m, sizeof(m));
+    std::memcpy(inst.color, &color.x, sizeof(inst.color));
+    glow_[static_cast<std::size_t>(Mesh::Cube)].push_back(inst);
+}
+
+void Renderer::drawPortal(const float* mtx, const glm::vec4& color) {
+    Instance inst;
+    std::memcpy(inst.mtx, mtx, sizeof(inst.mtx));
+    std::memcpy(inst.color, &color.x, sizeof(inst.color));
+    portals_.push_back(inst);
+}
+
 void Renderer::drawScreenRect(glm::vec2 a, glm::vec2 b, const glm::vec4& color) {
     const glm::vec2 lo = glm::min(a, b);
     const glm::vec2 hi = glm::max(a, b);
@@ -430,6 +483,17 @@ void Renderer::end() {
         for (std::size_t m = 0; m < meshes_.size(); ++m)
             submit(kWorldView, static_cast<Mesh>(m), flags, batches_[m * kFlagVariants + flags]);
     submitTextured(true);
+    if (bgfx::isValid(portalProgram_) && !portals_.empty() && portalDisc_ < texMeshes_.size()) {
+        const auto& gpu = texMeshes_[portalDisc_];
+        const float time[4] = {time_, 0.0f, 0.0f, 0.0f};
+        submitInstances(kWorldView, portalProgram_, kAlphaState, portals_, [&] {
+            bgfx::setVertexBuffer(0, gpu.vbh);
+            bgfx::setIndexBuffer(gpu.ibh);
+            bgfx::setUniform(timeUniform_, time);
+        });
+    }
+    for (std::size_t m = 0; m < meshes_.size(); ++m)
+        submit(kWorldView, static_cast<Mesh>(m), Unlit, glow_[m], kGlowState);
     submit(kOverlayView, Mesh::Cube, Alpha | Unlit, overlay_);
     bgfx::frame();
 }
@@ -505,9 +569,9 @@ void Renderer::submitInstances(bgfx::ViewId view, bgfx::ProgramHandle program, s
     }
 }
 
-void Renderer::submit(bgfx::ViewId view, Mesh mesh, std::uint8_t flags, const std::vector<Instance>& instances) {
+void Renderer::submit(bgfx::ViewId view, Mesh mesh, std::uint8_t flags, const std::vector<Instance>& instances, std::uint64_t stateOverride) {
     const auto& gpu = meshes_[static_cast<std::size_t>(mesh)];
-    const std::uint64_t state = view == kOverlayView ? kOverlayState : (flags & Alpha) ? kAlphaState : kOpaqueState;
+    const std::uint64_t state = stateOverride ? stateOverride : view == kOverlayView ? kOverlayState : (flags & Alpha) ? kAlphaState : kOpaqueState;
     const float params[4] = {(flags & Unlit) ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f};
 
     std::size_t offset = 0;

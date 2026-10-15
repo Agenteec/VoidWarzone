@@ -165,7 +165,11 @@ void App::drawTopBar() {
         std::snprintf(label, sizeof(label), "next in %.0fs", left);
         bar(1.0f - left / std::max(interval, 1.0f), {150.0f * s, 14.0f * s}, IM_COL32(255, 170, 60, 220), label);
     } else {
-        ImGui::TextDisabled("destroy the portal");
+        const int anchors = anchorsAlive();
+        if (anchors > 0)
+            ImGui::TextColored({0.8f, 0.5f, 1.0f, 1.0f}, "destroy the pylons (%d)", anchors);
+        else
+            ImGui::TextDisabled("destroy the portal");
     }
     ImGui::EndGroup();
 

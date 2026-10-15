@@ -399,6 +399,9 @@ void World::updateResourcePoints() {
 
 void World::spawnWave(const WaveDef& wave) {
     const float countScale = enemyCountScale();
+    const auto mouth = portalMouth();
+    if (mouth)
+        events_.push_back({EventType::Summon, portal_, entt::null, *mouth, *mouth, 4.0f});
     for (const auto& group : wave.groups) {
         const UnitDefId id = data_->find(group.unit);
         if (id == kInvalidUnitDef)
@@ -406,7 +409,7 @@ void World::spawnWave(const WaveDef& wave) {
         const int count = std::max(1, static_cast<int>(std::lround(static_cast<float>(group.count) * countScale)));
         if (!group.raid) {
             for (const int lane : group.lanes)
-                spawnOnLane(id, 1, lane, count, 5.0f);
+                spawnOnLane(id, 1, lane, count, 5.0f, mouth);
             continue;
         }
 
@@ -435,7 +438,7 @@ void World::spawnWave(const WaveDef& wave) {
     if (!wave.boss.empty()) {
         const UnitDefId id = data_->find(wave.boss);
         if (id != kInvalidUnitDef) {
-            const auto spawned = spawnOnLane(id, 1, wave.bossLane, 1, 6.0f);
+            const auto spawned = spawnOnLane(id, 1, wave.bossLane, 1, 6.0f, mouth);
             defense_.boss = spawned.front();
         }
     }
@@ -459,6 +462,9 @@ void World::updateDefense() {
 
     if (defense_.boss != entt::null && !alive(defense_.boss))
         defense_.boss = entt::null;
+    if (portal_ != entt::null && mode_ != GameMode::Endless && defense_.totalWaves > 0 && defense_.wave >= defense_.totalWaves &&
+        registry_.all_of<Invulnerable>(portal_) && anchorsAlive() == 0)
+        registry_.remove<Invulnerable>(portal_);
 
     if (core_ != entt::null && !alive(core_)) {
         defense_.state = MatchState::Defeat;
@@ -493,8 +499,6 @@ void World::updateDefense() {
             spawnWave(def.waves[static_cast<std::size_t>(defense_.wave)]);
             ++defense_.wave;
             events_.push_back({EventType::WaveStart, entt::null, entt::null, {}, {}, static_cast<float>(defense_.wave)});
-            if (defense_.wave == defense_.totalWaves && portal_ != entt::null)
-                registry_.remove<Invulnerable>(portal_);
             if (defense_.wave < defense_.totalWaves) {
                 const float delay = def.waves[static_cast<std::size_t>(defense_.wave)].delay;
                 defense_.nextWaveIn = delay > 0.0f ? delay : def.waveInterval;

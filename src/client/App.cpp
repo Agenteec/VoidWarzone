@@ -1123,6 +1123,9 @@ void App::updateGame(float dt) {
     std::erase_if(effects_, [](const Effect& fx) { return fx.t >= fx.life + fx.delay; });
     for (auto& f : floaters_)
         f.t += dt;
+    for (auto& b : beams_)
+        b.t += dt;
+    std::erase_if(beams_, [](const BeamFx& b) { return b.t >= b.life; });
     std::erase_if(floaters_, [](const Floater& f) { return f.t >= f.life; });
     trackLevelUps();
 
@@ -1193,6 +1196,7 @@ glm::vec4 App::unitColor(const net::InterpolatedEntity& e) const {
 
 void App::render() {
     camera_.update(renderer_.width(), renderer_.height(), renderer_.homogeneousDepth());
+    renderer_.setTime(static_cast<float>(std::fmod(now_, 3600.0)));
     renderer_.begin(camera_);
     if (screen_ == Screen::Game && map_)
         renderWorld();
@@ -1235,8 +1239,19 @@ void App::renderWorld() {
         if (!inView(e.pos, e.pos) || hidden(e))
             continue;
         if (e.kind == net::EntityKind::Projectile) {
+            const glm::vec3 p = projectilePos(e);
+            if (e.def < visuals_.size() && visuals_[e.def].crystalShot) {
+                const float pulse = 0.85f + 0.15f * std::sin(static_cast<float>(now_) * 30.0f + static_cast<float>(e.id));
+                const glm::vec2 back = glm::length(e.target - e.pos) > 1e-3f ? glm::normalize(e.pos - e.target) : glm::vec2(0.0f);
+                renderer_.drawGlow(Mesh::Sphere, p, glm::vec3(0.95f * pulse), {0.55f, 0.12f, 0.7f, 1.0f});
+                renderer_.drawGlow(Mesh::Sphere, p, glm::vec3(0.42f), {1.0f, 0.75f, 1.0f, 1.0f});
+                for (int k = 1; k <= 3; ++k)
+                    renderer_.drawGlow(Mesh::Sphere, p + glm::vec3(back.x, 0.0f, back.y) * (0.32f * static_cast<float>(k)),
+                                       glm::vec3(0.5f - 0.1f * static_cast<float>(k)), {0.4f, 0.08f, 0.55f, 1.0f});
+                continue;
+            }
             const glm::vec4 c = glm::mix(kTeamColors[e.team & 1], glm::vec4(1.0f, 0.9f, 0.6f, 1.0f), 0.6f);
-            renderer_.draw(Mesh::Sphere, projectilePos(e), glm::vec3(0.28f), 0.0f, c, Unlit);
+            renderer_.draw(Mesh::Sphere, p, glm::vec3(0.28f), 0.0f, c, Unlit);
             continue;
         }
         const auto& def = data_->unit(e.def);
@@ -1269,8 +1284,9 @@ void App::renderWorld() {
             renderer_.draw(vis.shape, {e.pos.x, height * 0.5f, e.pos.y}, {d, height, d}, e.facing, color);
         } else {
             float mtx[16];
-            const glm::vec3 base{e.pos.x, 0.0f, e.pos.y};
+            const glm::vec3 base{e.pos.x, vis.legs.empty() ? 0.0f : walkBob(e), e.pos.y};
             const float hullYaw = e.facing + vis.yaw;
+            renderLegs(e, vis, base, hullYaw, vis.scale * grow, color);
             for (const auto& part : vis.parts) {
                 if (part.turret)
                     makeTurretMatrix(mtx, base, hullYaw, vis.pivot, e.aim + kModelYaw, part.pitch ? e.pitch : 0.0f, vis.scale * grow);
@@ -1350,6 +1366,7 @@ void App::renderWorld() {
             renderer_.draw(fx.mesh, p, glm::vec3(s), 0.0f, c, Unlit | Alpha);
     }
 
+    renderVoidFx();
     renderBuildGhost();
     renderWaypoints();
     renderSkillPreview();
@@ -1430,7 +1447,9 @@ void App::handleNetEvent(const net::NetEvent& ev) {
                 shooter = &u;
             }
         }
-        if (shooter)
+        if (shooter && visuals_[shooter->def].crystalShot)
+            crystalFire(*shooter);
+        else if (shooter)
             addEffect(Mesh::Sphere, muzzleOf(*shooter), {1.0f, 0.85f, 0.4f, 0.9f}, 0.25f, 0.7f, 0.09f);
         break;
     }

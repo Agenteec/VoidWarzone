@@ -22,6 +22,8 @@ struct Model {
     TextureId texture = 0;
     TextureId mask = 0;
     bool glow = false;
+    std::vector<glm::vec3> tips;
+    glm::vec4 gate{0.0f};
     glm::vec3 min{0.0f};
     glm::vec3 max{0.0f};
     std::vector<glm::vec3> connectors;
@@ -47,6 +49,11 @@ struct UnitVisual {
     glm::vec3 muzzle{0.0f};
     glm::vec3 lo{0.0f};
     glm::vec3 hi{0.0f};
+    std::vector<const Model*> legs;
+    std::vector<glm::vec3> hips;
+    std::vector<glm::vec3> tips;
+    glm::vec4 gate{0.0f};
+    bool crystalShot = false;
 };
 
 inline constexpr float kModelYaw = 1.5707963f;
@@ -98,6 +105,8 @@ struct MapVisuals {
 MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& renderer, ModelLibrary& models);
 void makeModelMatrix(float* mtx, glm::vec3 pos, float yaw, float scale, glm::vec3 offset);
 void makeTurretMatrix(float* mtx, glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale);
+void makeLegMatrix(float* mtx, glm::vec3 pos, float hullYaw, float scale, glm::vec3 hip, float swing, float lift);
+glm::vec3 modelPoint(glm::vec3 pos, float yaw, float scale, glm::vec3 p);
 glm::vec3 turretPoint(glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale, glm::vec3 local);
 
 }

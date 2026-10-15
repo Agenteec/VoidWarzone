@@ -93,6 +93,7 @@ struct UnitDef {
     float sight = 8.0f;
     float accel = 0.0f;
     bool air = false;
+    bool anchor = false;
     int transport = 0;
     UnitDefId refitFrom = kInvalidUnitDef;
     float refitCost = 0.0f;

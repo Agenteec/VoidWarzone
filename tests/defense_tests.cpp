@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 #include <glm/geometric.hpp>
 
+#include <string>
+
 #include "core/World.h"
 
 using namespace vw;
@@ -53,6 +55,37 @@ TEST_CASE("waves spawn on schedule") {
 
     run(world, 2.0f);
     CHECK(world.defense().wave == 2);
+    CHECK_FALSE(world.registry().all_of<Invulnerable>(entt::entity{1}));
+}
+
+TEST_CASE("waves come out of the portal and pylons keep it shielded") {
+    std::string units = kUnits;
+    units.replace(units.rfind("]}"), 2, R"(,{"id":"pylon","structure":true,"anchor":true,"maxHp":100,"radius":0.5}]})");
+    std::string mapText = kMap;
+    const std::string portal = R"("pos":[35,35]})";
+    mapText.replace(mapText.find(portal), portal.size(), portal + R"(,{"unit":"pylon","team":1,"pos":[30,36]})");
+    const auto data = GameData::parse(units);
+    const auto map = Map::parse(mapText);
+    World world(data, map);
+    CHECK(world.anchorsAlive() == 1);
+    const auto mouth = world.portalMouth();
+    REQUIRE(mouth);
+
+    run(world, 1.1f);
+    REQUIRE(world.defense().wave == 1);
+    for (auto [e, unit, pos] : world.registry().view<const Unit, const Position>().each())
+        if (unit.def == data.find("grunt"))
+            CHECK(glm::distance(pos.value, *mouth) < 3.0f);
+
+    run(world, 2.0f);
+    CHECK(world.defense().wave == 2);
+    CHECK(world.registry().all_of<Invulnerable>(entt::entity{1}));
+
+    for (auto [e, unit] : world.registry().view<const Unit>().each())
+        if (unit.def == data.find("pylon"))
+            world.damage(e, 1000.0f, -1, entt::null);
+    run(world, 0.2f);
+    CHECK(world.anchorsAlive() == 0);
     CHECK_FALSE(world.registry().all_of<Invulnerable>(entt::entity{1}));
 }
 

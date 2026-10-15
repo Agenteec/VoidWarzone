@@ -68,6 +68,10 @@ public:
     void drawScreenRect(glm::vec2 a, glm::vec2 b, const glm::vec4& color);
     void drawMesh(MeshId mesh, TextureId texture, TextureId mask, const float* mtx, const glm::vec4& color, std::uint8_t flags = Lit);
     void drawTerrain(MeshId mesh, const std::array<TextureId, 4>& textures);
+    void drawGlow(Mesh mesh, glm::vec3 center, glm::vec3 size, const glm::vec4& color);
+    void drawBeam(glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color);
+    void drawPortal(const float* mtx, const glm::vec4& color);
+    void setTime(float seconds) { time_ = seconds; }
     void end();
 
     void setLighting(const Lighting& lighting);
@@ -113,7 +117,7 @@ private:
         auto operator<=>(const TexBatchKey&) const = default;
     };
 
-    void submit(bgfx::ViewId view, Mesh mesh, std::uint8_t flags, const std::vector<Instance>& instances);
+    void submit(bgfx::ViewId view, Mesh mesh, std::uint8_t flags, const std::vector<Instance>& instances, std::uint64_t stateOverride = 0);
     void submitTextured(bool alpha);
     void submitShadows();
     void bindLighting();
@@ -135,6 +139,12 @@ private:
     std::array<GpuMesh, static_cast<std::size_t>(Mesh::Count)> meshes_;
     std::array<std::vector<Instance>, static_cast<std::size_t>(Mesh::Count) * kFlagVariants> batches_;
     std::vector<Instance> overlay_;
+    std::array<std::vector<Instance>, static_cast<std::size_t>(Mesh::Count)> glow_;
+    std::vector<Instance> portals_;
+    bgfx::ProgramHandle portalProgram_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle timeUniform_ = BGFX_INVALID_HANDLE;
+    MeshId portalDisc_ = 0;
+    float time_ = 0.0f;
 
     bx::DefaultAllocator allocator_;
     bgfx::ProgramHandle texProgram_ = BGFX_INVALID_HANDLE;

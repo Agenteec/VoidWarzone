@@ -242,6 +242,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         def.buildable = u.value("buildable", def.buildable);
         def.repair = u.value("repair", def.repair);
         def.air = u.value("air", def.air);
+        def.anchor = u.value("anchor", def.anchor);
         def.transport = u.value("transport", def.transport);
         def.repairRange = u.value("repairRange", def.repairRange);
         if (const auto rf = u.find("refit"); rf != u.end()) {

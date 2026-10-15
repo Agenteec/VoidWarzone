@@ -55,6 +55,21 @@ static glm::vec3 rotateY(glm::vec3 v, float yaw) {
     return {v.x * c - v.z * s, v.y, v.x * s + v.z * c};
 }
 
+glm::vec3 modelPoint(glm::vec3 pos, float yaw, float scale, glm::vec3 p) {
+    return pos + rotateY(p * scale, yaw);
+}
+
+void makeLegMatrix(float* mtx, glm::vec3 pos, float hullYaw, float scale, glm::vec3 hip, float swing, float lift) {
+    float local[16];
+    bx::mtxRotateXYZ(local, 0.0f, swing, lift);
+    local[12] = hip.x;
+    local[13] = hip.y;
+    local[14] = hip.z;
+    float model[16];
+    makeModelMatrix(model, pos, hullYaw, scale, {});
+    bx::mtxMul(mtx, local, model);
+}
+
 void makeTurretMatrix(float* mtx, glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale) {
     const glm::vec3 t = pos + rotateY(pivot * scale, hullYaw);
     const float cy = std::cos(yaw);
@@ -122,9 +137,24 @@ void ModelLibrary::loadGlb(const std::string& file) {
         m->glow = true;
         m->min = data.min;
         m->max = data.max;
-        const auto point = glb.points.find(part == "hull" ? "pivot" : part == "barrel" ? "muzzle" : "");
+        std::string pointName = part == "hull" ? "pivot" : part == "barrel" ? "muzzle" : "";
+        if (part.rfind("leg", 0) == 0)
+            pointName = "hip" + part.substr(3);
+        const auto point = glb.points.find(pointName);
         if (point != glb.points.end())
             m->connectors.push_back(point->second);
+        if (part == "hull") {
+            for (int t = 0;; ++t) {
+                const auto tip = glb.points.find("tip" + std::to_string(t));
+                if (tip == glb.points.end())
+                    break;
+                m->tips.push_back(tip->second);
+            }
+            const auto gate = glb.points.find("gate");
+            const auto edge = glb.points.find("gate_edge");
+            if (gate != glb.points.end() && edge != glb.points.end())
+                m->gate = {gate->second, glm::distance(gate->second, edge->second)};
+        }
         m->vertices = std::move(data.vertices);
         m->indices = std::move(data.indices);
         models_[file + ":" + part] = std::move(m);
@@ -183,6 +213,7 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
         auto& v = visuals[id];
         const auto& def = data.unit(id);
         v.shape = parseShape(it->value("shape", "cube"));
+        v.crystalShot = it->value("shot", "") == "crystal";
         v.height = it->value("height", v.height);
 
         const auto m = it->find("model");
@@ -205,6 +236,20 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
         if (const auto glb = m->find("glb"); glb != m->end()) {
             const std::string file = glb->get<std::string>();
             hull = add(file + ":hull", {}, true);
+            if (hull) {
+                v.tips = hull->tips;
+                v.gate = hull->gate;
+            }
+            for (int k = 0;; ++k) {
+                const Model* leg = models.model(file + ":leg" + std::to_string(k));
+                if (!leg)
+                    break;
+                const glm::vec3 hip = leg->connectors.empty() ? glm::vec3(0.0f) : leg->connectors[0];
+                v.legs.push_back(leg);
+                v.hips.push_back(hip);
+                lo = glm::min(lo, leg->min + hip);
+                hi = glm::max(hi, leg->max + hip);
+            }
             v.yaw = kModelYaw;
             v.pivot = hull && !hull->connectors.empty() ? hull->connectors[0] : glm::vec3(0.0f, hi.y, 0.0f);
             const std::string turretFile = m->value("turret", file);

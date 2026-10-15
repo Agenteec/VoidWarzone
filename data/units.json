@@ -100,8 +100,39 @@
         "shape": "sphere",
         "height": 6.0,
         "model": {
-          "glb": "void_portal"
+          "glb": "void_portal",
+          "yaw": 90
         }
+      }
+    },
+    {
+      "id": "void_pylon",
+      "name": "Crystal Pylon",
+      "structure": true,
+      "anchor": true,
+      "maxHp": 2600,
+      "shield": 400,
+      "shieldRegen": 20,
+      "armor": 4,
+      "armorType": "crystal",
+      "radius": 1.0,
+      "bounty": 60,
+      "shards": 1,
+      "weapon": {
+        "damage": 24,
+        "range": 9,
+        "cooldown": 1.2,
+        "projectileSpeed": 16,
+        "type": "energy",
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cylinder",
+        "height": 4.0,
+        "model": {
+          "glb": "void_pylon"
+        },
+        "shot": "crystal"
       }
     },
     {
@@ -125,7 +156,8 @@
         "height": 3.0,
         "model": {
           "glb": "void_spire"
-        }
+        },
+        "shot": "crystal"
       }
     },
     {
@@ -151,7 +183,8 @@
         "height": 4.5,
         "model": {
           "glb": "void_bastion"
-        }
+        },
+        "shot": "crystal"
       }
     },
     {
@@ -254,7 +287,8 @@
         "height": 0.9,
         "model": {
           "glb": "void_stalker"
-        }
+        },
+        "shot": "crystal"
       },
       "armorType": "crystal"
     },
@@ -336,7 +370,8 @@
         "height": 2.6,
         "model": {
           "glb": "void_warden"
-        }
+        },
+        "shot": "crystal"
       }
     },
     {
@@ -393,7 +428,8 @@
         "height": 3.4,
         "model": {
           "glb": "void_titan"
-        }
+        },
+        "shot": "crystal"
       }
     },
     {
@@ -1326,7 +1362,8 @@
         "height": 5.0,
         "model": {
           "glb": "void_citadel"
-        }
+        },
+        "shot": "crystal"
       }
     },
     {
@@ -1350,7 +1387,8 @@
         "height": 3.0,
         "model": {
           "glb": "void_mortar"
-        }
+        },
+        "shot": "crystal"
       }
     },
     {

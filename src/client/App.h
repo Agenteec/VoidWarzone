@@ -94,6 +94,20 @@ private:
         std::uint8_t level = 0;
     };
     std::vector<Floater> floaters_;
+    struct BeamFx {
+        glm::vec3 a;
+        glm::vec3 b;
+        glm::vec4 color;
+        float width;
+        float life;
+        float t = 0.0f;
+    };
+    std::vector<BeamFx> beams_;
+    void renderLegs(const net::InterpolatedEntity& e, const UnitVisual& vis, glm::vec3 base, float hullYaw, float scale, const glm::vec4& color);
+    void renderVoidFx();
+    void crystalFire(const net::InterpolatedEntity& shooter);
+    float walkBob(const net::InterpolatedEntity& e) const;
+    int anchorsAlive() const;
     std::unordered_map<std::uint32_t, Known> known_;
     std::set<std::uint32_t> unseen_;
     bool refitDot_ = false;

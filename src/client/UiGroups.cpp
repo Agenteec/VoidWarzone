@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include <SDL3/SDL.h>
+#include <bx/math.h>
 #include <glm/geometric.hpp>
 
 #include "core/World.h"
@@ -587,6 +588,111 @@ void App::drawLevelUps() {
     ImGui::SetItemTooltip("Click to select it - new modules, refits or skills may be available");
     trackWindow();
     ImGui::End();
+}
+
+}
+
+namespace vw::client {
+
+float App::walkBob(const net::InterpolatedEntity& e) const {
+    const float speed = std::max(data_->unit(e.def).speed, 0.1f);
+    const float amp = std::clamp(glm::length(e.vel) / speed, 0.0f, 1.0f);
+    const float t = static_cast<float>(now_) * 9.0f + static_cast<float>(e.id % 13u);
+    return std::abs(std::sin(t)) * 0.08f * amp * data_->unit(e.def).radius;
+}
+
+void App::renderLegs(const net::InterpolatedEntity& e, const UnitVisual& vis, glm::vec3 base, float hullYaw, float scale, const glm::vec4& color) {
+    if (vis.legs.empty())
+        return;
+    const float speed = std::max(data_->unit(e.def).speed, 0.1f);
+    const float amp = std::clamp(glm::length(e.vel) / speed, 0.0f, 1.0f);
+    const float t = static_cast<float>(now_) * (4.5f + 4.0f * amp) + static_cast<float>(e.id % 13u);
+    float mtx[16];
+    for (std::size_t i = 0; i < vis.legs.size(); ++i) {
+        const Model* leg = vis.legs[i];
+        const glm::vec3 hip = vis.hips[i];
+        const float side = hip.x >= 0.0f ? 1.0f : -1.0f;
+        const float phase = t + (i % 2 ? 3.14159f : 0.0f) + static_cast<float>(i / 2) * 1.5708f;
+        const float idle = 0.04f * std::sin(static_cast<float>(now_) * 1.7f + static_cast<float>(i));
+        const float swing = std::sin(phase) * 0.45f * amp + idle;
+        const float lift = std::max(0.0f, std::cos(phase)) * 0.35f * amp * side;
+        makeLegMatrix(mtx, base, hullYaw, scale, hip, swing, lift);
+        renderer_.drawMesh(leg->mesh, leg->texture, leg->mask, mtx, color, leg->glow ? Tint | Glow : Tint);
+    }
+}
+
+void App::crystalFire(const net::InterpolatedEntity& shooter) {
+    const auto& vis = visuals_[shooter.def];
+    const glm::vec3 muzzle = muzzleOf(shooter);
+    const glm::vec3 base{shooter.pos.x, liftOf(shooter), shooter.pos.y};
+    const float yaw = shooter.facing + vis.yaw;
+    const glm::vec4 color{0.85f, 0.3f, 1.0f, 1.0f};
+    for (const auto& tip : vis.tips)
+        beams_.push_back({modelPoint(base, yaw, vis.scale, tip), muzzle, color, 0.09f, 0.28f});
+    addEffect(Mesh::Sphere, muzzle, {0.9f, 0.5f, 1.0f, 0.8f}, 0.3f, 1.1f, 0.25f);
+}
+
+int App::anchorsAlive() const {
+    int n = 0;
+    for (const auto& e : entities_)
+        n += e.kind == net::EntityKind::Unit && e.hp > 0 && data_->unit(e.def).anchor;
+    return n;
+}
+
+void App::renderVoidFx() {
+    const float now = static_cast<float>(now_);
+    for (const auto& b : beams_) {
+        const float k = b.t / b.life;
+        const float w = b.width * (1.0f - k * 0.6f);
+        renderer_.drawBeam(b.a, b.b, w, b.color * (1.0f - k));
+        renderer_.drawBeam(b.a, b.b, w * 0.35f, glm::vec4(1.0f, 0.9f, 1.0f, 1.0f) * (1.0f - k));
+    }
+
+    const net::InterpolatedEntity* portal = nullptr;
+    for (const auto& e : entities_)
+        if (e.kind == net::EntityKind::Unit && e.def < visuals_.size() && visuals_[e.def].gate.w > 0.0f)
+            portal = &e;
+    if (!portal)
+        return;
+    const auto& pv = visuals_[portal->def];
+    const float yaw = portal->facing + pv.yaw;
+    const glm::vec3 base{portal->pos.x, 0.0f, portal->pos.y};
+    const int anchors = anchorsAlive();
+    const glm::vec4 color = anchors > 0 ? glm::vec4(0.75f, 0.3f, 1.0f, 1.0f) : glm::vec4(1.0f, 0.25f, 0.45f, 1.0f);
+    float local[16];
+    const float r = pv.gate.w;
+    bx::mtxSRT(local, r, r, r, 0.0f, 0.0f, 0.0f, pv.gate.x, pv.gate.y, pv.gate.z);
+    float model[16];
+    makeModelMatrix(model, base, yaw, pv.scale, {});
+    float mtx[16];
+    bx::mtxMul(mtx, local, model);
+    renderer_.drawPortal(mtx, color);
+    const glm::vec3 center = modelPoint(base, yaw, pv.scale, glm::vec3(pv.gate));
+    for (int k = 0; k < 14; ++k) {
+        const float a = now * (0.9f + 0.13f * static_cast<float>(k % 4)) + static_cast<float>(k) * 0.4488f;
+        const float rr = r * (1.05f - 0.35f * std::fmod(now * 0.35f + static_cast<float>(k) * 0.29f, 1.0f));
+        const glm::vec3 spot{pv.gate.x + std::cos(a) * rr, pv.gate.y + std::sin(a) * rr, pv.gate.z + 0.1f};
+        renderer_.drawGlow(Mesh::Sphere, modelPoint(base, yaw, pv.scale, spot), glm::vec3(0.22f), color * 0.7f);
+    }
+    renderer_.drawGlow(Mesh::Sphere, center, glm::vec3(r * pv.scale * 0.5f), color * 0.12f);
+
+    int i = 0;
+    for (const auto& e : entities_) {
+        if (e.kind != net::EntityKind::Unit || !data_->unit(e.def).anchor || e.hp == 0)
+            continue;
+        const auto& av = visuals_[e.def];
+        const glm::vec3 from = av.tips.empty() ? glm::vec3(e.pos.x, av.height, e.pos.y)
+                                               : modelPoint({e.pos.x, 0.0f, e.pos.y}, e.facing + av.yaw, av.scale, av.tips.front());
+        const float pulse = 0.75f + 0.25f * std::sin(now * 5.0f + static_cast<float>(i));
+        renderer_.drawBeam(from, center, 0.2f * pulse, glm::vec4(0.35f, 0.06f, 0.6f, 1.0f));
+        renderer_.drawBeam(from, center, 0.05f, glm::vec4(0.75f, 0.45f, 0.95f, 1.0f) * 0.6f);
+        for (int k = 0; k < 3; ++k) {
+            const float f = std::fmod(now * 0.7f + static_cast<float>(k) / 3.0f + static_cast<float>(i) * 0.17f, 1.0f);
+            renderer_.drawGlow(Mesh::Sphere, from + (center - from) * f, glm::vec3(0.3f), {0.5f, 0.2f, 0.8f, 1.0f});
+        }
+        renderer_.drawGlow(Mesh::Sphere, from, glm::vec3(0.6f * pulse), {0.4f, 0.1f, 0.65f, 1.0f});
+        ++i;
+    }
 }
 
 }

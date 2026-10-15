@@ -30,6 +30,9 @@
   "units": [
     {"unit": "core", "role": "core", "team": 0, "pos": [12, 88]},
     {"unit": "portal", "role": "portal", "team": 1, "pos": [308, 88]},
+    {"unit": "void_pylon", "team": 1, "pos": [300, 79]},
+    {"unit": "void_pylon", "team": 1, "pos": [300, 97]},
+    {"unit": "void_pylon", "team": 1, "pos": [314, 88]},
     {"unit": "factory", "team": 0, "pos": [36, 24], "tag": "factory_north"},
     {"unit": "tower", "team": 0, "pos": [58, 26]},
     {"unit": "tower", "team": 0, "pos": [58, 36]},
