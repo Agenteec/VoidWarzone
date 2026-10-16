@@ -28,6 +28,9 @@ def fetch(spec, path):
     bbox = f"{lat1:.6f},{lon0:.6f},{lat0:.6f},{lon1:.6f}"
     keys = ["building", "highway", "natural", "landuse", "leisure", "railway", "power", "amenity", "waterway"]
     body = "".join(f'way["{k}"]({bbox});' for k in keys) + f'relation["natural"="water"]({bbox});'
+    for k, v in (("amenity", "fuel"), ("man_made", "water_tower|mast|tower|communications_tower|chimney"), ("highway", "bus_stop"),
+                 ("power", "substation|transformer"), ("shop", "kiosk")):
+        body += f'node["{k}"~"{v}"]({bbox});'
     query = f"[out:json][timeout:180];({body});out geom tags;"
     req = urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({"data": query}).encode(), headers={"User-Agent": "VoidWarzone-mapgen"})
     with urllib.request.urlopen(req, timeout=300) as r:
@@ -242,7 +245,7 @@ def r2(p):
 def convert(spec, osm):
     proj = project(spec)
     tol = spec.get("simplify", 0.2)
-    buildings, areas, paths = [], [], []
+    buildings, areas, paths, props = [], [], [], []
     residential = []
     for e in osm["elements"]:
         t = e.get("tags", {})
@@ -259,9 +262,23 @@ def convert(spec, osm):
 
     for e in osm["elements"]:
         t = e.get("tags", {})
-        if "building" in t:
-            if t["building"] in ("construction", "ruins", "no"):
+        prop = prop_of(t)
+        if prop:
+            if e["type"] == "node":
+                x, y = proj(e)
+            elif "geometry" in e:
+                pts = [proj(p) for p in e["geometry"]]
+                x, y = sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
+            else:
                 continue
+            if 2 <= x <= spec["width"] - 2 and 2 <= y <= spec["height"] - 2:
+                props.append({"model": prop, "pos": r2((x, y)), "yaw": float(hash((round(x), round(y))) % 360), "radius": SOLID.get(prop, 0.0)})
+            if "building" not in t:
+                continue
+        if "building" in t:
+            if t["building"] in ("ruins", "no"):
+                continue
+            unfinished = t["building"] == "construction"
             for raw in polys(e):
                 poly = ring(raw, tol)
                 if not poly or not inside(poly, spec, 1.0) or abs(area(poly)) < 0.6:
@@ -271,9 +288,16 @@ def convert(spec, osm):
                 res = any(r and point_in((cx, cy), r) for r in residential)
                 lv = levels_of(t, poly, spec["cell"], res)
                 b = {"poly": [r2(p) for p in poly], "levels": lv, "kind": kind_of(t, lv)}
+                if unfinished:
+                    b["levels"] = max(lv, 9)
+                    b["kind"] = "panel"
+                    b["unfinished"] = True
                 ruin = ruin_chance(spec, (cx, cy), b["kind"])
-                if ruin > 0 and (hash((round(cx, 1), round(cy, 1))) % 1000) / 1000.0 < ruin:
+                roll = (hash((round(cx, 1), round(cy, 1))) % 1000) / 1000.0
+                if ruin > 0 and roll < ruin and not unfinished:
                     b["ruin"] = True
+                elif b["kind"] == "panel" and not unfinished and roll > 1.0 - spec.get("unfinished", 0.06):
+                    b["unfinished"] = True
                 buildings.append(b)
             continue
         kind = None
@@ -312,7 +336,27 @@ def convert(spec, osm):
             pts = [proj(p) for p in e["geometry"]]
             for part in clip_line(simplify(pts, 0.3), spec):
                 paths.append({"kind": line_kind, "width": round(width / spec["cell"], 2), "points": [r2(p) for p in part]})
-    return buildings, areas, paths
+    return buildings, areas, paths, props
+
+
+SOLID = {"prop_gas_station": 3.0, "prop_substation": 2.0, "prop_water_tower": 1.0, "prop_cell_tower": 1.0}
+
+
+def prop_of(t):
+    if t.get("amenity") == "fuel":
+        return "prop_gas_station"
+    mm = t.get("man_made")
+    if mm == "water_tower":
+        return "prop_water_tower"
+    if mm in ("mast", "tower", "communications_tower"):
+        return "prop_cell_tower"
+    if t.get("power") in ("substation", "transformer"):
+        return "prop_substation"
+    if t.get("highway") == "bus_stop":
+        return "prop_bus_stop"
+    if t.get("shop") == "kiosk":
+        return "prop_kiosk"
+    return None
 
 
 def raster(m):
@@ -399,7 +443,7 @@ def snap(blocked, p):
     return tuple(p)
 
 
-def build_lanes(m, routes):
+def build_lanes(m, routes, tolerance=3.0):
     blocked, road = raster(m)
     lanes = []
     for r in routes:
@@ -408,7 +452,7 @@ def build_lanes(m, routes):
         for a, b in zip(via, via[1:]):
             seg = route(blocked, road, a, b)
             pts += seg if not pts else seg[1:]
-        pts = simplify(pts, 1.2)
+        pts = simplify(pts, tolerance)
         lanes.append({"name": r["name"], "points": [r2(p) for p in [tuple(via[0])] + pts[1:-1] + [tuple(via[-1])]]})
     return lanes
 
@@ -457,12 +501,13 @@ def main():
         fetch(spec, osm_path)
     with open(osm_path, encoding="utf-8") as f:
         osm = json.load(f)
-    buildings, areas, paths = convert(spec, osm)
+    buildings, areas, paths, props = convert(spec, osm)
     m = {"width": spec["width"], "height": spec["height"]}
     m.update(spec.get("map", {}))
     m["areas"] = areas + m.get("areas", [])
     m["buildings"] = buildings
     m["paths"] = paths + m.get("paths", [])
+    m["props"] = props + m.get("props", [])
     m["attribution"] = "Map data (c) OpenStreetMap contributors, ODbL"
     m["buildings"] += garages(spec, m["buildings"])
     clear = list(spec.get("clear", []))
@@ -483,10 +528,11 @@ def main():
             return True
         m["buildings"] = [b for b in m["buildings"] if free(b["poly"])]
         m["areas"] = [a for a in m["areas"] if a["kind"] != "forest" or free(a["poly"])]
+        m["props"] = [p for p in m["props"] if free([p["pos"]])]
     if spec.get("elevation", True):
         m["elevation"] = elevation(spec, base)
     if "routes" in spec:
-        m["lanes"] = build_lanes(m, spec["routes"])
+        m["lanes"] = build_lanes(m, spec["routes"], spec.get("laneSimplify", 3.0))
     out = os.path.join(os.path.dirname(base), "..", spec["output"]) if not os.path.isabs(spec["output"]) else spec["output"]
     out = os.path.normpath(out)
     with open(out, "w", encoding="utf-8", newline="\n") as f:

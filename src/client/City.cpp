@@ -123,10 +123,113 @@ float buildingHeight(const BuildingDef& b) {
     return levels * kStoreyHeight;
 }
 
+namespace {
+
+void addBox(MeshData& m, glm::vec3 lo, glm::vec3 hi, glm::vec2 uv) {
+    const glm::vec3 c[8] = {{lo.x, lo.y, lo.z}, {hi.x, lo.y, lo.z}, {hi.x, lo.y, hi.z}, {lo.x, lo.y, hi.z},
+                            {lo.x, hi.y, lo.z}, {hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {lo.x, hi.y, hi.z}};
+    addQuad(m, c[4], c[5], c[6], c[7], {0, 1, 0}, uv, uv, uv, uv);
+    addQuad(m, c[0], c[1], c[5], c[4], {0, 0, -1}, uv, uv, uv, uv);
+    addQuad(m, c[1], c[2], c[6], c[5], {1, 0, 0}, uv, uv, uv, uv);
+    addQuad(m, c[2], c[3], c[7], c[6], {0, 0, 1}, uv, uv, uv, uv);
+    addQuad(m, c[3], c[0], c[4], c[7], {-1, 0, 0}, uv, uv, uv, uv);
+}
+
+void addOrientedBox(MeshData& m, glm::vec2 at, glm::vec2 along, glm::vec2 out, float y0, float y1, float width, float depth, glm::vec2 frontUv,
+                    glm::vec2 sideUv) {
+    const glm::vec2 a = at - along * (width * 0.5f);
+    const glm::vec2 b = at + along * (width * 0.5f);
+    const glm::vec2 a2 = a + out * depth;
+    const glm::vec2 b2 = b + out * depth;
+    const glm::vec3 n{out.x, 0.0f, out.y};
+    addQuad(m, {a2.x, y0, a2.y}, {b2.x, y0, b2.y}, {b2.x, y1, b2.y}, {a2.x, y1, a2.y}, n, frontUv, frontUv + glm::vec2(0.1f, 0.0f),
+            frontUv + glm::vec2(0.1f, -0.04f), frontUv + glm::vec2(0.0f, -0.04f));
+    addQuad(m, {a.x, y0, a.y}, {a2.x, y0, a2.y}, {a2.x, y1, a2.y}, {a.x, y1, a.y}, {-along.x, 0.0f, -along.y}, sideUv, sideUv, sideUv, sideUv);
+    addQuad(m, {b2.x, y0, b2.y}, {b.x, y0, b.y}, {b.x, y1, b.y}, {b2.x, y1, b2.y}, {along.x, 0.0f, along.y}, sideUv, sideUv, sideUv, sideUv);
+    addQuad(m, {a.x, y1, a.y}, {b.x, y1, b.y}, {b2.x, y1, b2.y}, {a2.x, y1, a2.y}, {0, 1, 0}, sideUv, sideUv, sideUv, sideUv);
+    addQuad(m, {a.x, y0, a.y}, {a2.x, y0, a2.y}, {b2.x, y0, b2.y}, {b.x, y0, b.y}, {0, -1, 0}, sideUv, sideUv, sideUv, sideUv);
+}
+
+constexpr glm::vec2 kConcreteUv{0.02f, 0.012f};
+
+void unfinishedFrame(const BuildingDef& b, std::uint32_t seed, float storey, std::array<MeshData, static_cast<std::size_t>(Facade::Count)>& out) {
+    const auto& poly = b.poly;
+    auto& frame = out[static_cast<std::size_t>(Facade::Panel)];
+    auto& walls = out[static_cast<std::size_t>(Facade::Panel)];
+    const int built = std::max(2, static_cast<int>(static_cast<float>(b.levels) * (0.35f + 0.5f * static_cast<float>(seed % 100u) / 100.0f)));
+    const float top = static_cast<float>(built) * storey;
+    const auto tris = triangulate(poly);
+    for (int k = 1; k <= built; ++k) {
+        const float y = static_cast<float>(k) * storey;
+        const auto base = static_cast<std::uint32_t>(frame.vertices.size());
+        for (const auto p : poly)
+            frame.vertices.push_back({p.x, y, p.y, 0.0f, 1.0f, 0.0f, kConcreteUv.x, kConcreteUv.y});
+        for (const auto p : poly)
+            frame.vertices.push_back({p.x, y - 0.07f, p.y, 0.0f, -1.0f, 0.0f, kConcreteUv.x, kConcreteUv.y});
+        for (const auto i : tris)
+            frame.indices.push_back(base + i);
+        for (const auto i : tris)
+            frame.indices.push_back(base + static_cast<std::uint32_t>(poly.size()) + i);
+    }
+    for (std::size_t i = 0; i < poly.size(); ++i) {
+        const glm::vec2 a = poly[i];
+        const glm::vec2 c = poly[(i + 1) % poly.size()];
+        const float len = glm::distance(a, c);
+        const int n = std::max(1, static_cast<int>(len / 1.5f));
+        for (int k = 0; k < n; ++k) {
+            const glm::vec2 p = glm::mix(a, c, static_cast<float>(k) / static_cast<float>(n));
+            const float h = top + ((seed + static_cast<std::uint32_t>(i * 7 + static_cast<std::size_t>(k))) % 3u == 0 ? storey : 0.0f);
+            addBox(frame, {p.x - 0.09f, -0.3f, p.y - 0.09f}, {p.x + 0.09f, h, p.y + 0.09f}, kConcreteUv);
+        }
+        if ((seed >> (i % 16)) & 1u) {
+            const float h = storey * static_cast<float>(std::min(built, 3));
+            const glm::vec2 d = (c - a) / std::max(len, 1e-3f);
+            const glm::vec3 nrm{d.y, 0.0f, -d.x};
+            const float vb = (h + 0.3f) / (storey * kTile);
+            addQuad(walls, {a.x, -0.3f, a.y}, {c.x, -0.3f, c.y}, {c.x, h, c.y}, {a.x, h, a.y}, nrm, {0.0f, vb}, {len / (kBay * kTile), vb},
+                    {len / (kBay * kTile), 0.0f}, {0.0f, 0.0f});
+        }
+    }
+}
+
+void balconies(const BuildingDef& b, std::uint32_t seed, float storey, std::array<MeshData, static_cast<std::size_t>(Facade::Count)>& out) {
+    const auto& poly = b.poly;
+    auto& mesh = out[static_cast<std::size_t>(Facade::Panel)];
+    const float orient = signedArea(poly) >= 0.0f ? 1.0f : -1.0f;
+    for (std::size_t i = 0; i < poly.size(); ++i) {
+        const glm::vec2 a = poly[i];
+        const glm::vec2 c = poly[(i + 1) % poly.size()];
+        const float len = glm::distance(a, c);
+        if (len < 4.0f)
+            continue;
+        const glm::vec2 d = (c - a) / len;
+        const glm::vec2 out2 = glm::vec2(d.y, -d.x) * orient;
+        if (out2.y < 0.3f && ((seed >> 3) & 1u))
+            continue;
+        int stack = 0;
+        for (float t = 1.4f; t < len - 1.0f; t += 2.5f, ++stack) {
+            const bool glazed = ((seed + static_cast<std::uint32_t>(stack) * 2654435761u) >> 7) % 3u == 0;
+            const glm::vec2 at = a + d * t;
+            for (int f = 1; f < b.levels; ++f) {
+                const float y0 = static_cast<float>(f) * storey - 0.02f;
+                const float y1 = y0 + storey * (glazed ? 0.85f : 0.38f);
+                const glm::vec2 front = glazed ? glm::vec2(0.03f, 0.05f) : glm::vec2(0.14f, 0.11f);
+                addOrientedBox(mesh, at, d, out2, y0, y1, 0.85f, 0.32f, front, kConcreteUv);
+            }
+        }
+    }
+}
+
+}
+
 void extrudeBuilding(const BuildingDef& b, std::uint32_t seed, std::array<MeshData, static_cast<std::size_t>(Facade::Count)>& out) {
     const auto& poly = b.poly;
     if (poly.size() < 3)
         return;
+    if (b.unfinished) {
+        unfinishedFrame(b, seed, kStoreyHeight, out);
+        return;
+    }
     const float top = buildingHeight(b);
     const float bottom = -0.3f;
     const float storey = top / static_cast<float>(std::max(b.levels, 1));
@@ -236,6 +339,8 @@ void extrudeBuilding(const BuildingDef& b, std::uint32_t seed, std::array<MeshDa
         return;
     }
 
+    if (b.kind == "panel" && b.levels >= 5 && !b.ruin)
+        balconies(b, seed, storey, out);
     auto& roof = out[static_cast<std::size_t>(Facade::Roof)];
     const auto base = static_cast<std::uint32_t>(roof.vertices.size());
     for (const auto p : poly)

@@ -1,0 +1,306 @@
+{
+ "origin": [
+  51.57685,
+  39.1162
+ ],
+ "cell": 6,
+ "width": 512,
+ "height": 352,
+ "osm": "voronezh_shilovo.osm.json",
+ "ruins": 0.12,
+ "ruinZones": [
+  {
+   "pos": [
+    378,
+    282
+   ],
+   "radius": 60,
+   "chance": 0.85
+  }
+ ],
+ "garages": [
+  {
+   "pos": [
+    205,
+    232
+   ],
+   "rows": 3,
+   "length": 18,
+   "angle": -35
+  },
+  {
+   "pos": [
+    300,
+    105
+   ],
+   "rows": 2,
+   "length": 16,
+   "angle": -35
+  }
+ ],
+ "output": "data/maps/voronezh_m3.json",
+ "map": {
+  "name": "Glow over the Plant",
+  "theme": "winter",
+  "playerStart": {
+   "pos": [
+    180,
+    200
+   ],
+   "units": [
+    "tank",
+    "tank",
+    "tank",
+    "scout",
+    "engineer"
+   ]
+  },
+  "defense": {
+   "startEnergy": 500,
+   "baseIncome": 2.0,
+   "waves": []
+  },
+  "resourcePoints": [
+   {
+    "name": "A",
+    "pos": [
+     260,
+     300
+    ],
+    "radius": 3.5,
+    "income": 3
+   },
+   {
+    "name": "B",
+    "pos": [
+     290,
+     150
+    ],
+    "radius": 4,
+    "income": 4
+   }
+  ],
+  "units": [
+   {
+    "unit": "portal",
+    "team": 1,
+    "pos": [
+     378,
+     282
+    ],
+    "tag": "portal",
+    "role": "portal"
+   },
+   {
+    "unit": "void_pylon",
+    "team": 1,
+    "pos": [
+     366,
+     272
+    ],
+    "tag": "pylon"
+   },
+   {
+    "unit": "void_pylon",
+    "team": 1,
+    "pos": [
+     392,
+     274
+    ],
+    "tag": "pylon"
+   },
+   {
+    "unit": "void_pylon",
+    "team": 1,
+    "pos": [
+     380,
+     298
+    ],
+    "tag": "pylon"
+   },
+   {
+    "unit": "void_tower",
+    "team": 1,
+    "pos": [
+     345,
+     262
+    ]
+   },
+   {
+    "unit": "void_tower",
+    "team": 1,
+    "pos": [
+     352,
+     300
+    ]
+   },
+   {
+    "unit": "void_tower",
+    "team": 1,
+    "pos": [
+     400,
+     255
+    ]
+   },
+   {
+    "unit": "void_citadel",
+    "team": 1,
+    "pos": [
+     360,
+     290
+    ]
+   },
+   {
+    "unit": "raider_bunker",
+    "team": 1,
+    "pos": [
+     300,
+     245
+    ],
+    "tag": "wreck"
+   },
+   {
+    "unit": "raider_technical",
+    "team": 1,
+    "pos": [
+     296,
+     250
+    ],
+    "tag": "wreck"
+   }
+  ],
+  "mission": {
+   "title": "Glow over the Plant",
+   "briefing": "Scouts saw a violet glow over the ruins of the unfinished nuclear heating plant south of the city - right where the Breach began. The marauders who went there did not come back. Find out what is there.",
+   "objectives": [
+    {
+     "id": "outskirts",
+     "text": "Reach the plant outskirts",
+     "type": "reach",
+     "pos": [
+      305,
+      250
+     ],
+     "radius": 14
+    },
+    {
+     "id": "pylons",
+     "text": "Destroy the crystal pylons",
+     "type": "destroy",
+     "tag": "pylon",
+     "hidden": true
+    },
+    {
+     "id": "portal",
+     "text": "Destroy the rift",
+     "type": "destroy",
+     "tag": "portal",
+     "hidden": true
+    }
+   ],
+   "triggers": [
+    {
+     "when": "start",
+     "do": [
+      {
+       "type": "message",
+       "text": "Keep radio silence. Something is jamming everything near the plant."
+      }
+     ]
+    },
+    {
+     "when": "objective",
+     "objective": "outskirts",
+     "do": [
+      {
+       "type": "message",
+       "text": "Those are not marauders... The trucks are overgrown with crystals. Command, are you seeing this?"
+      },
+      {
+       "type": "message",
+       "text": "A rift. It's feeding on the pylons around it. Destroy the pylons first, then the rift itself."
+      },
+      {
+       "type": "reveal",
+       "objective": "pylons"
+      },
+      {
+       "type": "reveal",
+       "objective": "portal"
+      },
+      {
+       "type": "spawn",
+       "unit": "void_melee",
+       "count": 4,
+       "pos": [
+        360,
+        270
+       ],
+       "team": 1,
+       "target": [
+        305,
+        250
+       ]
+      }
+     ]
+    },
+    {
+     "when": "time",
+     "time": 120,
+     "repeat": 45,
+     "times": 12,
+     "do": [
+      {
+       "type": "spawn",
+       "unit": "void_melee",
+       "count": 3,
+       "pos": [
+        372,
+        290
+       ],
+       "team": 1,
+       "target": [
+        300,
+        250
+       ]
+      },
+      {
+       "type": "spawn",
+       "unit": "void_ranged",
+       "count": 1,
+       "pos": [
+        372,
+        290
+       ],
+       "team": 1,
+       "target": [
+        300,
+        250
+       ]
+      }
+     ]
+    },
+    {
+     "when": "destroyed",
+     "tag": "pylon",
+     "do": [
+      {
+       "type": "message",
+       "text": "The pylons are down - the rift is unstable. Finish it!"
+      }
+     ]
+    },
+    {
+     "when": "destroyed",
+     "tag": "portal",
+     "do": [
+      {
+       "type": "message",
+       "text": "The glow is fading... For now. Command, the war just changed."
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

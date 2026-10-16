@@ -216,6 +216,8 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
         v.shape = parseShape(it->value("shape", "cube"));
         v.crystalShot = it->value("shot", "") == "crystal";
         v.frostShot = it->value("shot", "") == "frost";
+        if (const auto t = it->find("tint"); t != it->end() && t->is_array() && t->size() == 3)
+            v.tint = glm::vec3((*t)[0].get<float>(), (*t)[1].get<float>(), (*t)[2].get<float>());
         v.height = it->value("height", v.height);
 
         const auto m = it->find("model");
@@ -643,6 +645,62 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
     }
 
     auto freeCell = [&](glm::vec2 p) { return map.cellKind(static_cast<int>(p.x), static_cast<int>(p.y)) == CellKind::Open; };
+    struct PropLook {
+        const char* name;
+        float size;
+        bool byHeight;
+    };
+    static constexpr PropLook kPropLooks[] = {{"prop_gas_station", 6.0f, false}, {"prop_substation", 4.0f, false}, {"prop_water_tower", 5.5f, true},
+                                              {"prop_cell_tower", 9.0f, true},   {"prop_bus_stop", 1.8f, false},  {"prop_kiosk", 1.3f, false},
+                                              {"prop_crane", 13.0f, true},       {"prop_trash1", 1.2f, false},    {"prop_trash2", 1.2f, false},
+                                              {"prop_barrels", 0.9f, false},     {"prop_tires", 0.8f, false},     {"prop_blocks", 1.6f, false}};
+    auto placeProp = [&](const std::string& name, glm::vec2 at, float yaw) {
+        for (const auto& look : kPropLooks)
+            if (name == look.name) {
+                place(models.model(name + ":hull"), at, look.size, look.byHeight, yaw);
+                return;
+            }
+        place(models.model(name + ":hull"), at, 1.5f, false, yaw);
+    };
+    for (const auto& p : map.props())
+        placeProp(p.model, p.pos, p.yaw * 0.0174533f);
+    static constexpr const char* kClutter[] = {"prop_trash1", "prop_trash2", "prop_barrels", "prop_tires", "prop_blocks"};
+    for (std::size_t k = 0; k < map.buildings().size(); ++k) {
+        const auto& b = map.buildings()[k];
+        if (b.kind == "house" || b.poly.size() < 3)
+            continue;
+        glm::vec2 c{0.0f};
+        for (const auto p : b.poly)
+            c += p;
+        c /= static_cast<float>(b.poly.size());
+        std::size_t longest = 0;
+        for (std::size_t i = 0; i < b.poly.size(); ++i)
+            if (glm::distance(b.poly[i], b.poly[(i + 1) % b.poly.size()]) >
+                glm::distance(b.poly[longest], b.poly[(longest + 1) % b.poly.size()]))
+                longest = i;
+        const glm::vec2 mid = (b.poly[longest] + b.poly[(longest + 1) % b.poly.size()]) * 0.5f;
+        const glm::vec2 outward = glm::length(mid - c) > 1e-3f ? glm::normalize(mid - c) : glm::vec2(0.0f, 1.0f);
+        if (b.unfinished) {
+            const glm::vec2 at = mid + outward * 3.5f;
+            if (freeCell(at))
+                placeProp("prop_crane", at, unit(rng) * 6.283f);
+            for (int i = 0; i < 2; ++i) {
+                const glm::vec2 q = mid + outward * (1.6f + unit(rng)) + glm::vec2(unit(rng) - 0.5f, unit(rng) - 0.5f) * 3.0f;
+                if (freeCell(q))
+                    placeProp("prop_blocks", q, unit(rng) * 6.283f);
+            }
+            continue;
+        }
+        const int count = b.ruin ? 3 : unit(rng) < 0.45f ? 1 : 0;
+        for (int i = 0; i < count; ++i) {
+            const std::size_t e = static_cast<std::size_t>(unit(rng) * static_cast<float>(b.poly.size())) % b.poly.size();
+            const glm::vec2 m2 = glm::mix(b.poly[e], b.poly[(e + 1) % b.poly.size()], 0.2f + unit(rng) * 0.6f);
+            const glm::vec2 q = m2 + (glm::length(m2 - c) > 1e-3f ? glm::normalize(m2 - c) : outward) * (1.0f + unit(rng) * 0.8f);
+            if (freeCell(q))
+                placeProp(b.ruin ? (unit(rng) < 0.6f ? "prop_blocks" : "prop_trash2") : kClutter[static_cast<std::size_t>(unit(rng) * 4.99f)], q,
+                          unit(rng) * 6.283f);
+        }
+    }
     if (winter) {
         const TextureId asphalt = models.texture("data/terrain/winter/road.png");
         const TextureId black = models.texture("data/city/flat_mask.png");

@@ -100,6 +100,7 @@ template <class T>
 concept UnitCommand = requires(T t) { t.units; };
 
 enum class EventType : std::uint8_t {
+    Objective,
     Spawn,
     Shot,
     Hit,

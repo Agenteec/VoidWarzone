@@ -699,5 +699,6 @@
    "length": 14,
    "angle": -35
   }
- ]
+ ],
+ "laneSimplify": 5.0
 }

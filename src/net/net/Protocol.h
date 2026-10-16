@@ -11,7 +11,7 @@ inline constexpr std::uint16_t kMasterPort = 27400;
 inline constexpr std::uint16_t kStunPort = 3478;
 
 inline constexpr std::uint32_t kMagic = 0x315a5756;
-inline constexpr double kTimeout = 5.0;
+inline constexpr double kTimeout = 10.0;
 inline constexpr double kConnectRetry = 0.2;
 inline constexpr double kConnectTimeout = 5.0;
 inline constexpr std::uint8_t kNoOwner = 0xff;

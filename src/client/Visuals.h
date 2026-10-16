@@ -3,6 +3,7 @@
 #include <array>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -55,6 +56,7 @@ struct UnitVisual {
     glm::vec4 gate{0.0f};
     bool crystalShot = false;
     bool frostShot = false;
+    std::optional<glm::vec3> tint;
 };
 
 inline constexpr float kModelYaw = 1.5707963f;

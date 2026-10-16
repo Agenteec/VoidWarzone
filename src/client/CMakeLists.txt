@@ -17,6 +17,7 @@ set(VW_CLIENT_SOURCES
     UiFx.cpp
     City.cpp
     Editor.cpp
+    UiCampaign.cpp
     UiGuide.cpp
     UiMenu.cpp
 )

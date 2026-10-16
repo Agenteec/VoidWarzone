@@ -159,9 +159,21 @@ Map Map::parse(std::string_view text) {
         m.areas_.push_back(std::move(area));
     }
     for (const auto& b : j.value("buildings", json::array())) {
-        BuildingDef building{toPoints(b.at("poly")), b.value("levels", 5), b.value("kind", ""), b.value("ruin", false)};
+        BuildingDef building{toPoints(b.at("poly")), b.value("levels", 5), b.value("kind", ""), b.value("ruin", false), b.value("unfinished", false)};
         m.fill(building.poly, CellKind::Building);
         m.buildings_.push_back(std::move(building));
+    }
+    for (const auto& p : j.value("props", json::array())) {
+        PropDef prop{p.at("model").get<std::string>(), toVec2(p.at("pos")), p.value("yaw", 0.0f), p.value("radius", 0.0f)};
+        if (prop.radius > 0.0f) {
+            std::vector<glm::vec2> circle;
+            for (int k = 0; k < 12; ++k) {
+                const float a = static_cast<float>(k) * 0.5236f;
+                circle.push_back(prop.pos + glm::vec2(std::cos(a), std::sin(a)) * prop.radius);
+            }
+            m.fill(circle, CellKind::Building);
+        }
+        m.props_.push_back(std::move(prop));
     }
     for (const auto& p : j.value("paths", json::array()))
         m.paths_.push_back({p.value("kind", ""), p.value("width", 1.0f), toPoints(p.at("points"))});
@@ -248,6 +260,58 @@ Map Map::parse(std::string_view text) {
                 wave.bossLane = m.requireLane(b->at("lane").get<std::string>());
             }
             def.waves.push_back(std::move(wave));
+        }
+    }
+
+    if (const auto ms = j.find("mission"); ms != j.end()) {
+        auto& mission = m.mission_;
+        mission.enabled = true;
+        mission.title = ms->value("title", "");
+        mission.briefing = ms->value("briefing", "");
+        for (const auto& o : ms->value("objectives", json::array())) {
+            MissionObjective obj;
+            obj.id = o.at("id").get<std::string>();
+            obj.text = o.value("text", obj.id);
+            obj.type = o.at("type").get<std::string>();
+            obj.tag = o.value("tag", "");
+            if (o.contains("pos"))
+                obj.pos = toVec2(o.at("pos"));
+            obj.radius = o.value("radius", obj.radius);
+            obj.time = o.value("time", 0.0f);
+            obj.team = o.value("team", std::uint8_t{1});
+            obj.hidden = o.value("hidden", false);
+            obj.optional = o.value("optional", false);
+            mission.objectives.push_back(std::move(obj));
+        }
+        for (const auto& t : ms->value("triggers", json::array())) {
+            MissionTrigger trig;
+            trig.when = t.value("when", "start");
+            trig.time = t.value("time", 0.0f);
+            if (t.contains("pos"))
+                trig.pos = toVec2(t.at("pos"));
+            trig.radius = t.value("radius", trig.radius);
+            trig.tag = t.value("tag", "");
+            trig.objective = t.value("objective", "");
+            trig.repeat = t.value("repeat", 0.0f);
+            trig.times = t.value("times", trig.repeat > 0.0f ? 1000 : 1);
+            for (const auto& a : t.value("do", json::array())) {
+                MissionAction act;
+                act.type = a.at("type").get<std::string>();
+                act.text = a.value("text", "");
+                act.unit = a.value("unit", "");
+                act.tag = a.value("tag", "");
+                act.objective = a.value("objective", "");
+                act.count = a.value("count", 1);
+                act.team = a.value("team", std::uint8_t{1});
+                act.player = a.value("player", false);
+                if (a.contains("pos"))
+                    act.pos = toVec2(a.at("pos"));
+                if (a.contains("target"))
+                    act.target = toVec2(a.at("target"));
+                act.amount = a.value("amount", 0.0f);
+                trig.actions.push_back(std::move(act));
+            }
+            mission.triggers.push_back(std::move(trig));
         }
     }
 

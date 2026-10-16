@@ -104,12 +104,19 @@ void App::drawMenu() {
 
     const float h = 38.0f * s;
     ImGui::BeginDisabled(busy);
+    if (menuButton(ICON_FA_FLAG "   Campaign", false, full, h)) {
+        settingsOpen_ = false;
+        loadCampaign();
+        setScreen(Screen::Campaign);
+    }
     if (menuButton(ICON_FA_PLAY "   Single Player", false, full, h)) {
         settingsOpen_ = false;
+        campaignMission_.clear();
         startHost(false);
     }
     if (menuButton(ICON_FA_USERS "   Host Multiplayer", false, full, h)) {
         settingsOpen_ = false;
+        campaignMission_.clear();
         startHost(true);
     }
     ImGui::Dummy({0.0f, 6.0f * s});

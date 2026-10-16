@@ -5,10 +5,12 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <unordered_map>
 #include <vector>
 
 #include <entt/entity/registry.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <glm/vec2.hpp>
 
 #include "core/Commands.h"
@@ -111,6 +113,11 @@ public:
     std::vector<entt::entity> spawnPlayer(std::uint8_t player, std::uint8_t team = 0);
     void releasePlayer(std::uint8_t player);
     std::string saveState() const;
+    const std::vector<std::uint8_t>& objectives() const { return objectiveState_; }
+    std::vector<std::string> takeMessages() { return std::exchange(messages_, {}); }
+    float missionTime() const { return static_cast<float>(tick_) * kTickDt; }
+    std::vector<entt::entity> spawnRoster(std::uint8_t player, std::string_view roster);
+    std::string exportRoster(std::uint8_t player, std::size_t limit) const;
     void loadState(std::string_view text);
     bool resumePlayer(std::uint8_t player);
     void devBoost(std::uint8_t player);
@@ -145,6 +152,7 @@ public:
 
 private:
     void rebuildSpatial();
+    void prewarmFields();
     void updateSpawners();
     void updateUnits();
     void updateBosses();
@@ -252,6 +260,17 @@ private:
     };
     std::vector<PendingRespawn> respawns_;
     std::array<bool, kMaxPlayers> saved_{};
+    std::vector<std::uint8_t> objectiveState_;
+    std::vector<int> triggerFired_;
+    std::vector<float> triggerNext_;
+    std::vector<std::string> messages_;
+    bool missionStarted_ = false;
+    void updateMission();
+    void runAction(const MissionAction& action);
+    bool tagAlive(const std::string& tag) const;
+    bool playerNear(glm::vec2 pos, float radius) const;
+    void finishObjective(const std::string& id, std::uint8_t state);
+    entt::entity loadUnit(const nlohmann::json& u);
 };
 
 }

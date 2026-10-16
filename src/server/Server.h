@@ -27,6 +27,7 @@ struct ServerConfig {
     bool lobby = false;
     std::function<std::string(const std::string&)> loadMap;
     std::string saveDir = "saves";
+    std::string roster;
 };
 
 class Server {
@@ -79,7 +80,7 @@ private:
     void startMatch(const std::string* save = nullptr);
     void saveGame(Client& client, const std::string& name);
     void loadGame(Client& client, const std::string& name);
-    void notice(const std::string& text);
+    void notice(const std::string& text, const std::string& from = "Server", std::uint8_t player = 0xff);
     void endMatch();
     std::uint8_t leader() const;
     void tick();

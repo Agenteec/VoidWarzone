@@ -76,6 +76,10 @@ int parseLightPreset(std::string_view text) {
     return -1;
 }
 
+std::string readData(const std::string& rel) {
+    return loadText(rel);
+}
+
 std::string prefDir() {
     char* dir = SDL_GetPrefPath("Agenteec", "VoidWarzone");
     if (!dir)
@@ -327,7 +331,10 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
         guideOpen_ = true;
         guideTab_ = options_.guide;
     }
-    if (options_.editor) {
+    if (options_.mission > 0) {
+        loadCampaign();
+        startMission(static_cast<std::size_t>(options_.mission - 1), false);
+    } else if (options_.editor) {
         openEditor(*options_.editor);
         if (options_.editorTest && editor_)
             editorSelfTest();
@@ -387,6 +394,7 @@ void App::loadContent() {
             list.push_back({m.at("id").get<std::string>(), m.value("name", ""), m.value("players", ""), m.value("description", "")});
     }
     loadUserMaps();
+    loadCampaign();
 }
 
 App::App() = default;
@@ -475,6 +483,8 @@ void App::startHost(bool multiplayer) {
     config.maxPlayers = multiplayer ? 8 : 1;
     config.loadMap = [](const std::string& name) { return readMap(name); };
     config.saveDir = savesDir();
+    if (!campaignMission_.empty())
+        config.roster = campaignRoster_;
     host_ = std::make_unique<server::Server>(*data_, *hostMap_, config);
     if (!host_->start(now_)) {
         host_.reset();
@@ -523,8 +533,10 @@ void App::enterGame() {
         return;
     }
     if (mapVisualsHash_ != map_->hash()) {
+        const double t0 = nowSeconds();
         mapVisuals_ = buildMapVisuals(*map_, *data_, renderer_, *models_);
         mapVisualsHash_ = map_->hash();
+        spdlog::info("map visuals built in {:.2f}s", nowSeconds() - t0);
     }
     buildMinimap();
     applyGraphics();
@@ -598,6 +610,8 @@ void App::buildMinimap() {
 }
 
 void App::leaveGame(std::string status) {
+    if (!status.empty())
+        spdlog::warn("left game: {}", status);
     net_.disconnect();
     lobby_.close();
     if (host_)
@@ -616,7 +630,12 @@ void App::leaveGame(std::string status) {
     if (!status_.empty())
         spdlog::warn("{}", status_);
     SDL_SetWindowTitle(window_, "Void Warzone");
-    setScreen(Screen::Menu);
+    if (!campaignMission_.empty()) {
+        campaignMission_.clear();
+        setScreen(Screen::Campaign);
+    } else {
+        setScreen(Screen::Menu);
+    }
 }
 
 void App::updateInputScale() {
@@ -827,6 +846,9 @@ void App::handleMenuKey(SDL_Keycode key) {
     switch (screen_) {
     case Screen::Menu:
         settingsOpen_ = false;
+        break;
+    case Screen::Campaign:
+        setScreen(Screen::Menu);
         break;
     case Screen::Online:
         lobby_.close();
@@ -1252,6 +1274,8 @@ void App::frame(double dt) {
         returnToLobby();
     }
     for (auto& line : net_.takeChat()) {
+        if (line.player == 0xfe)
+            showBanner(line.text, 6.0f);
         chatLog_.push_back({std::move(line), now_});
         if (chatLog_.size() > 60)
             chatLog_.erase(chatLog_.begin());
@@ -1277,6 +1301,8 @@ glm::vec4 App::playerColor(std::uint8_t owner) const {
 
 glm::vec4 App::unitColor(const net::InterpolatedEntity& e) const {
     glm::vec4 c = e.owner != net::kNoOwner ? playerColor(e.owner) : kTeamColors[e.team & 1];
+    if (e.owner == net::kNoOwner && e.def < visuals_.size() && visuals_[e.def].tint)
+        c = glm::vec4(*visuals_[e.def].tint, 1.0f);
     if (e.owner == net::kNoOwner && data_->unit(e.def).structure)
         c = glm::vec4(glm::vec3(c) * 0.7f, 1.0f);
     if (e.flags & net::kStateFrozen)

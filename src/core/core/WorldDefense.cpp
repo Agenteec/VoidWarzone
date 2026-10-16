@@ -258,6 +258,7 @@ void World::updateProducers() {
         UnitDefId unit;
         glm::vec2 pos;
         int owner;
+        std::uint8_t team;
     };
     std::vector<Pending> pending;
     for (auto [e, producer, pos, unit] : registry_.view<Producer, const Position, const Unit>(entt::exclude<Construction>).each()) {
@@ -271,11 +272,11 @@ void World::updateProducers() {
         const auto* owner = registry_.try_get<Owner>(e);
         const float angle = static_cast<float>(producer.spawned.size()) * 1.3f;
         const glm::vec2 at = pos.value + glm::vec2(std::cos(angle), std::sin(angle)) * (unit.radius + 1.2f);
-        pending.push_back({e, producer.unit, at, owner ? static_cast<int>(owner->player) : -1});
+        pending.push_back({e, producer.unit, at, owner ? static_cast<int>(owner->player) : -1, registry_.get<Team>(e).id});
     }
     for (const auto& p : pending) {
         const glm::vec2 at = map_ ? Map::center(nearestFree(navMap(), Map::cellOf(p.pos))) : p.pos;
-        const auto spawned = spawn(p.unit, 0, at, p.owner);
+        const auto spawned = spawn(p.unit, p.team, at, p.owner);
         registry_.get<Producer>(p.producer).spawned.push_back(spawned);
     }
 }
@@ -509,6 +510,8 @@ void World::updateDefense() {
         return;
     }
 
+    if (map_->mission().enabled)
+        return;
     bool enemiesLeft = false;
     for (auto [e, team] : registry_.view<const Team>(entt::exclude<Structure>).each())
         if (team.id == 1 && alive(e)) {

@@ -309,3 +309,43 @@ TEST_CASE("save and load restore the match") {
     CHECK(validSaveName("save_20261017-1200"));
     CHECK_FALSE(validSaveName("../evil"));
 }
+
+TEST_CASE("mission objectives and triggers drive the match") {
+    const auto data = GameData::parse(kUnits);
+    const auto map = Map::parse(R"({"width":40,"height":40,
+        "playerStart":{"pos":[5,5],"units":["soldier"]},
+        "units":[{"unit":"grunt","team":1,"pos":[30,30],"tag":"camp"}],
+        "defense":{"startEnergy":10,"baseIncome":0,"waves":[]},
+        "mission":{"objectives":[
+            {"id":"go","type":"reach","pos":[5,5],"radius":3},
+            {"id":"camp","type":"destroy","tag":"camp","hidden":true}],
+          "triggers":[
+            {"when":"start","do":[{"type":"message","text":"hello"}]},
+            {"when":"objective","objective":"go","do":[{"type":"reveal","objective":"camp"},{"type":"energy","amount":50},
+              {"type":"spawn","unit":"grunt","count":2,"pos":[20,20],"tag":"camp"}]}]}})");
+    World world(data, map);
+    world.spawnPlayer(0);
+    run(world, 1.0f);
+    CHECK(world.takeMessages() == std::vector<std::string>{"hello"});
+    REQUIRE(world.objectives().size() == 2);
+    CHECK(world.objectives()[0] == 2);
+    CHECK(world.objectives()[1] == 1);
+    CHECK(world.player(0).energy == doctest::Approx(60.0f));
+    CHECK(countDef(world, data, "grunt") == 3);
+    CHECK(world.defense().state == MatchState::Playing);
+    std::vector<entt::entity> grunts;
+    for (auto [e, unit] : world.registry().view<const Unit>().each())
+        if (unit.def == data.find("grunt"))
+            grunts.push_back(e);
+    for (const auto e : grunts)
+        world.registry().get<Health>(e).hp = 0.0f;
+    run(world, 1.0f);
+    CHECK(world.objectives()[1] == 2);
+    CHECK(world.defense().state == MatchState::Victory);
+
+    const std::string roster = world.exportRoster(0, 12);
+    World next(data, map);
+    next.spawnPlayer(0);
+    CHECK(next.spawnRoster(0, roster).size() == 1);
+    CHECK(countDef(next, data, "soldier") == 2);
+}

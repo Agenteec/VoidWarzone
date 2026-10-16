@@ -77,6 +77,7 @@ std::string World::saveState() const {
     for (auto [e, s] : registry_.view<const Spawner>().each())
         spawners.push_back({{"timer", s.timer}, {"building", ref(s.building)}});
     out["spawners"] = spawners;
+    out["mission"] = {{"objectives", objectiveState_}, {"fired", triggerFired_}, {"next", triggerNext_}, {"started", missionStarted_}};
 
     json list = json::array();
     for (const auto e : units) {
@@ -92,6 +93,8 @@ std::string World::saveState() const {
             u["owner"] = owner->player;
         if (registry_.all_of<Invulnerable>(e))
             u["invulnerable"] = true;
+        if (const auto* tag = registry_.try_get<Tag>(e))
+            u["tag"] = tag->name;
         if (const auto* c = registry_.try_get<Construction>(e))
             u["construction"] = c->progress;
         if (const auto* p = registry_.try_get<Producer>(e))
@@ -126,6 +129,60 @@ std::string World::saveState() const {
     return out.dump();
 }
 
+entt::entity World::loadUnit(const json& u) {
+    const UnitDefId def = data_->find(u.at("def").get<std::string>());
+    if (def == kInvalidUnitDef)
+        throw std::runtime_error("unknown unit in save: " + u.at("def").get<std::string>());
+    const glm::vec2 pos{u.at("pos").at(0).get<float>(), u.at("pos").at(1).get<float>()};
+    const auto e = spawn(def, u.at("team").get<std::uint8_t>(), pos, u.value("owner", -1));
+    registry_.get<Facing>(e).angle = u.value("facing", 0.0f);
+    if (auto* turret = registry_.try_get<Turret>(e))
+        turret->yaw = registry_.get<Facing>(e).angle;
+    if (u.value("invulnerable", false))
+        registry_.emplace_or_replace<Invulnerable>(e);
+    if (u.contains("construction"))
+        registry_.emplace_or_replace<Construction>(e, Construction{u.at("construction").get<float>()});
+    if (auto* p = registry_.try_get<Producer>(e))
+        p->timer = u.value("produceTimer", p->timer);
+    if (u.contains("lane")) {
+        const auto& l = u.at("lane");
+        registry_.emplace_or_replace<LaneFollower>(e, LaneFollower{l.at(0).get<int>(), l.at(1).get<int>(), l.at(2).get<bool>()});
+    }
+    if (const auto it = u.find("progression"); it != u.end() && registry_.all_of<Progression>(e)) {
+        auto& prog = registry_.get<Progression>(e);
+        prog.rank = static_cast<Rank>(std::clamp(it->value("rank", 0), 0, 3));
+        prog.level = it->value("level", 0);
+        prog.xp = it->value("xp", 0.0f);
+        prog.skillPoints = it->value("points", 0);
+        for (const auto& s : it->value("skills", json::array()))
+            if (const SkillId id = data_->findSkill(s.at(0).get<std::string>()); id != kInvalidId)
+                prog.skills.push_back({id, s.at(1).get<std::uint8_t>(), 0.0f});
+        for (const auto& item : it->value("items", json::array()))
+            if (const ItemId id = data_->findItem(item.get<std::string>()); id != kInvalidId)
+                prog.items.push_back(id);
+    }
+    if (const auto it = u.find("modules"); it != u.end() && registry_.all_of<Modules>(e)) {
+        auto& mods = registry_.get<Modules>(e);
+        for (std::size_t s = 0; s < mods.slots.size() && s < it->size(); ++s) {
+            if ((*it)[s].is_null())
+                continue;
+            const ModuleId m = data_->findModule((*it)[s].get<std::string>());
+            if (m == kInvalidId)
+                continue;
+            mods.slots[s] = m;
+            if (data_->module(m).slot == ModuleSlot::Weapon && data_->module(m).weapon)
+                registry_.emplace_or_replace<SecondaryWeapon>(e, SecondaryWeapon{*data_->module(m).weapon, 0.0f, entt::null});
+        }
+    }
+    refreshStats(e);
+    auto& health = registry_.get<Health>(e);
+    health.hp = std::min(u.value("hp", health.max), health.max);
+    health.shield = std::min(u.value("shield", health.shieldMax), health.shieldMax);
+    if (u.contains("tag"))
+        registry_.emplace_or_replace<Tag>(e, Tag{u.at("tag").get<std::string>()});
+    return e;
+}
+
 void World::loadState(std::string_view text) {
     json in = json::parse(text);
     if (in.contains("world"))
@@ -145,57 +202,8 @@ void World::loadState(std::string_view text) {
 
     std::vector<entt::entity> made;
     const json units = in.at("units");
-    for (const auto& u : units) {
-        const UnitDefId def = data_->find(u.at("def").get<std::string>());
-        if (def == kInvalidUnitDef)
-            throw std::runtime_error("unknown unit in save: " + u.at("def").get<std::string>());
-        const glm::vec2 pos{u.at("pos").at(0).get<float>(), u.at("pos").at(1).get<float>()};
-        const auto e = spawn(def, u.at("team").get<std::uint8_t>(), pos, u.value("owner", -1));
-        registry_.get<Facing>(e).angle = u.value("facing", 0.0f);
-        if (auto* turret = registry_.try_get<Turret>(e))
-            turret->yaw = registry_.get<Facing>(e).angle;
-        if (u.value("invulnerable", false))
-            registry_.emplace_or_replace<Invulnerable>(e);
-        if (u.contains("construction"))
-            registry_.emplace_or_replace<Construction>(e, Construction{u.at("construction").get<float>()});
-        if (auto* p = registry_.try_get<Producer>(e))
-            p->timer = u.value("produceTimer", p->timer);
-        if (u.contains("lane")) {
-            const auto& l = u.at("lane");
-            registry_.emplace_or_replace<LaneFollower>(e, LaneFollower{l.at(0).get<int>(), l.at(1).get<int>(), l.at(2).get<bool>()});
-        }
-        if (const auto it = u.find("progression"); it != u.end() && registry_.all_of<Progression>(e)) {
-            auto& prog = registry_.get<Progression>(e);
-            prog.rank = static_cast<Rank>(std::clamp(it->value("rank", 0), 0, 3));
-            prog.level = it->value("level", 0);
-            prog.xp = it->value("xp", 0.0f);
-            prog.skillPoints = it->value("points", 0);
-            for (const auto& s : it->value("skills", json::array()))
-                if (const SkillId id = data_->findSkill(s.at(0).get<std::string>()); id != kInvalidId)
-                    prog.skills.push_back({id, s.at(1).get<std::uint8_t>(), 0.0f});
-            for (const auto& item : it->value("items", json::array()))
-                if (const ItemId id = data_->findItem(item.get<std::string>()); id != kInvalidId)
-                    prog.items.push_back(id);
-        }
-        if (const auto it = u.find("modules"); it != u.end() && registry_.all_of<Modules>(e)) {
-            auto& mods = registry_.get<Modules>(e);
-            for (std::size_t s = 0; s < mods.slots.size() && s < it->size(); ++s) {
-                if ((*it)[s].is_null())
-                    continue;
-                const ModuleId m = data_->findModule((*it)[s].get<std::string>());
-                if (m == kInvalidId)
-                    continue;
-                mods.slots[s] = m;
-                if (data_->module(m).slot == ModuleSlot::Weapon && data_->module(m).weapon)
-                    registry_.emplace_or_replace<SecondaryWeapon>(e, SecondaryWeapon{*data_->module(m).weapon, 0.0f, entt::null});
-            }
-        }
-        refreshStats(e);
-        auto& health = registry_.get<Health>(e);
-        health.hp = std::min(u.value("hp", health.max), health.max);
-        health.shield = std::min(u.value("shield", health.shieldMax), health.shieldMax);
-        made.push_back(e);
-    }
+    for (const auto& u : units)
+        made.push_back(loadUnit(u));
     auto at = [&](int i) { return i >= 0 && i < static_cast<int>(made.size()) ? made[static_cast<std::size_t>(i)] : entt::null; };
     for (std::size_t i = 0; i < made.size(); ++i) {
         const int carrier = units[i].value("carrier", -1);
@@ -229,6 +237,12 @@ void World::loadState(std::string_view text) {
                 p.stash.push_back(id);
         saved_[i] = players[i].value("active", false);
     }
+    if (const auto it = in.find("mission"); it != in.end()) {
+        objectiveState_ = it->value("objectives", std::vector<std::uint8_t>{});
+        triggerFired_ = it->value("fired", std::vector<int>{});
+        triggerNext_ = it->value("next", std::vector<float>{});
+        missionStarted_ = false;
+    }
     const json points = in.value("points", json::array());
     for (std::size_t i = 0; i < points.size() && i < points_.size(); ++i)
         points_[i] = {points[i].value("control", 0.0f), points[i].value("owner", -1)};
@@ -244,6 +258,51 @@ void World::loadState(std::string_view text) {
     navDirty_ = true;
     ++builtVersion_;
     events_.clear();
+}
+
+std::string World::exportRoster(std::uint8_t player, std::size_t limit) const {
+    const json all = json::parse(saveState());
+    std::vector<json> units;
+    for (const auto& u : all.at("units")) {
+        if (u.value("owner", -1) != player || data_->unit(data_->find(u.at("def").get<std::string>())).structure)
+            continue;
+        json copy = u;
+        copy.erase("lane");
+        copy.erase("carrier");
+        copy.erase("construction");
+        copy.erase("tag");
+        units.push_back(std::move(copy));
+    }
+    auto score = [](const json& u) {
+        const auto it = u.find("progression");
+        return it == u.end() ? 0.0f : static_cast<float>(it->value("rank", 0)) * 10000.0f + it->value("xp", 0.0f);
+    };
+    std::stable_sort(units.begin(), units.end(), [&](const json& a, const json& b) { return score(a) > score(b); });
+    if (units.size() > limit)
+        units.resize(limit);
+    return json(units).dump();
+}
+
+std::vector<entt::entity> World::spawnRoster(std::uint8_t player, std::string_view roster) {
+    std::vector<entt::entity> out;
+    if (roster.empty() || !map_)
+        return out;
+    const json list = json::parse(roster);
+    const glm::vec2 base = playerBase(player);
+    int i = 0;
+    for (auto u : list) {
+        if (data_->find(u.value("def", "")) == kInvalidUnitDef)
+            continue;
+        const glm::vec2 offset{static_cast<float>(i % 4) * 1.7f - 2.5f, static_cast<float>(i / 4) * 1.7f + 3.0f};
+        const glm::vec2 pos = Map::center(nearestFree(*map_, Map::cellOf(base + offset)));
+        u["pos"] = {pos.x, pos.y};
+        u["owner"] = player;
+        u["team"] = 0;
+        u.erase("hp");
+        out.push_back(loadUnit(u));
+        ++i;
+    }
+    return out;
 }
 
 bool World::resumePlayer(std::uint8_t player) {

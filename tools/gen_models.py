@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw
 
 CELL = 64
 GRID = 8
-ROWS = 4
+ROWS = 6
 
 # name: (rgb, team, glow)
 MATERIALS = [
@@ -52,6 +52,18 @@ MATERIALS = [
     ("paint_old", (92, 112, 104), 0, 0),
     ("lamp", (255, 200, 120), 0, 255),
     ("wood", (104, 80, 58), 0, 0),
+    ("paint_red", (168, 44, 34), 0, 0),
+    ("paint_white", (206, 206, 198), 0, 0),
+    ("paint_blue", (58, 88, 138), 0, 0),
+    ("trash", (44, 46, 42), 0, 0),
+    ("brick", (128, 64, 48), 0, 0),
+    ("rust_light", (150, 92, 52), 0, 0),
+    ("sandbag", (146, 132, 100), 0, 0),
+    ("container_green", (64, 92, 64), 0, 0),
+    ("container_blue", (52, 72, 112), 0, 0),
+    ("concrete_light", (168, 164, 156), 0, 0),
+    ("sign", (255, 214, 120), 0, 255),
+    ("glass_dark", (40, 50, 62), 0, 0),
 ]
 MAT = {m[0]: i for i, m in enumerate(MATERIALS)}
 
@@ -784,6 +796,246 @@ def street_lamp(lit):
     return {"hull": (m, (0, 0, 0))}, {}
 
 
+def substation():
+    m = Mesh()
+    m.box((0, 0.08, 0), (4.2, 0.16, 3.2), MAT["concrete_dark"])
+    for x in (-1.1, 1.1):
+        m.box((x, 0.75, 0.3), (1.3, 1.2, 1.0), MAT["container_green"], top=(0.95, 0.95))
+        for k in range(5):
+            m.box((x, 0.75, -0.25 - k * 0.0), (1.2, 0.9, 0.05), MAT["graphite"])
+        for i in range(3):
+            m.cyl((x - 0.4 + i * 0.4, 1.55, 0.3), 0.07, 0.5, MAT["paint_white"], n=6)
+            m.cyl((x - 0.4 + i * 0.4, 1.85, 0.3), 0.11, 0.06, MAT["paint_white"], n=6)
+        m.box((x, 1.38, 0.3), (1.35, 0.05, 1.05), MAT["snow"])
+    for x in (-1.8, 0.0, 1.8):
+        m.strut((x, 0.1, -1.2), (x, 2.6, -1.2), 0.06, MAT["steel"])
+    m.strut((-1.8, 2.5, -1.2), (1.8, 2.5, -1.2), 0.05, MAT["steel"])
+    for i in range(3):
+        m.cyl((-1.2 + i * 1.2, 2.3, -1.2), 0.06, 0.4, MAT["paint_white"], n=6)
+    for (a, b) in (((-2.1, -1.6), (2.1, -1.6)), ((2.1, -1.6), (2.1, 1.6)), ((2.1, 1.6), (-2.1, 1.6)), ((-2.1, 1.6), (-2.1, -1.6))):
+        m.box(((a[0] + b[0]) / 2, 0.6, (a[1] + b[1]) / 2), (abs(b[0] - a[0]) + 0.05, 1.2, abs(b[1] - a[1]) + 0.05), MAT["steel"], top=(1, 1))
+    m.box((1.9, 0.9, 1.62), (0.5, 0.35, 0.02), MAT["hazard"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def water_tower():
+    m = Mesh()
+    m.cyl((0, 3.0, 0), 0.75, 6.0, MAT["brick"], n=10, r2=0.6)
+    for k in range(4):
+        m.box((0, 0.9 + k * 1.4, 0.62), (0.22, 0.3, 0.02), MAT["glass_dark"])
+    m.cyl((0, 6.5, 0), 1.6, 1.4, MAT["rust"], n=12, r2=1.6)
+    m.cyl((0, 5.7, 0), 1.3, 0.4, MAT["rust"], n=12, r2=1.6)
+    m.cyl((0, 7.35, 0), 1.65, 0.3, MAT["snow"], n=12, r2=0.3)
+    m.box((0.0, 6.5, 1.55), (0.6, 0.9, 0.1), MAT["rust_light"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def cell_tower():
+    m = Mesh()
+    h = 12.0
+    for sx, sz in ((-1, -1), (1, -1), (0, 1)):
+        m.strut((sx * 0.9, 0, sz * 0.9), (sx * 0.15, h, sz * 0.15), 0.06, MAT["paint_white"] if True else MAT["steel"])
+    for k in range(8):
+        y = 0.7 + k * 1.45
+        w = 0.9 - 0.75 * y / h
+        m.strut((-w, y, -w), (w, y + 1.4, -w), 0.03, MAT["steel"])
+        m.strut((w, y, -w), (0, y + 1.4, w), 0.03, MAT["steel"])
+    for k in range(3):
+        a = k * 2.094
+        m.box((math.cos(a) * 0.35, h - 0.6, math.sin(a) * 0.35), (0.12, 1.1, 0.3), MAT["paint_white"])
+    m.cyl((0.3, h - 2.0, 0.0), 0.35, 0.12, MAT["steel"], n=10, axis="z")
+    m.cyl((0, h + 0.3, 0), 0.08, 0.2, MAT["warn"], n=6)
+    m.box((0, 0.3, 1.8), (1.4, 0.6, 1.0), MAT["container_blue"])
+    m.box((0, 0.63, 1.8), (1.4, 0.06, 1.0), MAT["snow"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def gas_station():
+    m = Mesh()
+    m.box((0, 0.05, 0), (7.0, 0.1, 4.6), MAT["concrete_light"])
+    for x in (-2.6, 2.6):
+        for z in (-1.4, 1.4):
+            m.box((x, 1.6, z), (0.25, 3.0, 0.25), MAT["paint_white"])
+    m.box((0, 3.2, 0), (6.4, 0.4, 3.6), MAT["paint_red"], sides={"front": MAT["sign"], "back": MAT["paint_white"]})
+    m.box((0, 3.42, 0), (6.2, 0.06, 3.4), MAT["snow"])
+    for x in (-1.3, 1.3):
+        m.box((x, 0.6, 0), (0.5, 1.1, 0.4), MAT["paint_white"], sides={"front": MAT["glass_dark"]})
+        m.box((x, 1.2, 0), (0.55, 0.1, 0.45), MAT["paint_red"])
+    m.box((0, 1.0, -3.6), (4.0, 2.0, 2.4), MAT["paint_white"], sides={"front": MAT["glass_dark"]})
+    m.box((0, 2.05, -3.6), (4.1, 0.12, 2.5), MAT["snow"])
+    m.box((3.6, 2.5, -3.0), (0.2, 5.0, 0.2), MAT["steel"])
+    m.box((3.6, 4.6, -3.0), (1.0, 1.4, 0.15), MAT["paint_red"], sides={"front": MAT["sign"]})
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def bus_stop():
+    m = Mesh()
+    m.box((0, 0.04, 0), (3.2, 0.08, 1.4), MAT["concrete_light"])
+    m.box((0, 1.1, -0.55), (3.0, 2.0, 0.08), MAT["paint_blue"], top=(1, 1))
+    for x in (-1.45, 1.45):
+        m.box((x, 1.1, 0), (0.08, 2.0, 1.1), MAT["paint_blue"])
+    m.box((0, 2.15, 0), (3.2, 0.12, 1.4), MAT["concrete_dark"])
+    m.box((0, 2.24, 0), (3.1, 0.06, 1.3), MAT["snow"])
+    m.box((0, 0.45, -0.3), (2.4, 0.08, 0.4), MAT["wood"])
+    m.box((1.9, 1.3, 0.5), (0.06, 2.6, 0.06), MAT["steel"])
+    m.box((1.9, 2.4, 0.5), (0.5, 0.5, 0.04), MAT["paint_white"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def kiosk():
+    m = Mesh()
+    m.box((0, 1.0, 0), (2.2, 2.0, 1.6), MAT["paint_white"], sides={"front": MAT["glass_dark"]})
+    m.box((0, 2.1, 0), (2.4, 0.2, 1.8), MAT["paint_blue"])
+    m.box((0, 2.24, 0), (2.3, 0.06, 1.7), MAT["snow"])
+    m.box((0, 1.75, 0.82), (1.8, 0.3, 0.05), MAT["sign"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def tower_crane():
+    m = Mesh()
+    h = 16.0
+    m.box((0, 0.3, 0), (2.4, 0.6, 2.4), MAT["concrete_dark"])
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            m.strut((sx * 0.5, 0.6, sz * 0.5), (sx * 0.5, h, sz * 0.5), 0.07, MAT["hazard"])
+    for k in range(10):
+        y = 0.6 + k * (h - 0.6) / 10
+        m.strut((-0.5, y, -0.5), (0.5, y + 1.5, 0.5), 0.04, MAT["hazard"])
+    m.box((0, h + 0.5, 0), (1.4, 1.0, 1.4), MAT["paint_white"], sides={"front": MAT["glass_dark"]})
+    m.strut((-4.0, h + 1.2, 0), (12.0, h + 1.2, 0), 0.18, MAT["hazard"])
+    m.strut((0, h + 3.2, 0), (12.0, h + 1.3, 0), 0.04, MAT["steel"])
+    m.strut((0, h + 3.2, 0), (-4.0, h + 1.3, 0), 0.04, MAT["steel"])
+    m.strut((0, h + 1.0, 0), (0, h + 3.2, 0), 0.08, MAT["hazard"])
+    m.box((-3.4, h + 0.7, 0), (1.2, 1.0, 1.0), MAT["concrete_dark"])
+    m.strut((8.0, h + 1.1, 0), (8.0, h - 5.0, 0), 0.02, MAT["graphite"])
+    m.box((8.0, h - 5.2, 0), (0.5, 0.3, 0.5), MAT["hazard"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def trash_pile(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    for k in range(rnd.randint(5, 9)):
+        x, z = rnd.uniform(-0.8, 0.8), rnd.uniform(-0.8, 0.8)
+        sz = rnd.uniform(0.25, 0.55)
+        mat = rnd.choice([MAT["trash"], MAT["trash"], MAT["rust"], MAT["wood"], MAT["paint_blue"], MAT["concrete_light"]])
+        m.box((x, sz * 0.4, z), (sz, sz * 0.8, sz * rnd.uniform(0.7, 1.3)), mat, top=(rnd.uniform(0.5, 0.9), rnd.uniform(0.5, 0.9)))
+    m.box((0, 0.42, 0), (1.2, 0.08, 1.1), MAT["snow"], top=(0.6, 0.6))
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def barrels():
+    m = Mesh()
+    for x, z, mat in ((-0.35, 0.0, MAT["rust"]), (0.35, 0.1, MAT["paint_blue"]), (0.0, -0.55, MAT["rust_light"])):
+        m.cyl((x, 0.45, z), 0.3, 0.9, mat, n=8)
+        m.cyl((x, 0.92, z), 0.28, 0.04, MAT["snow"], n=8)
+    m.cyl((0.6, 0.15, -0.6), 0.3, 0.9, MAT["rust"], n=8, axis="x")
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def tires():
+    m = Mesh()
+    for k, (x, z) in enumerate(((0, 0), (0, 0), (0, 0), (0.8, 0.3))):
+        y = 0.12 + (k if k < 3 else 0) * 0.24
+        m.cyl((x, y, z), 0.38, 0.22, MAT["rubber"], n=10, capmat=MAT["trash"])
+    m.cyl((0, 0.8, 0), 0.3, 0.04, MAT["snow"], n=10)
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def concrete_blocks():
+    m = Mesh()
+    m.box((0, 0.3, 0), (2.4, 0.6, 1.0), MAT["concrete_light"], top=(0.98, 0.9))
+    m.box((0.4, 0.75, 0.05), (1.4, 0.3, 0.9), MAT["concrete_dark"])
+    m.box((-1.4, 0.25, 0.7), (1.0, 0.5, 0.6), MAT["concrete_light"])
+    m.box((0, 0.62, 0), (2.3, 0.05, 0.9), MAT["snow"])
+    m.strut((1.0, 0.6, 0.0), (1.5, 1.2, 0.2), 0.03, MAT["rust"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def raider_wheels(m, length=1.0, width=0.6, r=0.3):
+    for sx in (-1, 1):
+        for z in (-0.6 * length, 0.62 * length):
+            m.cyl((sx * width, r, z), r, 0.24, MAT["rubber"], n=10, axis="x", capmat=MAT["rust"])
+
+
+def raider_buggy():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    raider_wheels(hull, 1.0, 0.58, 0.32)
+    hull.box((0, 0.48, 0.0), (0.8, 0.2, 1.8), MAT["rust"], top=(0.9, 0.9))
+    hull.box((0, 0.66, 0.55), (0.75, 0.18, 0.6), MAT["team"], top=(0.85, 0.7), shift=(0, 0.05))
+    for sx in (-1, 1):
+        hull.strut((sx * 0.35, 0.58, -0.4), (sx * 0.3, 1.2, -0.15), 0.035, MAT["graphite_dark"])
+        hull.strut((sx * 0.35, 0.58, 0.35), (sx * 0.3, 1.2, -0.15), 0.035, MAT["graphite_dark"])
+    hull.strut((-0.3, 1.2, -0.15), (0.3, 1.2, -0.15), 0.035, MAT["graphite_dark"])
+    hull.box((0, 0.7, -0.75), (0.5, 0.25, 0.3), MAT["container_green"])
+    hull.cyl((0.28, 0.75, -0.85), 0.12, 0.3, MAT["paint_red"], n=8)
+    pivot = (0.0, 1.22, -0.15)
+    tur.box((0, 0.05, 0), (0.22, 0.12, 0.3), MAT["graphite"])
+    muzzle = cannon(bar, r=0.03, length=0.55, y=0.08, twin=0.0, brake=False)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def raider_truck(kind):
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    raider_wheels(hull, 1.25, 0.66, 0.36)
+    hull.box((0, 0.6, 0.0), (1.2, 0.3, 2.6), MAT["graphite_dark"])
+    hull.box((0, 1.0, 0.85), (1.15, 0.6, 0.85), MAT["team"], top=(0.92, 0.8), sides={"front": MAT["glass_dark"]})
+    hull.box((0, 1.33, 0.85), (1.0, 0.05, 0.7), MAT["snow"])
+    hull.box((0, 0.88, -0.45), (1.2, 0.3, 1.5), MAT["rust"], top=(1, 1))
+    hull.box((0, 0.7, 1.35), (1.1, 0.25, 0.1), MAT["steel"])
+    for sx in (-1, 1):
+        hull.box((sx * 0.58, 1.1, -0.45), (0.06, 0.35, 1.4), MAT["rust_light"])
+        hull.box((sx * 0.62, 0.85, 0.2), (0.08, 0.5, 0.5), MAT["sandbag"])
+    if kind == "mortar":
+        pivot = (0.0, 1.05, -0.55)
+        tur.box((0, 0.08, 0), (0.6, 0.16, 0.6), MAT["graphite"])
+        tur.box((0, 0.22, 0.1), (0.35, 0.1, 0.35), MAT["steel"])
+        bar.cyl((0, 0.45, 0.0), 0.12, 0.9, MAT["graphite_dark"], n=8, axis="z")
+        muzzle = (0.0, 0.45, -0.5)
+    else:
+        pivot = (0.0, 1.3, -0.5)
+        tur.box((0, 0.08, 0), (0.3, 0.16, 0.4), MAT["graphite"])
+        tur.box((0, 0.3, 0.12), (0.5, 0.3, 0.04), MAT["steel"])
+        muzzle = cannon(bar, r=0.045, length=0.8, y=0.12, twin=0.0, brake=True)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def raider_bunker():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    for k in range(12):
+        a = 2 * math.pi * k / 12
+        for row in range(3):
+            hull.box((math.cos(a) * 1.1, 0.15 + row * 0.25, math.sin(a) * 1.1), (0.55, 0.24, 0.32), MAT["sandbag"], top=(0.9, 0.85))
+    hull.box((0, 0.95, 0), (2.0, 0.08, 2.0), MAT["rust"])
+    hull.box((0, 1.0, 0), (1.9, 0.05, 1.9), MAT["snow"])
+    for x, z in ((-0.85, -0.85), (0.85, -0.85), (-0.85, 0.85), (0.85, 0.85)):
+        hull.box((x, 0.5, z), (0.1, 0.9, 0.1), MAT["wood"])
+    pivot = (0.0, 0.85, 0.0)
+    tur.box((0, 0.0, 0), (0.25, 0.15, 0.35), MAT["graphite"])
+    muzzle = cannon(bar, r=0.04, length=0.8, y=0.05, twin=0.0, brake=False)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def raider_camp():
+    m = Mesh()
+    m.box((0, 0.04, 0), (5.2, 0.08, 4.2), MAT["concrete_dark"])
+    m.box((-1.3, 0.75, -0.9), (2.4, 1.5, 1.2), MAT["container_green"], sides={"front": MAT["rust"]})
+    m.box((-1.3, 1.52, -0.9), (2.3, 0.05, 1.1), MAT["snow"])
+    m.box((1.2, 0.75, -1.1), (1.2, 1.5, 2.4), MAT["container_blue"])
+    m.box((1.2, 1.52, -1.1), (1.1, 0.05, 2.3), MAT["snow"])
+    m.box((-1.0, 0.55, 1.2), (2.0, 1.1, 1.4), MAT["wood"], top=(1, 0.6), shift=(0, -0.2))
+    m.box((-1.0, 1.15, 1.2), (2.1, 0.08, 1.5), MAT["team"])
+    m.cyl((1.5, 0.45, 1.3), 0.3, 0.9, MAT["rust"], n=8)
+    m.cyl((1.5, 0.95, 1.3), 0.22, 0.1, MAT["ember"], n=8)
+    m.strut((2.2, 0.0, -2.0), (2.2, 3.5, -2.0), 0.05, MAT["steel"])
+    m.box((2.2, 3.2, -2.0), (0.8, 0.5, 0.05), MAT["team"])
+    for x in (-2.5, 2.5):
+        m.box((x, 0.6, 0), (0.08, 1.2, 4.2), MAT["rust_light"], top=(1, 1))
+    m.box((0, 0.6, 2.05), (2.0, 1.2, 0.08), MAT["rust_light"])
+    m.box((0.6, 0.35, 2.4), (1.0, 0.7, 0.3), MAT["sandbag"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
 def extractor():
     m = Mesh()
     m.cyl((0, 0.2, 0), 1.3, 0.4, MAT["concrete_dark"], n=8, capmat=MAT["concrete"])
@@ -838,6 +1090,23 @@ MODELS = {
     "prop_pylon": power_pylon,
     "prop_lamp": lambda: street_lamp(True),
     "prop_lamp_off": lambda: street_lamp(False),
+    "prop_substation": substation,
+    "prop_water_tower": water_tower,
+    "prop_cell_tower": cell_tower,
+    "prop_gas_station": gas_station,
+    "prop_bus_stop": bus_stop,
+    "prop_kiosk": kiosk,
+    "prop_crane": tower_crane,
+    "prop_trash1": lambda: trash_pile(1),
+    "prop_trash2": lambda: trash_pile(2),
+    "prop_barrels": barrels,
+    "prop_tires": tires,
+    "prop_blocks": concrete_blocks,
+    "raider_buggy": raider_buggy,
+    "raider_technical": lambda: raider_truck("mg"),
+    "raider_mortar": lambda: raider_truck("mortar"),
+    "raider_bunker": raider_bunker,
+    "raider_camp": raider_camp,
     "colony_tank": lambda: tank("base"),
     "colony_tank_assault": lambda: tank("assault"),
     "colony_tank_siege": lambda: tank("siege"),

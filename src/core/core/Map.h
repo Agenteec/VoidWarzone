@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -50,6 +51,14 @@ struct BuildingDef {
     int levels = 5;
     std::string kind;
     bool ruin = false;
+    bool unfinished = false;
+};
+
+struct PropDef {
+    std::string model;
+    glm::vec2 pos{};
+    float yaw = 0.0f;
+    float radius = 0.0f;
 };
 
 struct AreaDef {
@@ -64,6 +73,53 @@ struct PathDef {
 };
 
 bool pointInPolygon(glm::vec2 p, const std::vector<glm::vec2>& poly);
+
+struct MissionObjective {
+    std::string id;
+    std::string text;
+    std::string type;
+    std::string tag;
+    glm::vec2 pos{};
+    float radius = 6.0f;
+    float time = 0.0f;
+    std::uint8_t team = 1;
+    bool hidden = false;
+    bool optional = false;
+};
+
+struct MissionAction {
+    std::string type;
+    std::string text;
+    std::string unit;
+    std::string tag;
+    std::string objective;
+    int count = 1;
+    std::uint8_t team = 1;
+    bool player = false;
+    glm::vec2 pos{};
+    std::optional<glm::vec2> target;
+    float amount = 0.0f;
+};
+
+struct MissionTrigger {
+    std::string when;
+    float time = 0.0f;
+    glm::vec2 pos{};
+    float radius = 6.0f;
+    std::string tag;
+    std::string objective;
+    float repeat = 0.0f;
+    int times = 1;
+    std::vector<MissionAction> actions;
+};
+
+struct MissionDef {
+    bool enabled = false;
+    std::string title;
+    std::string briefing;
+    std::vector<MissionObjective> objectives;
+    std::vector<MissionTrigger> triggers;
+};
 
 struct PlayerStart {
     glm::vec2 pos{};
@@ -138,6 +194,8 @@ public:
     const std::vector<BuildingDef>& buildings() const { return buildings_; }
     const std::vector<AreaDef>& areas() const { return areas_; }
     const std::vector<PathDef>& paths() const { return paths_; }
+    const std::vector<PropDef>& props() const { return props_; }
+    const MissionDef& mission() const { return mission_; }
     bool hasElevation() const { return !elevation_.empty(); }
     float elevation(glm::vec2 p) const;
     int laneIndex(std::string_view name) const;
@@ -160,6 +218,8 @@ private:
     std::vector<BuildingDef> buildings_;
     std::vector<AreaDef> areas_;
     std::vector<PathDef> paths_;
+    std::vector<PropDef> props_;
+    MissionDef mission_;
     std::vector<float> elevation_;
     int elevationStep_ = 1;
     int elevationColumns_ = 0;

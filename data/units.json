@@ -1567,6 +1567,162 @@
         }
       },
       "buildTime": 14
+    },
+    {
+      "id": "raider_buggy",
+      "name": "Marauder Buggy",
+      "maxHp": 150,
+      "armor": 0,
+      "armorType": "light",
+      "radius": 0.5,
+      "speed": 5.5,
+      "sight": 9,
+      "bounty": 12,
+      "accel": 8.0,
+      "turnRate": 5.0,
+      "weapon": {
+        "damage": 7,
+        "range": 5.5,
+        "cooldown": 0.3,
+        "projectileSpeed": 26,
+        "type": "kinetic",
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "sphere",
+        "height": 0.9,
+        "tint": [
+          0.86,
+          0.46,
+          0.16
+        ],
+        "model": {
+          "glb": "raider_buggy"
+        }
+      }
+    },
+    {
+      "id": "raider_technical",
+      "name": "Technical",
+      "maxHp": 320,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.65,
+      "speed": 3.8,
+      "sight": 10,
+      "bounty": 20,
+      "accel": 5.0,
+      "turnRate": 3.0,
+      "weapon": {
+        "damage": 13,
+        "range": 7,
+        "cooldown": 0.4,
+        "projectileSpeed": 28,
+        "type": "kinetic",
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.2,
+        "tint": [
+          0.86,
+          0.46,
+          0.16
+        ],
+        "model": {
+          "glb": "raider_technical"
+        }
+      }
+    },
+    {
+      "id": "raider_mortar",
+      "name": "Mortar Truck",
+      "maxHp": 240,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.65,
+      "speed": 3.0,
+      "sight": 11,
+      "bounty": 25,
+      "accel": 4.0,
+      "turnRate": 2.5,
+      "weapon": {
+        "damage": 38,
+        "range": 11,
+        "cooldown": 3.2,
+        "projectileSpeed": 11,
+        "type": "explosive",
+        "splash": 1.6,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.2,
+        "tint": [
+          0.86,
+          0.46,
+          0.16
+        ],
+        "model": {
+          "glb": "raider_mortar"
+        }
+      }
+    },
+    {
+      "id": "raider_bunker",
+      "name": "Sandbag Bunker",
+      "structure": true,
+      "maxHp": 1100,
+      "armor": 3,
+      "radius": 1.2,
+      "bounty": 40,
+      "weapon": {
+        "damage": 11,
+        "range": 8,
+        "cooldown": 0.4,
+        "projectileSpeed": 28,
+        "type": "kinetic",
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cylinder",
+        "height": 1.2,
+        "tint": [
+          0.86,
+          0.46,
+          0.16
+        ],
+        "model": {
+          "glb": "raider_bunker"
+        }
+      }
+    },
+    {
+      "id": "raider_camp",
+      "name": "Marauder Camp",
+      "structure": true,
+      "maxHp": 2600,
+      "armor": 3,
+      "radius": 2.4,
+      "bounty": 120,
+      "shards": 2,
+      "produce": {
+        "unit": "raider_buggy",
+        "interval": 40,
+        "max": 3
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.6,
+        "tint": [
+          0.86,
+          0.46,
+          0.16
+        ],
+        "model": {
+          "glb": "raider_camp"
+        }
+      }
     }
   ]
 }

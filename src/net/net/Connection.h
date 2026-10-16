@@ -45,6 +45,7 @@ public:
 
     const Address& address() const { return remote_; }
     double lastReceiveTime() const { return lastReceive_; }
+    void touch(double now) { lastReceive_ = now; }
     std::size_t pendingReliable() const { return outgoing_.size(); }
     ConnectionStats stats() const;
 

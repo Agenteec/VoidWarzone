@@ -159,6 +159,8 @@ void NetClient::handleAccept(Reader& r, double now) {
 }
 
 void NetClient::update(double now) {
+    if (conn_ && now_ > 0.0 && now - now_ > 1.0)
+        conn_->touch(now);
     now_ = now;
     if (state_ == ClientState::Disconnected)
         return;

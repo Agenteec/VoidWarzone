@@ -147,6 +147,9 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const 
         w.u8(static_cast<std::uint8_t>(p.control));
         w.u8(p.owner);
     }
+    w.u8(static_cast<std::uint8_t>(std::min<std::size_t>(cur.game.objectives.size(), 255)));
+    for (std::size_t i = 0; i < cur.game.objectives.size() && i < 255; ++i)
+        w.u8(cur.game.objectives[i]);
 
     std::vector<std::uint32_t> removed;
     Writer changed;
@@ -232,6 +235,9 @@ bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
         p.control = static_cast<std::int8_t>(r.u8());
         p.owner = r.u8();
     }
+    out.game.objectives.resize(r.u8());
+    for (auto& o : out.game.objectives)
+        o = r.u8();
     if (!r.ok())
         return false;
 

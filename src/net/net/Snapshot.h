@@ -62,6 +62,7 @@ struct GameInfo {
     std::uint16_t nextWaveIn = 0;
     std::uint32_t boss = kNoEntity;
     std::vector<PointInfo> points;
+    std::vector<std::uint8_t> objectives;
 };
 
 struct OwnSkill {

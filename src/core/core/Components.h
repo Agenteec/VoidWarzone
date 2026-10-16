@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include <entt/entity/entity.hpp>
@@ -89,6 +90,10 @@ struct Order {
 };
 
 struct Air {};
+
+struct Tag {
+    std::string name;
+};
 
 struct Modules {
     std::array<std::uint16_t, 3> slots{0xffff, 0xffff, 0xffff};

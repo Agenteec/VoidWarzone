@@ -44,6 +44,8 @@ void App::drawUi() {
         drawHud();
     } else if (screen_ == Screen::Editor && editor_) {
         drawEditor();
+    } else if (screen_ == Screen::Campaign) {
+        drawCampaign();
     } else {
         drawMenu();
     }
@@ -152,6 +154,8 @@ void App::drawTopBar() {
 
     const auto& defense = map_->defense();
     ImGui::BeginGroup();
+    if (drawObjectives()) {
+    } else {
     ImGui::PushFont(ui_.bold(), 0.0f);
     if (game.totalWaves == 0)
         ImGui::Text(ICON_FA_FLAG "  WAVE %d", game.wave);
@@ -160,7 +164,7 @@ void App::drawTopBar() {
     else
         ImGui::TextColored(toVec(kVoid), ICON_FA_FLAG "  FINAL WAVE");
     ImGui::PopFont();
-    if (game.totalWaves == 0 || game.wave < game.totalWaves) {
+    if ((game.totalWaves == 0 || game.wave < game.totalWaves) && !defense.waves.empty()) {
         const auto& next = defense.waves[static_cast<std::size_t>(game.wave) % defense.waves.size()];
         const float interval = game.wave == 0 ? defense.firstWaveDelay : (next.delay > 0.0f ? next.delay : defense.waveInterval);
         const float left = static_cast<float>(game.nextWaveIn) / 10.0f;
@@ -173,6 +177,7 @@ void App::drawTopBar() {
             ImGui::TextColored({0.8f, 0.5f, 1.0f, 1.0f}, "destroy the pylons (%d)", anchors);
         else
             ImGui::TextDisabled("destroy the portal");
+    }
     }
     ImGui::EndGroup();
 
@@ -667,14 +672,40 @@ void App::drawEndScreen() {
     const auto& game = net_.latest()->game;
     const bool victory = static_cast<MatchState>(game.state) == MatchState::Victory;
     const float s = uiScale();
+    const bool campaign = !campaignMission_.empty();
+    if (campaign)
+        recordMission(victory);
     const ImVec2 display = ImGui::GetIO().DisplaySize;
     ImGui::GetBackgroundDrawList()->AddRectFilled({0.0f, 0.0f}, display, IM_COL32(0, 0, 0, 90));
     ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.45f}, ImGuiCond_Always, {0.5f, 0.5f});
     ImGui::SetNextWindowSizeConstraints({420.0f * s, 0.0f}, {420.0f * s, display.y});
     ImGui::Begin("##end", nullptr, kHudFlags);
     ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 2.6f);
-    centeredText(victory ? "VICTORY" : "DEFEAT", victory ? kGood : kBad);
+    centeredText(campaign ? (victory ? "MISSION COMPLETE" : "MISSION FAILED") : victory ? "VICTORY" : "DEFEAT", victory ? kGood : kBad);
     ImGui::PopFont();
+    if (campaign) {
+        centeredText(victory ? "Surviving units will join the next mission" : "The column is lost", kText);
+        ImGui::Spacing();
+        const float w = ImGui::GetContentRegionAvail().x;
+        const std::string mission = campaignMission_;
+        std::size_t index = 0;
+        for (std::size_t i = 0; i < campaign_.size(); ++i)
+            if (campaign_[i].id == mission)
+                index = i;
+        if (victory && accentButton(ICON_FA_PLAY "  Continue campaign", {w, 44.0f * s})) {
+            leaveGame("");
+        } else if (!victory && accentButton(ICON_FA_REFRESH "  Retry mission", {w, 44.0f * s})) {
+            leaveGame("");
+            startMission(index, false);
+        } else if (ImGui::Button(ICON_FA_PLAY "  Keep playing", {w, 38.0f * s})) {
+            endDismissed_ = true;
+        } else if (ImGui::Button(ICON_FA_SIGN_OUT "  Back to campaign", {w, 38.0f * s})) {
+            leaveGame("");
+        }
+        trackWindow();
+        ImGui::End();
+        return;
+    }
     centeredText(victory ? "The Void portal is sealed" : "The core has fallen", kText);
     char line[64];
     if (game.totalWaves == 0)

@@ -26,6 +26,8 @@ void App::drawDesktopHud() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{10.0f * s, 6.0f * s});
     ImGui::Begin("##wave", nullptr, kHudFlags);
     ImGui::PopStyleVar();
+    if (drawObjectives()) {
+    } else {
     ImGui::PushFont(ui_.bold(), 0.0f);
     if (game.totalWaves == 0)
         ImGui::Text(ICON_FA_FLAG "  WAVE %d", game.wave);
@@ -50,6 +52,7 @@ void App::drawDesktopHud() {
             ImGui::TextColored({0.8f, 0.5f, 1.0f, 1.0f}, "destroy the pylons (%d)", anchors);
         else
             ImGui::TextDisabled("destroy the portal");
+    }
     }
     trackWindow();
     ImGui::End();

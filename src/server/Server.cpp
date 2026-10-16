@@ -1,6 +1,7 @@
 #include "server/Server.h"
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -200,13 +201,22 @@ void Server::broadcastChat(const Client& from, const std::string& text) {
 }
 
 void Server::startMatch(const std::string* save) {
+    const auto t0 = std::chrono::steady_clock::now();
     world_ = std::make_unique<World>(data_, *map_, config_.difficulty, config_.mode);
+    spdlog::info("world ready in {:.2f}s", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
     if (save)
         world_->loadState(*save);
     for (auto& c : clients_) {
         if (save && world_->resumePlayer(c->player))
             continue;
         world_->spawnPlayer(c->player);
+        if (c->player == leader() && !config_.roster.empty()) {
+            try {
+                world_->spawnRoster(c->player, config_.roster);
+            } catch (const std::exception& e) {
+                spdlog::warn("roster: {}", e.what());
+            }
+        }
         if (config_.cheats)
             world_->devBoost(c->player);
         c->ready = false;
@@ -221,11 +231,11 @@ void Server::startMatch(const std::string* save) {
                  playerCount());
 }
 
-void Server::notice(const std::string& text) {
+void Server::notice(const std::string& text, const std::string& from, std::uint8_t player) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::Chat));
-    w.u8(0xff);
-    w.str("Server");
+    w.u8(player);
+    w.str(from);
     w.str(text);
     for (auto& c : clients_)
         c->conn->sendReliable(w.data());
@@ -565,6 +575,7 @@ Snapshot Server::buildSnapshot() const {
     s.game.difficulty = static_cast<std::uint8_t>(world_->difficulty());
     s.game.nextWaveIn = static_cast<std::uint16_t>(std::clamp(defense.nextWaveIn * 10.0f, 0.0f, 65535.0f));
     s.game.boss = defense.boss == entt::null ? kNoEntity : entt::to_integral(defense.boss);
+    s.game.objectives = world_->objectives();
     for (const auto& p : world_->resourcePoints())
         s.game.points.push_back({static_cast<std::int8_t>(std::lround(p.control * 127.0f)),
                                  p.owner < 0 ? std::uint8_t{0xff} : static_cast<std::uint8_t>(p.owner)});
@@ -628,6 +639,8 @@ void Server::tick() {
         return;
     }
     world_->step();
+    for (const auto& text : world_->takeMessages())
+        notice(text, "Command", 0xfe);
     Snapshot snap = buildSnapshot();
     const std::uint32_t tick = snap.tick;
     history_[tick % history_.size()] = std::move(snap);
@@ -649,6 +662,9 @@ void Server::tick() {
 }
 
 void Server::update(double now) {
+    if (now_ > 0.0 && now - now_ > 1.0)
+        for (auto& c : clients_)
+            c->conn->touch(now);
     now_ = now;
     receive(now);
     if (lobbyDirty_)

@@ -2,11 +2,163 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-10-16T20:25:27Z",
+    "timestamp_osm_base": "2026-10-16T21:40:36Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
 
+{
+  "type": "node",
+  "id": 1672979374,
+  "lat": 51.5698173,
+  "lon": 39.1333106,
+  "tags": {
+    "highway": "bus_stop",
+    "name": "МЧС",
+    "public_transport": "platform"
+  }
+},
+{
+  "type": "node",
+  "id": 1672979376,
+  "lat": 51.5699592,
+  "lon": 39.1330842,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "МЧС",
+    "public_transport": "platform"
+  }
+},
+{
+  "type": "node",
+  "id": 2951149289,
+  "lat": 51.5667537,
+  "lon": 39.1355050,
+  "tags": {
+    "man_made": "chimney"
+  }
+},
+{
+  "type": "node",
+  "id": 5286301443,
+  "lat": 51.5627170,
+  "lon": 39.1163454,
+  "tags": {
+    "bench": "yes",
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Междуреченская",
+    "public_transport": "platform",
+    "shelter": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 5402266937,
+  "lat": 51.5627867,
+  "lon": 39.1172223,
+  "tags": {
+    "bench": "yes",
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Междуреченская",
+    "public_transport": "platform",
+    "shelter": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "node",
+  "id": 6282157602,
+  "lat": 51.5662758,
+  "lon": 39.1209809,
+  "tags": {
+    "man_made": "chimney"
+  }
+},
+{
+  "type": "node",
+  "id": 9118489700,
+  "lat": 51.5671732,
+  "lon": 39.1266845,
+  "tags": {
+    "bench": "yes",
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Звёздный квартал",
+    "public_transport": "platform",
+    "shelter": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 9118489715,
+  "lat": 51.5711159,
+  "lon": 39.1210383,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "ул. Ключникова",
+    "public_transport": "platform",
+    "shelter": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 9118489716,
+  "lat": 51.5719180,
+  "lon": 39.1215312,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "ул. Ключникова",
+    "public_transport": "platform",
+    "shelter": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 9118501519,
+  "lat": 51.5728503,
+  "lon": 39.1184671,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Городская поликлиника №7",
+    "public_transport": "platform",
+    "shelter": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 9118501520,
+  "lat": 51.5728779,
+  "lon": 39.1194670,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Городская поликлиника №7",
+    "public_transport": "platform",
+    "shelter": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 11265003145,
+  "lat": 51.5667408,
+  "lon": 39.1262717,
+  "tags": {
+    "bench": "yes",
+    "bus": "yes",
+    "highway": "bus_stop",
+    "lit": "yes",
+    "name": "Звёздный квартал",
+    "public_transport": "platform",
+    "shelter": "yes",
+    "surface": "asphalt"
+  }
+},
 {
   "type": "way",
   "id": 40763008,

@@ -54,8 +54,8 @@ void App::openEditor(const std::string& mapId) {
     std::snprintf(es.name, sizeof(es.name), "%s", es.doc.value("name", es.id).c_str());
     es.cells.clear();
     editorReparse(true);
-    camera_.target = glm::vec2(map_->width(), map_->height()) * 0.5f;
-    camera_.distance = 60.0f;
+    camera_.target = options_.camera.value_or(glm::vec2(map_->width(), map_->height()) * 0.5f);
+    camera_.distance = options_.zoom > 0.0f ? options_.zoom : 60.0f;
     setScreen(Screen::Editor);
 }
 

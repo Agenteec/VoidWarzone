@@ -40,6 +40,7 @@ struct LaunchOptions {
     bool host = false;
     std::optional<std::string> editor;
     bool editorTest = false;
+    int mission = 0;
     std::string connect;
     std::string join;
     std::string name = "Player";
@@ -64,6 +65,7 @@ const char* shadowQualityName(int quality);
 const char* lightPresetName(int preset);
 int parseShadowQuality(std::string_view text);
 int parseLightPreset(std::string_view text);
+std::string readData(const std::string& rel);
 std::string prefDir();
 std::string savesDir();
 std::string userMapsDir();
@@ -82,7 +84,7 @@ public:
     bool running() const { return running_; }
 
 private:
-    enum class Screen { Menu, Lan, Address, Code, Online, Joining, Connecting, Lobby, Game, Editor };
+    enum class Screen { Menu, Lan, Address, Code, Online, Joining, Connecting, Lobby, Game, Editor, Campaign };
 
     struct Effect {
         Mesh mesh;
@@ -344,6 +346,28 @@ private:
     void renderEditorOverlay();
     void drawEditor();
     void editorSelfTest();
+    struct CampaignMission {
+        std::string id;
+        std::string map;
+        std::string name;
+        std::string place;
+        std::string chapter;
+        std::string intro;
+    };
+    std::vector<CampaignMission> campaign_;
+    std::vector<std::string> campaignDone_;
+    std::string campaignRoster_;
+    std::string campaignMission_;
+    bool campaignRecorded_ = false;
+    int campaignChoice_ = 0;
+    void loadCampaign();
+    void saveCampaign();
+    bool campaignUnlocked(std::size_t index) const;
+    int rosterSize() const;
+    void startMission(std::size_t index, bool coop);
+    void recordMission(bool victory);
+    void drawCampaign();
+    bool drawObjectives();
     char saveName_[49] = "";
     std::vector<std::string> saves_;
     int saveChoice_ = 0;

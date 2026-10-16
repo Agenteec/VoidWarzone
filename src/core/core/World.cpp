@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <atomic>
 #include <chrono>
+#include <thread>
 #include <cmath>
 #include <limits>
 #include <numbers>
@@ -80,8 +82,10 @@ World::World(const GameData& data, const Map& map, Difficulty difficulty, GameMo
         }
         if (!u.modules.empty() && !data.unit(id).structure)
             refreshStats(e);
-        if (!u.tag.empty())
+        if (!u.tag.empty()) {
             tagged[u.tag] = e;
+            registry_.emplace<Tag>(e, Tag{u.tag});
+        }
         if (u.role == "core")
             core_ = e;
         else if (u.role == "portal")
@@ -111,9 +115,7 @@ World::World(const GameData& data, const Map& map, Difficulty difficulty, GameMo
     }
 
     rebuildNav();
-    for (const auto& lane : map.lanes())
-        for (const auto& p : lane.points)
-            flowField(p);
+    prewarmFields();
 }
 
 entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int owner) {
@@ -384,6 +386,7 @@ void World::step() {
     });
     run([&] { updateResourcePoints(); });
     run([&] { updateDefense(); });
+    updateMission();
     times_.peak = std::max(times_.peak, std::chrono::duration<double>(last - begin).count());
     ++times_.steps;
     stepEvents_ = events_.size();
@@ -419,6 +422,7 @@ void World::rebuildNav() {
     if (builtVersion_ != fieldsVersion_) {
         fieldsVersion_ = builtVersion_;
         flowFields_.clear();
+        prewarmFields();
     }
     for (auto [e, nav] : registry_.view<Navigator>().each()) {
         nav.repath = 0;
@@ -582,6 +586,39 @@ glm::vec2 World::lanePoint(const LaneFollower& lane, int i) const {
     const auto& points = map_->lanes()[static_cast<std::size_t>(lane.lane)].points;
     const auto n = static_cast<int>(points.size());
     return points[static_cast<std::size_t>(lane.reverse ? n - 1 - i : i)];
+}
+
+void World::prewarmFields() {
+    if (!map_)
+        return;
+    std::vector<std::pair<int, glm::vec2>> todo;
+    for (const auto& lane : map_->lanes())
+        for (const auto& p : lane.points) {
+            const int key = map_->index(nearestFree(*map_, Map::cellOf(p)));
+            if (!flowFields_.contains(key) && std::none_of(todo.begin(), todo.end(), [&](const auto& t) { return t.first == key; }))
+                todo.push_back({key, p});
+        }
+    if (todo.empty())
+        return;
+    const auto t0 = std::chrono::steady_clock::now();
+    const Map& soft = navMap();
+    std::vector<std::unique_ptr<FlowField>> made(todo.size());
+    std::atomic<std::size_t> next{0};
+    auto work = [&] {
+        for (std::size_t i = next++; i < todo.size(); i = next++)
+            made[i] = std::make_unique<FlowField>(*map_, todo[i].second, &soft, 300);
+    };
+    const unsigned threads = std::clamp(std::thread::hardware_concurrency(), 1u, 8u);
+    std::vector<std::thread> pool;
+    for (unsigned t = 1; t < threads && t < todo.size(); ++t)
+        pool.emplace_back(work);
+    work();
+    for (auto& t : pool)
+        t.join();
+    for (std::size_t i = 0; i < todo.size(); ++i)
+        flowFields_.emplace(todo[i].first, std::move(*made[i]));
+    times_.fields += todo.size();
+    times_.worstField = std::max(times_.worstField, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
 }
 
 const FlowField& World::flowField(glm::vec2 goal) {

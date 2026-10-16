@@ -1,0 +1,316 @@
+{
+ "origin": [
+  51.57685,
+  39.1162
+ ],
+ "cell": 6,
+ "width": 512,
+ "height": 352,
+ "osm": "voronezh_shilovo.osm.json",
+ "ruins": 0.12,
+ "ruinZones": [
+  {
+   "pos": [
+    378,
+    282
+   ],
+   "radius": 60,
+   "chance": 0.85
+  }
+ ],
+ "garages": [
+  {
+   "pos": [
+    205,
+    232
+   ],
+   "rows": 3,
+   "length": 18,
+   "angle": -35
+  },
+  {
+   "pos": [
+    300,
+    105
+   ],
+   "rows": 2,
+   "length": 16,
+   "angle": -35
+  }
+ ],
+ "output": "data/maps/voronezh_m2.json",
+ "map": {
+  "name": "Holdout",
+  "theme": "winter",
+  "playerStart": {
+   "pos": [
+    118,
+    132
+   ],
+   "units": [
+    "tank",
+    "tank",
+    "scout",
+    "engineer",
+    "engineer"
+   ]
+  },
+  "defense": {
+   "startEnergy": 600,
+   "baseIncome": 2.5,
+   "waves": []
+  },
+  "resourcePoints": [
+   {
+    "name": "A",
+    "pos": [
+     150,
+     108
+    ],
+    "radius": 3.5,
+    "income": 3
+   },
+   {
+    "name": "B",
+    "pos": [
+     90,
+     170
+    ],
+    "radius": 3.5,
+    "income": 3
+   }
+  ],
+  "units": [
+   {
+    "unit": "lab",
+    "team": 0,
+    "pos": [
+     104,
+     128
+    ],
+    "tag": "hq"
+   },
+   {
+    "unit": "tower",
+    "team": 0,
+    "pos": [
+     124,
+     124
+    ]
+   },
+   {
+    "unit": "raider_camp",
+    "team": 1,
+    "pos": [
+     300,
+     150
+    ],
+    "tag": "nest"
+   },
+   {
+    "unit": "raider_bunker",
+    "team": 1,
+    "pos": [
+     290,
+     140
+    ],
+    "tag": "nest"
+   },
+   {
+    "unit": "raider_bunker",
+    "team": 1,
+    "pos": [
+     306,
+     162
+    ],
+    "tag": "nest"
+   }
+  ],
+  "mission": {
+   "title": "Holdout",
+   "briefing": "We set up a forward HQ in the Shilovo blocks. The marauders want it back and are gathering every truck they have. Hold the HQ for six minutes until the convoy from the city arrives. Engineers can build towers and walls.",
+   "objectives": [
+    {
+     "id": "hold",
+     "text": "Hold out for 6 minutes",
+     "type": "survive",
+     "time": 360
+    },
+    {
+     "id": "hq",
+     "text": "The HQ must survive",
+     "type": "protect",
+     "tag": "hq"
+    },
+    {
+     "id": "nest",
+     "text": "Optional: destroy the marauder staging camp",
+     "type": "destroy",
+     "tag": "nest",
+     "optional": true
+    }
+   ],
+   "triggers": [
+    {
+     "when": "start",
+     "do": [
+      {
+       "type": "message",
+       "text": "HQ is up. Build defences, the first raid is a minute out."
+      }
+     ]
+    },
+    {
+     "when": "time",
+     "time": 60,
+     "repeat": 45,
+     "times": 7,
+     "do": [
+      {
+       "type": "spawn",
+       "unit": "raider_buggy",
+       "count": 5,
+       "pos": [
+        260,
+        120
+       ],
+       "team": 1,
+       "target": [
+        110,
+        130
+       ]
+      },
+      {
+       "type": "spawn",
+       "unit": "raider_technical",
+       "count": 3,
+       "pos": [
+        270,
+        190
+       ],
+       "team": 1,
+       "target": [
+        110,
+        135
+       ]
+      },
+      {
+       "type": "spawn",
+       "unit": "raider_mortar",
+       "count": 1,
+       "pos": [
+        265,
+        160
+       ],
+       "team": 1,
+       "target": [
+        112,
+        130
+       ]
+      }
+     ]
+    },
+    {
+     "when": "time",
+     "time": 150,
+     "repeat": 60,
+     "times": 4,
+     "do": [
+      {
+       "type": "message",
+       "text": "Mortar trucks on the main road!"
+      },
+      {
+       "type": "spawn",
+       "unit": "raider_mortar",
+       "count": 4,
+       "pos": [
+        250,
+        180
+       ],
+       "team": 1,
+       "target": [
+        112,
+        132
+       ]
+      },
+      {
+       "type": "spawn",
+       "unit": "raider_technical",
+       "count": 3,
+       "pos": [
+        240,
+        90
+       ],
+       "team": 1,
+       "target": [
+        110,
+        125
+       ]
+      }
+     ]
+    },
+    {
+     "when": "time",
+     "time": 240,
+     "repeat": 40,
+     "times": 3,
+     "do": [
+      {
+       "type": "message",
+       "text": "Their whole gang is coming!"
+      },
+      {
+       "type": "spawn",
+       "unit": "raider_technical",
+       "count": 5,
+       "pos": [
+        280,
+        150
+       ],
+       "team": 1,
+       "target": [
+        106,
+        130
+       ]
+      },
+      {
+       "type": "spawn",
+       "unit": "raider_buggy",
+       "count": 6,
+       "pos": [
+        250,
+        230
+       ],
+       "team": 1,
+       "target": [
+        106,
+        130
+       ]
+      }
+     ]
+    },
+    {
+     "when": "time",
+     "time": 300,
+     "do": [
+      {
+       "type": "message",
+       "text": "Convoy is a minute away. Hold on!"
+      }
+     ]
+    },
+    {
+     "when": "objective",
+     "objective": "hold",
+     "do": [
+      {
+       "type": "message",
+       "text": "The convoy is here. Shilovo is ours."
+      }
+     ]
+    }
+   ]
+  }
+ }
+}
