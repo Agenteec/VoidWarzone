@@ -38,6 +38,38 @@ bool pointInPolygon(glm::vec2 p, const std::vector<glm::vec2>& poly) {
     return in;
 }
 
+std::string Map::encodeCells() const {
+    std::string out;
+    std::size_t i = 0;
+    while (i < cells_.size()) {
+        const auto kind = cells_[i] == static_cast<std::uint8_t>(CellKind::Building) ? std::uint8_t{0} : cells_[i];
+        std::size_t n = 0;
+        while (i < cells_.size() && (cells_[i] == static_cast<std::uint8_t>(CellKind::Building) ? std::uint8_t{0} : cells_[i]) == kind) {
+            ++i;
+            ++n;
+        }
+        if (!out.empty())
+            out += ',';
+        out += std::to_string(kind) + ':' + std::to_string(n);
+    }
+    return out;
+}
+
+float Map::elevation(glm::vec2 p) const {
+    if (elevation_.empty())
+        return 0.0f;
+    const float gx = std::clamp(p.x / static_cast<float>(elevationStep_), 0.0f, static_cast<float>(elevationColumns_ - 1));
+    const float gy = std::clamp(p.y / static_cast<float>(elevationStep_), 0.0f, static_cast<float>(elevationRows_ - 1));
+    const int x0 = std::min(static_cast<int>(gx), elevationColumns_ - 2);
+    const int y0 = std::min(static_cast<int>(gy), elevationRows_ - 2);
+    const float fx = gx - static_cast<float>(x0);
+    const float fy = gy - static_cast<float>(y0);
+    auto at = [&](int x, int y) { return elevation_[static_cast<std::size_t>(y * elevationColumns_ + x)]; };
+    const float a = at(x0, y0) * (1.0f - fx) + at(x0 + 1, y0) * fx;
+    const float b = at(x0, y0 + 1) * (1.0f - fx) + at(x0 + 1, y0 + 1) * fx;
+    return a * (1.0f - fy) + b * fy;
+}
+
 void Map::fill(const std::vector<glm::vec2>& poly, CellKind kind) {
     if (poly.size() < 3)
         return;
@@ -94,6 +126,30 @@ Map Map::parse(std::string_view text) {
     m.name_ = j.value("name", "");
 
     m.theme_ = j.value("theme", "");
+    if (const auto c = j.find("cells"); c != j.end()) {
+        const std::string rle = c->get<std::string>();
+        std::size_t at = 0;
+        std::size_t pos = 0;
+        while (pos < rle.size() && at < m.cells_.size()) {
+            const std::size_t colon = rle.find(':', pos);
+            const std::size_t comma = std::min(rle.find(',', pos), rle.size());
+            if (colon == std::string::npos || colon > comma)
+                throw std::runtime_error("bad cells");
+            const int kind = std::stoi(rle.substr(pos, colon - pos));
+            const std::size_t count = std::stoul(rle.substr(colon + 1, comma - colon - 1));
+            for (std::size_t k = 0; k < count && at < m.cells_.size(); ++k)
+                m.cells_[at++] = static_cast<std::uint8_t>(std::clamp(kind, 0, 3));
+            pos = comma + 1;
+        }
+    }
+    if (const auto e = j.find("elevation"); e != j.end()) {
+        m.elevationStep_ = std::max(1, e->value("step", 1));
+        m.elevationColumns_ = e->at("columns").get<int>();
+        m.elevationRows_ = e->at("rows").get<int>();
+        m.elevation_ = e->at("data").get<std::vector<float>>();
+        if (m.elevationColumns_ < 2 || m.elevationRows_ < 2 || m.elevation_.size() != static_cast<std::size_t>(m.elevationColumns_ * m.elevationRows_))
+            throw std::runtime_error("bad elevation grid");
+    }
     for (const auto& w : j.value("walls", json::array()))
         m.addWall({w.at(0).get<int>(), w.at(1).get<int>(), w.at(2).get<int>(), w.at(3).get<int>()});
     for (const auto& a : j.value("areas", json::array())) {
@@ -103,7 +159,7 @@ Map Map::parse(std::string_view text) {
         m.areas_.push_back(std::move(area));
     }
     for (const auto& b : j.value("buildings", json::array())) {
-        BuildingDef building{toPoints(b.at("poly")), b.value("levels", 5), b.value("kind", "")};
+        BuildingDef building{toPoints(b.at("poly")), b.value("levels", 5), b.value("kind", ""), b.value("ruin", false)};
         m.fill(building.poly, CellKind::Building);
         m.buildings_.push_back(std::move(building));
     }

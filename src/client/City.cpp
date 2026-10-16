@@ -48,7 +48,9 @@ Facade wallFacade(const std::string& kind) {
         return Facade::Panel;
     if (kind == "house")
         return Facade::House;
-    if (kind == "industrial" || kind == "garage" || kind == "shed")
+    if (kind == "garage")
+        return Facade::Garage;
+    if (kind == "industrial" || kind == "shed")
         return Facade::Industrial;
     return Facade::Brick;
 }
@@ -56,7 +58,7 @@ Facade wallFacade(const std::string& kind) {
 }
 
 const char* facadeName(Facade f) {
-    static constexpr const char* kNames[] = {"panel", "brick", "industrial", "house", "roof", "slate"};
+    static constexpr const char* kNames[] = {"panel", "brick", "industrial", "house", "roof", "slate", "ruin", "garage", "rubble"};
     return kNames[static_cast<std::size_t>(f)];
 }
 
@@ -114,7 +116,9 @@ float buildingHeight(const BuildingDef& b) {
     const float levels = static_cast<float>(std::max(b.levels, 1));
     if (b.kind == "industrial")
         return levels * kStoreyHeight * 1.5f + 0.2f;
-    if (b.kind == "house" || b.kind == "garage" || b.kind == "shed")
+    if (b.kind == "garage")
+        return 0.75f;
+    if (b.kind == "house" || b.kind == "shed")
         return levels * kStoreyHeight * 1.5f;
     return levels * kStoreyHeight;
 }
@@ -128,9 +132,61 @@ void extrudeBuilding(const BuildingDef& b, std::uint32_t seed, std::array<MeshDa
     const float storey = top / static_cast<float>(std::max(b.levels, 1));
     const float ou = static_cast<float>(seed % 8u) / kTile;
     const float ov = static_cast<float>((seed / 8u) % 8u) / kTile;
-    const Facade wall = wallFacade(b.kind);
+    const Facade wall = b.ruin ? Facade::Ruin : wallFacade(b.kind);
     auto& walls = out[static_cast<std::size_t>(wall)];
     const float orient = signedArea(poly) >= 0.0f ? 1.0f : -1.0f;
+    const float phase = static_cast<float>(seed % 997u) * 0.37f;
+    auto ruinHeight = [&](float s) {
+        const float wave = 0.5f + 0.4f * std::sin(s * 0.35f + phase) + 0.25f * std::sin(s * 1.9f + phase * 2.3f);
+        const float step = std::floor(wave * 6.0f) / 6.0f;
+        return std::max(storey * 0.6f, top * std::clamp(step, 0.05f, 1.0f));
+    };
+    if (b.ruin) {
+        float along = 0.0f;
+        for (std::size_t i = 0; i < poly.size(); ++i) {
+            const glm::vec2 a = poly[i];
+            const glm::vec2 c = poly[(i + 1) % poly.size()];
+            const float len = glm::distance(a, c);
+            if (len < 1e-4f)
+                continue;
+            const glm::vec2 d = (c - a) / len;
+            const glm::vec3 n = glm::vec3(d.y, 0.0f, -d.x) * orient;
+            const int steps = std::max(1, static_cast<int>(std::ceil(len / kBay)));
+            for (int k = 0; k < steps; ++k) {
+                const float s0 = along + len * static_cast<float>(k) / static_cast<float>(steps);
+                const float s1 = along + len * static_cast<float>(k + 1) / static_cast<float>(steps);
+                const glm::vec2 p0 = glm::mix(a, c, static_cast<float>(k) / static_cast<float>(steps));
+                const glm::vec2 p1 = glm::mix(a, c, static_cast<float>(k + 1) / static_cast<float>(steps));
+                const float h0 = ruinHeight(s0);
+                const float h1 = ruinHeight(s1);
+                auto v = [&](float y) { return (top - y) / (storey * kTile) + ov; };
+                const float u0 = s0 / (kBay * kTile) + ou;
+                const float u1 = s1 / (kBay * kTile) + ou;
+                addQuad(walls, {p0.x, bottom, p0.y}, {p1.x, bottom, p1.y}, {p1.x, h1, p1.y}, {p0.x, h0, p0.y}, n, {u0, v(bottom)}, {u1, v(bottom)},
+                        {u1, v(h1)}, {u0, v(h0)});
+            }
+            along += len;
+        }
+        auto& heap = out[static_cast<std::size_t>(Facade::Rubble)];
+        glm::vec2 c{0.0f};
+        for (const auto p : poly)
+            c += p;
+        c /= static_cast<float>(poly.size());
+        const float peak = std::min(top * 0.45f, 2.2f) + storey;
+        const glm::vec3 apex{c.x, peak, c.y};
+        for (std::size_t i = 0; i < poly.size(); ++i) {
+            const glm::vec2 a = poly[i];
+            const glm::vec2 e = poly[(i + 1) % poly.size()];
+            const glm::vec2 m = (a + e) * 0.5f;
+            const glm::vec3 pa{a.x, storey * 0.5f, a.y};
+            const glm::vec3 pe{e.x, storey * 0.5f, e.y};
+            const glm::vec3 pm{glm::mix(m, c, 0.45f).x, peak * 0.7f, glm::mix(m, c, 0.45f).y};
+            addTriangle(heap, pa, pe, pm, {a.x / 3.0f, a.y / 3.0f}, {e.x / 3.0f, e.y / 3.0f}, {pm.x / 3.0f, pm.z / 3.0f});
+            addTriangle(heap, pa, pm, apex, {a.x / 3.0f, a.y / 3.0f}, {pm.x / 3.0f, pm.z / 3.0f}, {c.x / 3.0f, c.y / 3.0f});
+            addTriangle(heap, pm, pe, apex, {pm.x / 3.0f, pm.z / 3.0f}, {e.x / 3.0f, e.y / 3.0f}, {c.x / 3.0f, c.y / 3.0f});
+        }
+        return;
+    }
 
     float along = 0.0f;
     for (std::size_t i = 0; i < poly.size(); ++i) {
@@ -153,7 +209,7 @@ void extrudeBuilding(const BuildingDef& b, std::uint32_t seed, std::array<MeshDa
         along += len;
     }
 
-    const bool gable = poly.size() == 4 && (b.kind == "house" || b.kind == "garage" || b.kind == "shed");
+    const bool gable = poly.size() == 4 && (b.kind == "house" || b.kind == "shed");
     if (gable) {
         int s = glm::distance(poly[0], poly[1]) >= glm::distance(poly[1], poly[2]) ? 0 : 1;
         const glm::vec2 p0 = poly[static_cast<std::size_t>(s)];

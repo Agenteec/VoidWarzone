@@ -34,8 +34,12 @@
 
 namespace vw::client {
 
+struct EditorState;
+
 struct LaunchOptions {
     bool host = false;
+    std::optional<std::string> editor;
+    bool editorTest = false;
     std::string connect;
     std::string join;
     std::string name = "Player";
@@ -60,9 +64,17 @@ const char* shadowQualityName(int quality);
 const char* lightPresetName(int preset);
 int parseShadowQuality(std::string_view text);
 int parseLightPreset(std::string_view text);
+std::string prefDir();
+std::string savesDir();
+std::string userMapsDir();
+bool validMapName(const std::string& name);
+std::string readMap(const std::string& name);
+std::vector<std::string> listJson(const std::string& dir);
 
 class App {
 public:
+    App();
+    ~App();
     bool init(SDL_Window* window, LaunchOptions options);
     void shutdown();
     void handleEvent(const SDL_Event& e);
@@ -70,7 +82,7 @@ public:
     bool running() const { return running_; }
 
 private:
-    enum class Screen { Menu, Lan, Address, Code, Online, Joining, Connecting, Lobby, Game };
+    enum class Screen { Menu, Lan, Address, Code, Online, Joining, Connecting, Lobby, Game, Editor };
 
     struct Effect {
         Mesh mesh;
@@ -311,6 +323,31 @@ private:
     std::vector<glm::vec4> snow_;
     void updateSnow(float dt);
     void renderSnow();
+    void updateFocus();
+    std::unique_ptr<EditorState> editor_;
+    void openEditor(const std::string& mapId);
+    void newEditorMap(int width, int height, bool winter);
+    void closeEditor();
+    void editorWriteCells();
+    bool editorReparse(bool visuals);
+    void editorChange();
+    void editorUndo();
+    void editorSave();
+    void editorPlay();
+    void loadUserMaps();
+    void updateEditor(float dt);
+    void editorApply(glm::vec2 p, bool start);
+    void editorRelease(glm::vec2 p);
+    void editorDelete();
+    void handleEditorEvent(const SDL_Event& e);
+    void handleEditorKey(SDL_Keycode key, bool shift);
+    void renderEditorOverlay();
+    void drawEditor();
+    void editorSelfTest();
+    char saveName_[49] = "";
+    std::vector<std::string> saves_;
+    int saveChoice_ = 0;
+    double savesListed_ = -100.0;
     std::unordered_map<std::uint32_t, Shell> shells_;
     std::string banner_;
     float bannerTime_ = 0.0f;
@@ -406,6 +443,7 @@ private:
         std::string name;
         std::string players;
         std::string description;
+        bool custom = false;
     };
     std::vector<CatalogEntry> maps_;
     std::vector<CatalogEntry> modes_;

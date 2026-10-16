@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -81,6 +83,19 @@ bool parseDifficulty(std::string_view text, Difficulty& out);
 const char* gameModeName(GameMode m);
 bool parseGameMode(std::string_view text, GameMode& out);
 
+class World;
+
+struct SaveHeader {
+    std::string map;
+    GameMode mode = GameMode::Defense;
+    Difficulty difficulty = Difficulty::Normal;
+    std::uint64_t tick = 0;
+};
+
+std::string makeSaveFile(const SaveHeader& header, const World& world);
+SaveHeader readSaveHeader(std::string_view text);
+bool validSaveName(std::string_view name);
+
 class World {
 public:
     World();
@@ -95,6 +110,9 @@ public:
     int anchorsAlive() const;
     std::vector<entt::entity> spawnPlayer(std::uint8_t player, std::uint8_t team = 0);
     void releasePlayer(std::uint8_t player);
+    std::string saveState() const;
+    void loadState(std::string_view text);
+    bool resumePlayer(std::uint8_t player);
     void devBoost(std::uint8_t player);
 
     bool alive(entt::entity e) const;
@@ -233,6 +251,7 @@ private:
         float timer;
     };
     std::vector<PendingRespawn> respawns_;
+    std::array<bool, kMaxPlayers> saved_{};
 };
 
 }

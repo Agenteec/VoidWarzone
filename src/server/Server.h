@@ -26,6 +26,7 @@ struct ServerConfig {
     bool cheats = false;
     bool lobby = false;
     std::function<std::string(const std::string&)> loadMap;
+    std::string saveDir = "saves";
 };
 
 class Server {
@@ -75,7 +76,10 @@ private:
     void handlePlayerSetup(Client& client, net::Reader& r);
     void broadcastChat(const Client& from, const std::string& text);
     void drop(std::size_t index, bool notify);
-    void startMatch();
+    void startMatch(const std::string* save = nullptr);
+    void saveGame(Client& client, const std::string& name);
+    void loadGame(Client& client, const std::string& name);
+    void notice(const std::string& text);
     void endMatch();
     std::uint8_t leader() const;
     void tick();

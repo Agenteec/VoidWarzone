@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <optional>
 
 #include <glm/vec2.hpp>
@@ -13,6 +14,8 @@ public:
     float distance = 40.0f;
     float pitchDeg = 55.0f;
     float fovDeg = 45.0f;
+    float height = 0.0f;
+    std::function<float(float, float)> ground;
 
     void update(int width, int height, bool homogeneousDepth);
 

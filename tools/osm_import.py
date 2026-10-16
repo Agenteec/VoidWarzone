@@ -36,6 +36,55 @@ def fetch(spec, path):
         f.write(data)
 
 
+DEM = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+
+
+def elevation(spec, base, step=2, zoom=14):
+    """Samples AWS Terrain Tiles (terrarium, public, SRTM-based) on a grid every `step` cells; returns metres."""
+    from PIL import Image
+    lat0, lon0 = spec["origin"]
+    kx, ky = metres_per_deg(lat0)
+    cache = os.path.join(base, "dem")
+    os.makedirs(cache, exist_ok=True)
+    tiles = {}
+    n = 2 ** zoom
+
+    def pixel(lat, lon):
+        x = (lon + 180.0) / 360.0 * n * 256
+        y = (1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n * 256
+        return x, y
+
+    def height(px, py):
+        tx, ty = int(px // 256), int(py // 256)
+        if (tx, ty) not in tiles:
+            path = os.path.join(cache, f"{zoom}_{tx}_{ty}.png")
+            if not os.path.exists(path):
+                req = urllib.request.Request(DEM.format(z=zoom, x=tx, y=ty), headers={"User-Agent": "VoidWarzone-mapgen"})
+                with urllib.request.urlopen(req, timeout=60) as r, open(path, "wb") as f:
+                    f.write(r.read())
+            tiles[(tx, ty)] = Image.open(path).convert("RGB").load()
+        r, g, b = tiles[(tx, ty)][int(px) % 256, int(py) % 256]
+        return r * 256 + g + b / 256 - 32768
+
+    def bilinear(px, py):
+        x0, y0 = math.floor(px - 0.5), math.floor(py - 0.5)
+        fx, fy = px - 0.5 - x0, py - 0.5 - y0
+        h00, h10 = height(x0, y0), height(x0 + 1, y0)
+        h01, h11 = height(x0, y0 + 1), height(x0 + 1, y0 + 1)
+        return (h00 * (1 - fx) + h10 * fx) * (1 - fy) + (h01 * (1 - fx) + h11 * fx) * fy
+
+    w = spec["width"] // step + 1
+    h = spec["height"] // step + 1
+    grid = []
+    for j in range(h):
+        for i in range(w):
+            lon = lon0 + i * step * spec["cell"] / kx
+            lat = lat0 - j * step * spec["cell"] / ky
+            grid.append(bilinear(*pixel(lat, lon)))
+    lo = min(grid)
+    return {"step": step, "columns": w, "rows": h, "base": round(lo, 1), "data": [round(v - lo, 1) for v in grid]}
+
+
 def metres_per_deg(lat):
     return 111320.0 * math.cos(math.radians(lat)), 110574.0
 
@@ -154,6 +203,38 @@ def kind_of(tags, levels):
     return "block" if levels > 1 else "shed"
 
 
+def garages(spec, existing):
+    """Rows of garage boxes ("garazhnyi kooperativ") at spec `garages: [{pos, rows, length, angle}]`."""
+    out = []
+    taken = [b["poly"] for b in existing]
+    for g in spec.get("garages", []):
+        cx, cy = g["pos"]
+        a = math.radians(g.get("angle", 0.0))
+        ux, uy = math.cos(a), math.sin(a)
+        vx, vy = -uy, ux
+        rows, length, depth, lane = g.get("rows", 4), g.get("length", 16.0), 1.1, 3.2
+        for r in range(rows):
+            for side in (0, 1):
+                off = (r - (rows - 1) / 2) * (2 * depth + lane) + (side - 0.5) * (depth + 0.05)
+                pts = []
+                for du, dv in ((-length / 2, -depth / 2), (length / 2, -depth / 2), (length / 2, depth / 2), (-length / 2, depth / 2)):
+                    pts.append((cx + ux * du + vx * (off + dv), cy + uy * du + vy * (off + dv)))
+                if any(point_in(p, t) for p in pts for t in taken) or not inside(pts, spec, 1.0):
+                    continue
+                out.append({"poly": [r2(p) for p in pts], "levels": 1, "kind": "garage"})
+    return out
+
+
+def ruin_chance(spec, c, kind):
+    if kind in ("house", "shed", "garage"):
+        return 0.0
+    chance = spec.get("ruins", 0.15)
+    for z in spec.get("ruinZones", []):
+        if (c[0] - z["pos"][0]) ** 2 + (c[1] - z["pos"][1]) ** 2 < z["radius"] ** 2:
+            chance = max(chance, z.get("chance", 0.7))
+    return chance
+
+
 def r2(p):
     return [round(p[0], 2), round(p[1], 2)]
 
@@ -189,7 +270,11 @@ def convert(spec, osm):
                 cy = sum(p[1] for p in poly) / len(poly)
                 res = any(r and point_in((cx, cy), r) for r in residential)
                 lv = levels_of(t, poly, spec["cell"], res)
-                buildings.append({"poly": [r2(p) for p in poly], "levels": lv, "kind": kind_of(t, lv)})
+                b = {"poly": [r2(p) for p in poly], "levels": lv, "kind": kind_of(t, lv)}
+                ruin = ruin_chance(spec, (cx, cy), b["kind"])
+                if ruin > 0 and (hash((round(cx, 1), round(cy, 1))) % 1000) / 1000.0 < ruin:
+                    b["ruin"] = True
+                buildings.append(b)
             continue
         kind = None
         if t.get("natural") in FOREST or t.get("landuse") == "forest":
@@ -379,6 +464,7 @@ def main():
     m["buildings"] = buildings
     m["paths"] = paths + m.get("paths", [])
     m["attribution"] = "Map data (c) OpenStreetMap contributors, ODbL"
+    m["buildings"] += garages(spec, m["buildings"])
     clear = list(spec.get("clear", []))
     for u in m.get("units", []):
         clear.append({"pos": u["pos"], "radius": 9.0 if u.get("role") else 5.0})
@@ -397,6 +483,8 @@ def main():
             return True
         m["buildings"] = [b for b in m["buildings"] if free(b["poly"])]
         m["areas"] = [a for a in m["areas"] if a["kind"] != "forest" or free(a["poly"])]
+    if spec.get("elevation", True):
+        m["elevation"] = elevation(spec, base)
     if "routes" in spec:
         m["lanes"] = build_lanes(m, spec["routes"])
     out = os.path.join(os.path.dirname(base), "..", spec["output"]) if not os.path.isabs(spec["output"]) else spec["output"]

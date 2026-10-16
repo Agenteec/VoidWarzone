@@ -60,15 +60,20 @@ void App::updateAirLift(float dt) {
             continue;
         const float r = data_->unit(e.def).radius;
         float top = 0.0f;
+        const float own = mapVisuals_.heightAt(e.pos.x, e.pos.y);
         for (const glm::vec2 at : {e.pos, e.pos + e.vel * 0.8f}) {
             for (const glm::vec2 o : {glm::vec2{0.0f, 0.0f}, glm::vec2{r, 0.0f}, glm::vec2{-r, 0.0f}, glm::vec2{0.0f, r}, glm::vec2{0.0f, -r}})
-                top = std::max(top, mapVisuals_.heightAt(at.x + o.x, at.y + o.y));
+                top = std::max(top, mapVisuals_.heightAt(at.x + o.x, at.y + o.y) - own);
             for (const auto& s : entities_) {
                 if (s.kind != net::EntityKind::Unit || !data_->unit(s.def).structure)
                     continue;
                 if (glm::distance(s.pos, at) < r + data_->unit(s.def).radius + 0.3f)
-                    top = std::max(top, visuals_[s.def].height);
+                    top = std::max(top, visuals_[s.def].height + mapVisuals_.heightAt(s.pos.x, s.pos.y) - own);
             }
+            const int cx = static_cast<int>(at.x);
+            const int cy = static_cast<int>(at.y);
+            if (map_ && map_->cellKind(cx, cy) == CellKind::Building)
+                top = std::max(top, mapVisuals_.roofs.empty() ? 4.0f : mapVisuals_.roofs[static_cast<std::size_t>(cy * map_->width() + cx)] - own);
         }
         const float target = std::max(kCruise, top + kClearance);
         auto [it, fresh] = airLift_.try_emplace(e.id, target);

@@ -1,8 +1,10 @@
 #include "App.h"
+#include "Editor.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
 #include <stdexcept>
 
 #include <SDL3/SDL.h>
@@ -72,6 +74,53 @@ int parseLightPreset(std::string_view text) {
         if (text == kLightNames[i])
             return i;
     return -1;
+}
+
+std::string prefDir() {
+    char* dir = SDL_GetPrefPath("Agenteec", "VoidWarzone");
+    if (!dir)
+        return {};
+    std::string path = dir;
+    SDL_free(dir);
+    return path;
+}
+
+std::string savesDir() {
+    return prefDir() + "saves/";
+}
+
+std::string userMapsDir() {
+    return prefDir() + "maps/";
+}
+
+bool validMapName(const std::string& name) {
+    return !name.empty() && name.size() <= 48 && name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_") == std::string::npos;
+}
+
+std::string readMap(const std::string& name) {
+    if (!validMapName(name))
+        throw std::runtime_error("bad map name");
+    const std::string user = userMapsDir() + name + ".json";
+    std::size_t size = 0;
+    if (void* buf = SDL_LoadFile(user.c_str(), &size)) {
+        std::string text(static_cast<const char*>(buf), size);
+        SDL_free(buf);
+        return text;
+    }
+    return loadText("data/maps/" + name + ".json");
+}
+
+std::vector<std::string> listJson(const std::string& dir) {
+    std::vector<std::pair<std::filesystem::file_time_type, std::string>> files;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec))
+        if (entry.is_regular_file() && entry.path().extension() == ".json")
+            files.push_back({entry.last_write_time(ec), entry.path().stem().string()});
+    std::sort(files.begin(), files.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+    std::vector<std::string> out;
+    for (auto& f : files)
+        out.push_back(std::move(f.second));
+    return out;
 }
 
 std::string settingsPath() {
@@ -278,7 +327,11 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
         guideOpen_ = true;
         guideTab_ = options_.guide;
     }
-    if (options_.host) {
+    if (options_.editor) {
+        openEditor(*options_.editor);
+        if (options_.editorTest && editor_)
+            editorSelfTest();
+    } else if (options_.host) {
         autoStart_ = true;
         startHost(true);
     } else if (!options_.join.empty()) {
@@ -333,7 +386,11 @@ void App::loadContent() {
         for (const auto& m : catalog.at(key))
             list.push_back({m.at("id").get<std::string>(), m.value("name", ""), m.value("players", ""), m.value("description", "")});
     }
+    loadUserMaps();
 }
+
+App::App() = default;
+App::~App() = default;
 
 void App::shutdown() {
     net_.disconnect();
@@ -402,7 +459,7 @@ void App::startHost(bool multiplayer) {
     simTotal_ = 0.0;
     simSteps_ = 0;
     try {
-        hostMap_ = std::make_unique<Map>(Map::parse(loadText("data/maps/" + options_.map + ".json")));
+        hostMap_ = std::make_unique<Map>(Map::parse(readMap(options_.map)));
     } catch (const std::exception& e) {
         status_ = e.what();
         return;
@@ -416,11 +473,8 @@ void App::startHost(bool multiplayer) {
     config.cheats = options_.cheats;
     config.lobby = true;
     config.maxPlayers = multiplayer ? 8 : 1;
-    config.loadMap = [](const std::string& name) {
-        if (name.empty() || name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_") != std::string::npos)
-            throw std::runtime_error("bad map name");
-        return loadText("data/maps/" + name + ".json");
-    };
+    config.loadMap = [](const std::string& name) { return readMap(name); };
+    config.saveDir = savesDir();
     host_ = std::make_unique<server::Server>(*data_, *hostMap_, config);
     if (!host_->start(now_)) {
         host_.reset();
@@ -459,7 +513,7 @@ bool App::onConnected() {
 
 void App::enterGame() {
     try {
-        map_ = std::make_unique<Map>(Map::parse(loadText("data/maps/" + net_.mapName() + ".json")));
+        map_ = std::make_unique<Map>(Map::parse(readMap(net_.mapName())));
     } catch (const std::exception& e) {
         leaveGame(e.what());
         return;
@@ -474,6 +528,8 @@ void App::enterGame() {
     }
     buildMinimap();
     applyGraphics();
+    renderer_.setGround([this](float x, float z) { return mapVisuals_.heightAt(x, z); });
+    camera_.ground = [this](float x, float z) { return mapVisuals_.heightAt(x, z); };
     snow_.clear();
     selected_.clear();
     effects_.clear();
@@ -550,6 +606,9 @@ void App::leaveGame(std::string status) {
     hostMap_.reset();
     map_.reset();
     applyGraphics();
+    renderer_.setGround({});
+    camera_.ground = {};
+    camera_.height = 0.0f;
     entities_.clear();
     selected_.clear();
     prediction_.clear();
@@ -627,11 +686,15 @@ void App::handleEvent(const SDL_Event& e) {
     }
     if (screen_ == Screen::Game)
         handleGameEvent(e);
+    else if (screen_ == Screen::Editor && editor_)
+        handleEditorEvent(e);
 }
 
 void App::pressKey(SDL_Keycode key, bool shift) {
     if (screen_ == Screen::Game)
         handleGameKey(key, shift);
+    else if (screen_ == Screen::Editor && editor_)
+        handleEditorKey(key, shift);
     else
         handleMenuKey(key);
 }
@@ -783,6 +846,7 @@ void App::handleMenuKey(SDL_Keycode key) {
         leaveGame("");
         break;
     case Screen::Game:
+    case Screen::Editor:
         break;
     }
 }
@@ -1082,6 +1146,8 @@ void App::issueCommandAt(glm::vec2 point, bool attackMove, bool patrol) {
 }
 
 void App::updateCamera(float dt) {
+    if (camera_.ground)
+        camera_.height += (camera_.ground(camera_.target.x, camera_.target.y) - camera_.height) * (1.0f - std::exp(-dt * 6.0f));
     const bool* keys = SDL_GetKeyboardState(nullptr);
     glm::vec2 move{};
     if (keys[SDL_SCANCODE_UP])
@@ -1193,6 +1259,8 @@ void App::frame(double dt) {
 
     if (screen_ == Screen::Game)
         updateGame(static_cast<float>(dt));
+    else if (screen_ == Screen::Editor && editor_)
+        updateEditor(static_cast<float>(dt));
     if (!paused_)
         render();
 }
@@ -1219,9 +1287,12 @@ glm::vec4 App::unitColor(const net::InterpolatedEntity& e) const {
 void App::render() {
     camera_.update(renderer_.width(), renderer_.height(), renderer_.homogeneousDepth());
     renderer_.setTime(static_cast<float>(std::fmod(now_, 3600.0)));
+    updateFocus();
     renderer_.begin(camera_);
-    if (screen_ == Screen::Game && map_)
+    if ((screen_ == Screen::Game || screen_ == Screen::Editor) && map_)
         renderWorld();
+    if (screen_ == Screen::Editor && editor_ && map_)
+        renderEditorOverlay();
     ui_.beginFrame(frameDt_, renderer_.width(), renderer_.height(), uiScale());
     drawUi();
     ui_.endFrame(kUiView);
@@ -1254,7 +1325,7 @@ void App::renderWorld() {
             continue;
         renderer_.drawTerrain(chunk.terrain, mapVisuals_.terrainTextures);
         for (const auto& p : chunk.props)
-            renderer_.drawMesh(p.mesh, p.texture, p.mask, identity, white, p.glow ? Glow : Lit);
+            renderer_.drawMesh(p.mesh, p.texture, p.mask, identity, white, (p.glow ? Glow : Lit) | Absolute | (p.cutaway ? Cutaway : 0));
     }
 
     for (const auto& e : entities_) {

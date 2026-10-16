@@ -284,3 +284,28 @@ TEST_CASE("queued builds respect phantoms and resume after interruption") {
     CHECK(glm::distance(world.registry().get<Position>(blocker).value, glm::vec2{14.5f, 20.5f}) > 1.0f);
     CHECK(countDef(world, data, "wall") == 4);
 }
+
+TEST_CASE("save and load restore the match") {
+    const auto data = GameData::parse(kUnits);
+    const auto map = Map::parse(kMap);
+    World world(data, map);
+    world.spawnPlayer(0);
+    run(world, 4.0f);
+    const std::string file = makeSaveFile({"test", GameMode::Defense, Difficulty::Normal, world.tick()}, world);
+    CHECK(readSaveHeader(file).map == "test");
+
+    World loaded(data, map);
+    loaded.loadState(file);
+    CHECK(loaded.tick() == world.tick());
+    CHECK(loaded.defense().wave == world.defense().wave);
+    CHECK(countDef(loaded, data, "grunt") == countDef(world, data, "grunt"));
+    CHECK(countDef(loaded, data, "soldier") == countDef(world, data, "soldier"));
+    CHECK(loaded.player(0).energy == doctest::Approx(world.player(0).energy));
+    CHECK(loaded.resumePlayer(0));
+    CHECK_FALSE(loaded.resumePlayer(1));
+    CHECK(loaded.player(0).active);
+    run(loaded, 2.0f);
+    CHECK(countDef(loaded, data, "core") == 1);
+    CHECK(validSaveName("save_20261017-1200"));
+    CHECK_FALSE(validSaveName("../evil"));
+}

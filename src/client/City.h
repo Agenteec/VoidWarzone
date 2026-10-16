@@ -11,7 +11,7 @@
 
 namespace vw::client {
 
-enum class Facade : std::uint8_t { Panel, Brick, Industrial, House, Roof, Slate, Count };
+enum class Facade : std::uint8_t { Panel, Brick, Industrial, House, Roof, Slate, Ruin, Garage, Rubble, Count };
 
 struct MeshData {
     std::vector<TexVertex> vertices;

@@ -34,6 +34,8 @@ enum DrawFlags : std::uint8_t {
     Tint = 4,
     NoShadow = 8,
     Glow = 16,
+    Absolute = 32,
+    Cutaway = 64,
 };
 
 struct TerrainVertex {
@@ -70,8 +72,12 @@ public:
     void drawScreenRect(glm::vec2 a, glm::vec2 b, const glm::vec4& color);
     void drawMesh(MeshId mesh, TextureId texture, TextureId mask, const float* mtx, const glm::vec4& color, std::uint8_t flags = Lit);
     void drawTerrain(MeshId mesh, const std::array<TextureId, 4>& textures);
+    void setGround(std::function<float(float, float)> ground) { ground_ = std::move(ground); }
+    static constexpr int kFocusPoints = 8;
+    void setFocus(const std::vector<glm::vec4>& points);
+    float groundAt(float x, float z) const { return ground_ ? ground_(x, z) : 0.0f; }
     void drawGlow(Mesh mesh, glm::vec3 center, glm::vec3 size, const glm::vec4& color);
-    void drawBeam(glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color);
+    void drawBeam(glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color, bool solid = false);
     void drawPortal(const float* mtx, const glm::vec4& color);
     void setTime(float seconds) { time_ = seconds; }
     void end();
@@ -174,6 +180,9 @@ private:
     bgfx::UniformHandle fogUniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle camPosUniform_ = BGFX_INVALID_HANDLE;
     glm::vec3 eye_{0.0f};
+    std::function<float(float, float)> ground_;
+    bgfx::UniformHandle focusUniform_ = BGFX_INVALID_HANDLE;
+    float focus_[kFocusPoints * 4]{};
     bgfx::UniformHandle shadowSampler_ = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle shadowTexture_ = BGFX_INVALID_HANDLE;
     bgfx::FrameBufferHandle shadowBuffer_ = BGFX_INVALID_HANDLE;

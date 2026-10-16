@@ -59,6 +59,10 @@ int main(int argc, char** argv) {
         const bool hasValue = i + 1 < argc;
         if (arg == "--host")
             options.host = true;
+        else if (arg == "--editor-selftest")
+            options.editorTest = true;
+        else if (arg == "--editor")
+            options.editor = hasValue && argv[i + 1][0] != '-' ? std::string(argv[++i]) : std::string();
         else if (arg == "--connect" && hasValue)
             options.connect = argv[++i];
         else if (arg == "--join" && hasValue)

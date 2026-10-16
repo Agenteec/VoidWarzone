@@ -58,6 +58,7 @@ struct UnitVisual {
 };
 
 inline constexpr float kModelYaw = 1.5707963f;
+inline constexpr float kMetre = 0.13f;
 
 class ModelLibrary {
 public:
@@ -83,6 +84,7 @@ struct StaticBatch {
     TextureId texture = 0;
     TextureId mask = 0;
     bool glow = false;
+    bool cutaway = false;
 };
 
 struct MapChunk {
@@ -98,6 +100,7 @@ struct MapVisuals {
     int columns = 0;
     int rows = 0;
     std::vector<float> heights;
+    std::vector<float> roofs;
     const Model* derrick = nullptr;
 
     float heightAt(float x, float z) const;

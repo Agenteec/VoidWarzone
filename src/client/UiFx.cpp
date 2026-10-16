@@ -215,4 +215,29 @@ void App::renderSnow() {
     }
 }
 
+void App::updateFocus() {
+    std::vector<glm::vec4> points;
+    if (!map_ || map_->buildings().empty()) {
+        renderer_.setFocus(points);
+        return;
+    }
+    if (const auto ground = camera_.screenToGround(mouse_.x, mouse_.y))
+        points.push_back({ground->x, 0.5f, ground->y, 3.0f});
+    std::vector<std::pair<float, glm::vec4>> units;
+    for (const auto& e : entities_) {
+        if (e.kind != net::EntityKind::Unit || data_->unit(e.def).structure || hidden(e))
+            continue;
+        const bool mine = isOwn(e);
+        const float d = glm::distance(e.pos, camera_.target) - (mine ? 1000.0f : 0.0f) - (std::find(selected_.begin(), selected_.end(), e.id) != selected_.end() ? 2000.0f : 0.0f);
+        units.push_back({d, glm::vec4(e.pos.x, 0.6f + liftOf(e), e.pos.y, 1.6f + data_->unit(e.def).radius)});
+    }
+    std::sort(units.begin(), units.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (const auto& [d, p] : units) {
+        if (points.size() >= static_cast<std::size_t>(Renderer::kFocusPoints))
+            break;
+        points.push_back(p);
+    }
+    renderer_.setFocus(points);
+}
+
 }

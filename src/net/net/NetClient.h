@@ -63,6 +63,8 @@ public:
     void sendKick(std::uint8_t target);
     void sendSettings(const std::string& map, std::uint8_t mode, std::uint8_t difficulty, std::uint8_t maxPlayers);
     void sendStart();
+    void sendSaveGame(const std::string& name);
+    void sendLoadGame(const std::string& name);
     void sendReturnToLobby();
     void sendChat(const std::string& text);
 

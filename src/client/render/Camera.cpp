@@ -8,13 +8,13 @@
 
 namespace vw::client {
 
-void Camera::update(int width, int height, bool homogeneousDepth) {
-    width_ = std::max(width, 1);
-    height_ = std::max(height, 1);
+void Camera::update(int screenWidth, int screenHeight, bool homogeneousDepth) {
+    width_ = std::max(screenWidth, 1);
+    height_ = std::max(screenHeight, 1);
 
     const float pitch = bx::toRad(pitchDeg);
-    eye_ = {target.x, distance * std::sin(pitch), target.y + distance * std::cos(pitch)};
-    const glm::vec3 at{target.x, 0.0f, target.y};
+    eye_ = {target.x, height + distance * std::sin(pitch), target.y + distance * std::cos(pitch)};
+    const glm::vec3 at{target.x, height, target.y};
 
     forward_ = glm::normalize(at - eye_);
     const glm::vec3 side = glm::normalize(glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), forward_));
@@ -37,13 +37,33 @@ std::optional<glm::vec2> Camera::screenToGround(float sx, float sy) const {
     const glm::vec3 dir = forward_ + right_ * (ndcX * tanHalf * aspect) + up_ * (ndcY * tanHalf);
     if (dir.y > -1e-4f)
         return std::nullopt;
-    const float t = -eye_.y / dir.y;
-    const glm::vec3 hit = eye_ + dir * t;
-    return glm::vec2{hit.x, hit.z};
+    if (!ground) {
+        const float t = -eye_.y / dir.y;
+        const glm::vec3 hit = eye_ + dir * t;
+        return glm::vec2{hit.x, hit.z};
+    }
+    const glm::vec3 d = glm::normalize(dir);
+    float prev = 0.0f;
+    for (float t = 0.5f; t < 900.0f; t += 0.5f) {
+        const glm::vec3 p = eye_ + d * t;
+        if (p.y <= ground(p.x, p.z)) {
+            float lo = prev, hi = t;
+            for (int i = 0; i < 12; ++i) {
+                const float mid = (lo + hi) * 0.5f;
+                const glm::vec3 q = eye_ + d * mid;
+                (q.y <= ground(q.x, q.z) ? hi : lo) = mid;
+            }
+            const glm::vec3 hit = eye_ + d * hi;
+            return glm::vec2{hit.x, hit.z};
+        }
+        prev = t;
+    }
+    return std::nullopt;
 }
 
 glm::vec2 Camera::worldToScreen(glm::vec3 p) const {
-    const bx::Vec3 ndc = bx::mulH({p.x, p.y, p.z}, viewProj_);
+    const float y = p.y + (ground ? ground(p.x, p.z) : 0.0f);
+    const bx::Vec3 ndc = bx::mulH({p.x, y, p.z}, viewProj_);
     return {(ndc.x * 0.5f + 0.5f) * static_cast<float>(width_), (0.5f - ndc.y * 0.5f) * static_cast<float>(height_)};
 }
 

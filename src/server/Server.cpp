@@ -1,6 +1,9 @@
 #include "server/Server.h"
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <cmath>
 #include <numbers>
 #include <variant>
@@ -113,7 +116,7 @@ void Server::handleConnect(const Address& from, Reader& r, double now) {
     while (std::any_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c->color == client->color; }) &&
            client->color + 1u < kPlayerColors.size())
         ++client->color;
-    if (world_) {
+    if (world_ && !world_->resumePlayer(player)) {
         world_->spawnPlayer(player);
         if (config_.cheats)
             world_->devBoost(player);
@@ -196,9 +199,13 @@ void Server::broadcastChat(const Client& from, const std::string& text) {
         c->conn->sendReliable(w.data());
 }
 
-void Server::startMatch() {
+void Server::startMatch(const std::string* save) {
     world_ = std::make_unique<World>(data_, *map_, config_.difficulty, config_.mode);
+    if (save)
+        world_->loadState(*save);
     for (auto& c : clients_) {
+        if (save && world_->resumePlayer(c->player))
+            continue;
         world_->spawnPlayer(c->player);
         if (config_.cheats)
             world_->devBoost(c->player);
@@ -212,6 +219,62 @@ void Server::startMatch() {
     lobbyDirty_ = true;
     spdlog::info("match started | map {} | {} {} | {} players", config_.mapName, gameModeName(config_.mode), difficultyName(config_.difficulty),
                  playerCount());
+}
+
+void Server::notice(const std::string& text) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Chat));
+    w.u8(0xff);
+    w.str("Server");
+    w.str(text);
+    for (auto& c : clients_)
+        c->conn->sendReliable(w.data());
+}
+
+void Server::saveGame(Client& client, const std::string& name) {
+    if (!world_ || client.player != leader() || !validSaveName(name))
+        return;
+    try {
+        std::filesystem::create_directories(config_.saveDir);
+        const auto path = std::filesystem::path(config_.saveDir) / (name + ".json");
+        std::ofstream f(path, std::ios::binary);
+        f << makeSaveFile({config_.mapName, config_.mode, config_.difficulty, world_->tick()}, *world_);
+        if (!f)
+            throw std::runtime_error("write failed");
+        spdlog::info("saved '{}' to {}", name, path.string());
+        notice("Game saved: " + name);
+    } catch (const std::exception& e) {
+        spdlog::warn("save '{}': {}", name, e.what());
+        notice("Save failed: " + std::string(e.what()));
+    }
+}
+
+void Server::loadGame(Client& client, const std::string& name) {
+    if (world_ || client.player != leader() || !validSaveName(name))
+        return;
+    try {
+        std::ifstream f(std::filesystem::path(config_.saveDir) / (name + ".json"), std::ios::binary);
+        if (!f)
+            throw std::runtime_error("not found");
+        const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        const SaveHeader header = readSaveHeader(text);
+        if (header.map != config_.mapName) {
+            if (!config_.loadMap)
+                throw std::runtime_error("map " + header.map + " unavailable");
+            map_ = std::make_unique<Map>(Map::parse(config_.loadMap(header.map)));
+            config_.mapName = header.map;
+        }
+        config_.mode = header.mode;
+        config_.difficulty = header.difficulty;
+        startMatch(&text);
+        spdlog::info("loaded '{}' (map {}, tick {})", name, header.map, header.tick);
+        notice("Game loaded: " + name);
+    } catch (const std::exception& e) {
+        world_.reset();
+        lobbyDirty_ = true;
+        spdlog::warn("load '{}': {}", name, e.what());
+        notice("Load failed: " + std::string(e.what()));
+    }
 }
 
 void Server::endMatch() {
@@ -293,6 +356,18 @@ void Server::handleMessages(Client& client) {
             if (!world_ && client.player == leader())
                 startMatch();
             break;
+        case MessageType::SaveGame: {
+            const std::string name = r.str(64);
+            if (r.ok())
+                saveGame(client, name);
+            break;
+        }
+        case MessageType::LoadGame: {
+            const std::string name = r.str(64);
+            if (r.ok())
+                loadGame(client, name);
+            break;
+        }
         case MessageType::ReturnToLobby:
             if (world_ && config_.lobby && client.player == leader())
                 endMatch();

@@ -411,3 +411,13 @@ TEST_CASE("voronezh map loads with lanes on open ground") {
         for (const auto p : lane.points)
             CHECK_FALSE(map.blocked(vw::Map::cellOf(p)));
 }
+
+TEST_CASE("map cells round-trip through the rle string") {
+    auto map = vw::Map::parse(R"({"width":6,"height":3,"buildings":[{"poly":[[0,0],[2,0],[2,1],[0,1]]}]})");
+    map.setCell(4, 1, vw::CellKind::Rock);
+    map.setCell(5, 2, vw::CellKind::Forest);
+    const auto copy = vw::Map::parse(std::string(R"({"width":6,"height":3,"cells":")") + map.encodeCells() + "\"}");
+    CHECK(copy.cellKind(4, 1) == vw::CellKind::Rock);
+    CHECK(copy.cellKind(5, 2) == vw::CellKind::Forest);
+    CHECK(copy.cellKind(0, 0) == vw::CellKind::Open);
+}

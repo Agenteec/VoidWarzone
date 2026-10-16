@@ -402,11 +402,13 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             const int l = std::min({cellDist(i - 1, j - 1), cellDist(i, j - 1), cellDist(i - 1, j), cellDist(i, j)});
             const auto idx = static_cast<std::size_t>(j * out.columns + i);
             level[idx] = l;
+            const float ground = map.elevation({static_cast<float>(i), static_cast<float>(j)}) * kMetre;
+            out.heights[idx] = ground;
             if (l == 0)
                 continue;
             const float n = fbm(static_cast<float>(i) * 0.15f, static_cast<float>(j) * 0.15f, seed);
             const float rise = std::min(static_cast<float>(l), 5.0f);
-            out.heights[idx] = 1.7f + rise * 0.45f + n * 1.4f * std::min(rise / 3.0f, 1.0f);
+            out.heights[idx] = ground + 1.7f + rise * 0.45f + n * 1.4f * std::min(rise / 3.0f, 1.0f);
         }
 
     std::vector<glm::vec2> structures;
@@ -557,6 +559,7 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
         TextureId texture;
         TextureId mask;
         bool glow = false;
+        bool cutaway = false;
     };
     std::map<std::tuple<std::size_t, TextureId, TextureId>, Geometry> merged;
     auto place = [&](const Model* model, glm::vec2 at, float size, bool byHeight, float yaw = -1.0f) {
@@ -606,6 +609,23 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
         c /= static_cast<float>(b.poly.size());
         std::array<MeshData, static_cast<std::size_t>(Facade::Count)> parts;
         extrudeBuilding(b, seed ^ static_cast<std::uint32_t>(k * 2654435761u), parts);
+        float base = out.heightAt(c.x, c.y);
+        for (const auto p : b.poly)
+            base = std::min(base, out.heightAt(p.x, p.y));
+        for (auto& part : parts)
+            for (auto& v : part.vertices)
+                v.y += base;
+        if (out.roofs.empty())
+            out.roofs.assign(static_cast<std::size_t>(w * h), 0.0f);
+        glm::vec2 lo = b.poly[0], hi = b.poly[0];
+        for (const auto p : b.poly) {
+            lo = glm::min(lo, p);
+            hi = glm::max(hi, p);
+        }
+        for (int y = std::max(0, static_cast<int>(lo.y)); y <= std::min(h - 1, static_cast<int>(hi.y)); ++y)
+            for (int x = std::max(0, static_cast<int>(lo.x)); x <= std::min(w - 1, static_cast<int>(hi.x)); ++x)
+                if (map.cellKind(x, y) == CellKind::Building)
+                    out.roofs[static_cast<std::size_t>(y * w + x)] = std::max(out.roofs[static_cast<std::size_t>(y * w + x)], base + buildingHeight(b) + 0.6f);
         const auto chunk = chunkOf(c);
         for (std::size_t f = 0; f < parts.size(); ++f) {
             if (parts[f].indices.empty())
@@ -614,10 +634,11 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             g.texture = facades[f].first;
             g.mask = facades[f].second;
             g.glow = true;
-            const auto base = static_cast<std::uint32_t>(g.vertices.size());
+            g.cutaway = true;
+            const auto first = static_cast<std::uint32_t>(g.vertices.size());
             g.vertices.insert(g.vertices.end(), parts[f].vertices.begin(), parts[f].vertices.end());
             for (const auto i : parts[f].indices)
-                g.indices.push_back(base + i);
+                g.indices.push_back(first + i);
         }
     }
 
@@ -630,7 +651,7 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             if (path.kind != "road")
                 continue;
             const float half = std::max(path.width, 0.7f) * 0.5f;
-            const float y = 0.02f + 0.0005f * static_cast<float>(order++ % 16);
+            const float lift = 0.05f + 0.001f * static_cast<float>(order++ % 16);
             for (std::size_t k = 0; k + 1 < path.points.size(); ++k) {
                 const glm::vec2 a = path.points[k];
                 const glm::vec2 b = path.points[k + 1];
@@ -641,14 +662,19 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                 const glm::vec2 side = glm::vec2(-dir.y, dir.x) * half;
                 const glm::vec2 a0 = a - dir * half * 0.9f;
                 const glm::vec2 b0 = b + dir * half * 0.9f;
+                const int steps = std::max(1, static_cast<int>(std::ceil(glm::distance(a0, b0))));
                 auto& g = merged[{chunkOf((a + b) * 0.5f), asphalt, black}];
                 g.texture = asphalt;
                 g.mask = black;
-                const auto base = static_cast<std::uint32_t>(g.vertices.size());
-                for (const glm::vec2 p : {a0 - side, b0 - side, b0 + side, a0 + side})
-                    g.vertices.push_back({p.x, y, p.y, 0.0f, 1.0f, 0.0f, p.x / 4.0f, p.y / 4.0f});
-                for (const std::uint32_t i : {0u, 1u, 2u, 0u, 2u, 3u})
-                    g.indices.push_back(base + i);
+                for (int s = 0; s < steps; ++s) {
+                    const glm::vec2 p0 = glm::mix(a0, b0, static_cast<float>(s) / static_cast<float>(steps));
+                    const glm::vec2 p1 = glm::mix(a0, b0, static_cast<float>(s + 1) / static_cast<float>(steps));
+                    const auto base = static_cast<std::uint32_t>(g.vertices.size());
+                    for (const glm::vec2 p : {p0 - side, p1 - side, p1 + side, p0 + side})
+                        g.vertices.push_back({p.x, out.heightAt(p.x, p.y) + lift, p.y, 0.0f, 1.0f, 0.0f, p.x / 4.0f, p.y / 4.0f});
+                    for (const std::uint32_t i : {0u, 1u, 2u, 0u, 2u, 3u})
+                        g.indices.push_back(base + i);
+                }
             }
         }
     }
@@ -710,9 +736,9 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                     if (glm::distance(glm::vec2(towers[k]), glm::vec2(towers[k + 1])) > 20.0f)
                         continue;
                     for (const float off : {-2.4f, 2.4f, -1.6f, 1.6f}) {
-                        const float hgt = (std::abs(off) > 2.0f ? 5.25f : 6.45f) * scale;
+                        const float hgt = (std::abs(off) > 2.0f ? 5.25f : 6.45f) * scale - 0.1f;
                         auto end = [&](const glm::vec3& t) {
-                            return glm::vec3(t.x + std::cos(t.z) * off * scale, hgt, t.y + std::sin(t.z) * off * scale);
+                            return glm::vec3(t.x + std::cos(t.z) * off * scale, hgt + out.heightAt(t.x, t.y), t.y + std::sin(t.z) * off * scale);
                         };
                         const glm::vec3 p0 = end(towers[k]);
                         const glm::vec3 p1 = end(towers[k + 1]);
@@ -792,7 +818,7 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                 place(boulders[static_cast<std::size_t>(unit(rng) * 2.99f)], at, 0.9f + unit(rng) * 1.4f, false);
         }
     for (const auto& [key, g] : merged)
-        out.chunks[std::get<0>(key)].props.push_back({renderer.createMesh(g.vertices, g.indices), g.texture, g.mask, g.glow});
+        out.chunks[std::get<0>(key)].props.push_back({renderer.createMesh(g.vertices, g.indices), g.texture, g.mask, g.glow, g.cutaway});
     return out;
 }
 

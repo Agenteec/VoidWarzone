@@ -651,5 +651,53 @@
     ]
    ]
   }
+ ],
+ "ruins": 0.12,
+ "ruinZones": [
+  {
+   "pos": [
+    378,
+    282
+   ],
+   "radius": 60,
+   "chance": 0.85
+  },
+  {
+   "pos": [
+    300,
+    150
+   ],
+   "radius": 40,
+   "chance": 0.4
+  }
+ ],
+ "garages": [
+  {
+   "pos": [
+    205,
+    232
+   ],
+   "rows": 3,
+   "length": 18,
+   "angle": -35
+  },
+  {
+   "pos": [
+    300,
+    105
+   ],
+   "rows": 2,
+   "length": 16,
+   "angle": -35
+  },
+  {
+   "pos": [
+    78,
+    262
+   ],
+   "rows": 2,
+   "length": 14,
+   "angle": -35
+  }
  ]
 }

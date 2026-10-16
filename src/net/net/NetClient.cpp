@@ -314,6 +314,20 @@ void NetClient::sendStart() {
     sendMessage(w);
 }
 
+void NetClient::sendSaveGame(const std::string& name) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::SaveGame));
+    w.str(name);
+    sendMessage(w);
+}
+
+void NetClient::sendLoadGame(const std::string& name) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::LoadGame));
+    w.str(name);
+    sendMessage(w);
+}
+
 void NetClient::sendReturnToLobby() {
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::ReturnToLobby));

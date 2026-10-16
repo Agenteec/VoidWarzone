@@ -139,6 +139,7 @@ bool Renderer::init(SDL_Window* window, float scale, const std::string& backend)
     shadowParamsUniform_ = bgfx::createUniform("u_shadowParams", bgfx::UniformType::Vec4);
     lightMtxUniform_ = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
     fogUniform_ = bgfx::createUniform("u_fog", bgfx::UniformType::Vec4);
+    focusUniform_ = bgfx::createUniform("u_focus", bgfx::UniformType::Vec4, kFocusPoints);
     camPosUniform_ = bgfx::createUniform("u_camPos", bgfx::UniformType::Vec4);
     shadowSampler_ = bgfx::createUniform("s_shadow", bgfx::UniformType::Sampler);
     const auto* caps = bgfx::getCaps();
@@ -184,7 +185,7 @@ void Renderer::shutdown() {
     for (auto h : {texProgram_, terrainProgram_, shadowProgram_, shadowTexProgram_})
         if (bgfx::isValid(h))
             bgfx::destroy(h);
-    for (auto h : {fogUniform_, camPosUniform_})
+    for (auto h : {fogUniform_, camPosUniform_, focusUniform_})
         if (bgfx::isValid(h))
             bgfx::destroy(h);
     for (auto h : {colorSampler_, maskSampler_, sunDirUniform_, sunColorUniform_, skyColorUniform_, shadowParamsUniform_, lightMtxUniform_,
@@ -277,7 +278,7 @@ void Renderer::updateLight(const Camera& camera) {
     const float radius = std::max(20.0f, camera.distance * 1.25f);
     const int size = std::max(shadowMapSize_, 1);
     const float texel = radius * 2.0f / static_cast<float>(size);
-    const bx::Vec3 c = bx::mul({camera.target.x, 0.0f, camera.target.y}, view);
+    const bx::Vec3 c = bx::mul({camera.target.x, camera.height, camera.target.y}, view);
     const float cx = std::floor(c.x / texel) * texel;
     const float cy = std::floor(c.y / texel) * texel;
     const bool hd = homogeneousDepth();
@@ -416,25 +417,28 @@ MeshId Renderer::createMesh(const std::vector<TexVertex>& vertices, const std::v
 void Renderer::drawMesh(MeshId mesh, TextureId texture, TextureId mask, const float* mtx, const glm::vec4& color, std::uint8_t flags) {
     Instance inst;
     std::memcpy(inst.mtx, mtx, sizeof(inst.mtx));
+    if (!(flags & Absolute))
+        inst.mtx[13] += groundAt(inst.mtx[12], inst.mtx[14]);
     std::memcpy(inst.color, &color.x, sizeof(inst.color));
     texBatches_[TexBatchKey{mesh, texture, mask, flags}].push_back(inst);
 }
 
 void Renderer::draw(Mesh mesh, glm::vec3 center, glm::vec3 size, float yaw, const glm::vec4& color, std::uint8_t flags) {
     Instance inst;
-    bx::mtxSRT(inst.mtx, size.x, size.y, size.z, 0.0f, yaw, 0.0f, center.x, center.y, center.z);
+    const float y = center.y + ((flags & Absolute) ? 0.0f : groundAt(center.x, center.z));
+    bx::mtxSRT(inst.mtx, size.x, size.y, size.z, 0.0f, yaw, 0.0f, center.x, y, center.z);
     std::memcpy(inst.color, &color.x, sizeof(inst.color));
     batches_[static_cast<std::size_t>(mesh) * kFlagVariants + (flags & 3)].push_back(inst);
 }
 
 void Renderer::drawGlow(Mesh mesh, glm::vec3 center, glm::vec3 size, const glm::vec4& color) {
     Instance inst;
-    bx::mtxSRT(inst.mtx, size.x, size.y, size.z, 0.0f, 0.0f, 0.0f, center.x, center.y, center.z);
+    bx::mtxSRT(inst.mtx, size.x, size.y, size.z, 0.0f, 0.0f, 0.0f, center.x, center.y + groundAt(center.x, center.z), center.z);
     std::memcpy(inst.color, &color.x, sizeof(inst.color));
     glow_[static_cast<std::size_t>(mesh)].push_back(inst);
 }
 
-void Renderer::drawBeam(glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color) {
+void Renderer::drawBeam(glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color, bool solid) {
     const glm::vec3 d = b - a;
     const float len = glm::length(d);
     if (len < 1e-4f)
@@ -443,17 +447,22 @@ void Renderer::drawBeam(glm::vec3 a, glm::vec3 b, float width, const glm::vec4& 
     const glm::vec3 up = std::abs(dir.y) < 0.9f ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
     const glm::vec3 side = glm::normalize(glm::cross(dir, up)) * width;
     const glm::vec3 norm = glm::normalize(glm::cross(side, dir)) * width;
-    const glm::vec3 mid = (a + b) * 0.5f;
+    glm::vec3 mid = (a + b) * 0.5f;
+    mid.y += groundAt(mid.x, mid.z);
     Instance inst;
     const float m[16] = {d.x, d.y, d.z, 0.0f, norm.x, norm.y, norm.z, 0.0f, side.x, side.y, side.z, 0.0f, mid.x, mid.y, mid.z, 1.0f};
     std::memcpy(inst.mtx, m, sizeof(m));
     std::memcpy(inst.color, &color.x, sizeof(inst.color));
-    glow_[static_cast<std::size_t>(Mesh::Cube)].push_back(inst);
+    if (solid)
+        batches_[static_cast<std::size_t>(Mesh::Cube) * kFlagVariants + Unlit].push_back(inst);
+    else
+        glow_[static_cast<std::size_t>(Mesh::Cube)].push_back(inst);
 }
 
 void Renderer::drawPortal(const float* mtx, const glm::vec4& color) {
     Instance inst;
     std::memcpy(inst.mtx, mtx, sizeof(inst.mtx));
+    inst.mtx[13] += groundAt(inst.mtx[12], inst.mtx[14]);
     std::memcpy(inst.color, &color.x, sizeof(inst.color));
     portals_.push_back(inst);
 }
@@ -546,7 +555,8 @@ void Renderer::submitTextured(bool alpha) {
         if (instances.empty() || ((key.flags & Alpha) != 0) != alpha || key.mesh >= texMeshes_.size())
             continue;
         const auto& gpu = texMeshes_[key.mesh];
-        const float params[4] = {(key.flags & Unlit) ? 1.0f : 0.0f, (key.flags & Tint) ? 0.35f : 0.0f, (key.flags & Glow) ? 1.0f : 0.0f, (key.flags & Glow) ? 1.0f : 0.0f};
+        const float params[4] = {(key.flags & Unlit) ? 1.0f : 0.0f, (key.flags & Tint) ? 0.35f : 0.0f, (key.flags & Glow) ? 1.0f : 0.0f,
+                                 ((key.flags & Glow) ? 1.0f : 0.0f) + ((key.flags & Cutaway) ? 2.0f : 0.0f)};
         const auto texture = textures_[key.texture];
         const auto mask = textures_[key.mask];
         submitInstances(kWorldView, texProgram_, alpha ? kAlphaState : kOpaqueState, instances, [&] {
@@ -555,8 +565,20 @@ void Renderer::submitTextured(bool alpha) {
             bgfx::setTexture(0, colorSampler_, texture);
             bgfx::setTexture(1, maskSampler_, mask);
             bgfx::setUniform(params_, params);
+            bgfx::setUniform(focusUniform_, focus_, kFocusPoints);
             bindLighting();
         });
+    }
+}
+
+void Renderer::setFocus(const std::vector<glm::vec4>& points) {
+    std::fill(std::begin(focus_), std::end(focus_), 0.0f);
+    for (std::size_t i = 0; i < points.size() && i < static_cast<std::size_t>(kFocusPoints); ++i) {
+        const glm::vec4 p = points[i];
+        focus_[i * 4 + 0] = p.x;
+        focus_[i * 4 + 1] = p.y + groundAt(p.x, p.z);
+        focus_[i * 4 + 2] = p.z;
+        focus_[i * 4 + 3] = p.w;
     }
 }
 

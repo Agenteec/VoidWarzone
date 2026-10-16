@@ -13,7 +13,7 @@ void main()
 	vec3 n = normalize(v_normal);
 	vec2 top = v_wpos.xz;
 	vec2 side = abs(n.x) > abs(n.z) ? vec2(v_wpos.z, v_wpos.y) : vec2(v_wpos.x, v_wpos.y);
-	vec3 ground = texture2D(s_ground, top / 8.0).rgb;
+	vec3 ground = mix(texture2D(s_ground, top / 8.0).rgb, texture2D(s_ground, top / 21.7 + vec2(0.37, 0.61)).rgb, 0.5);
 	vec3 dirt = texture2D(s_dirt, top / 6.0).rgb;
 	vec3 cliff = mix(texture2D(s_cliff, side / 3.0).rgb, texture2D(s_cliff, top / 4.0).rgb, clamp(n.y * 1.6 - 0.6, 0.0, 1.0));
 	vec3 road = texture2D(s_road, top / 4.0).rgb;

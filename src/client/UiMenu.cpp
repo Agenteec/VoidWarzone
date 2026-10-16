@@ -129,6 +129,10 @@ void App::drawMenu() {
         setScreen(Screen::Address);
     }
     ImGui::Dummy({0.0f, 6.0f * s});
+    if (menuButton(ICON_FA_MAP "   Map Editor", false, full, h)) {
+        settingsOpen_ = false;
+        openEditor(options_.map);
+    }
     if (menuButton(ICON_FA_COG "   Settings", settingsOpen_, full, h)) {
         settingsOpen_ = !settingsOpen_;
         if (settingsOpen_ && screen_ != Screen::Menu)
@@ -691,6 +695,26 @@ void App::drawLobby() {
         }
         if (accentButton(ICON_FA_PLAY "  Start match", {buttonW, 40.0f * s}))
             net_.sendStart();
+        if (host_) {
+            if (now_ - savesListed_ > 2.0) {
+                saves_ = listJson(savesDir());
+                savesListed_ = now_;
+            }
+            if (!saves_.empty()) {
+                saveChoice_ = std::clamp(saveChoice_, 0, static_cast<int>(saves_.size()) - 1);
+                ImGui::SetCursorPosX(ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x - buttonW * 2.0f - 8.0f * s);
+                ImGui::SetNextItemWidth(buttonW);
+                if (ImGui::BeginCombo("##saves", saves_[static_cast<std::size_t>(saveChoice_)].c_str())) {
+                    for (int i = 0; i < static_cast<int>(saves_.size()); ++i)
+                        if (ImGui::Selectable(saves_[static_cast<std::size_t>(i)].c_str(), i == saveChoice_))
+                            saveChoice_ = i;
+                    ImGui::EndCombo();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(ICON_FA_FOLDER_OPEN "  Load game", {buttonW, 0.0f}))
+                    net_.sendLoadGame(saves_[static_cast<std::size_t>(saveChoice_)]);
+            }
+        }
     } else {
         bool ready = false;
         for (const auto& p : info.players)

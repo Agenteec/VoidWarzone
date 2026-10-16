@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <ctime>
 #include <cstring>
 
 #include <SDL3/SDL.h>
@@ -41,6 +42,8 @@ void App::drawUi() {
     uiRects_.clear();
     if (screen_ == Screen::Game && map_) {
         drawHud();
+    } else if (screen_ == Screen::Editor && editor_) {
+        drawEditor();
     } else {
         drawMenu();
     }
@@ -634,6 +637,20 @@ void App::drawPauseMenu() {
     ImGui::Spacing();
     drawSettings();
     ImGui::Spacing();
+    if (net_.lobby().leader == net_.player()) {
+        if (saveName_[0] == 0) {
+            const std::time_t t = std::time(nullptr);
+            std::strftime(saveName_, sizeof(saveName_), "save_%Y%m%d_%H%M", std::localtime(&t));
+        }
+        ImGui::SetNextItemWidth(full - 130.0f * s);
+        ImGui::InputText("##savename", saveName_, sizeof(saveName_), ImGuiInputTextFlags_CharsNoBlank);
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_FLOPPY_O "  Save", {-1.0f, 0.0f})) {
+            net_.sendSaveGame(saveName_);
+            saveName_[0] = 0;
+        }
+        ImGui::TextDisabled("Saves are written on the host (%s)", host_ ? "this PC" : "server");
+    }
     if (net_.lobby().leader == net_.player() && ImGui::Button(ICON_FA_USERS "  Return to lobby", {full, 40.0f * s})) {
         pauseOpen_ = false;
         net_.sendReturnToLobby();
