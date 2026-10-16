@@ -45,6 +45,13 @@ MATERIALS = [
     ("ember", (255, 110, 30), 0, 200),
     ("moss", (70, 74, 52), 0, 0),
     ("bone", (176, 168, 150), 0, 0),
+    ("snow", (232, 237, 244), 0, 0),
+    ("birch", (214, 210, 200), 0, 0),
+    ("fir", (38, 62, 48), 0, 0),
+    ("fir_dark", (24, 42, 34), 0, 0),
+    ("paint_old", (92, 112, 104), 0, 0),
+    ("lamp", (255, 200, 120), 0, 255),
+    ("wood", (104, 80, 58), 0, 0),
 ]
 MAT = {m[0]: i for i, m in enumerate(MATERIALS)}
 
@@ -695,6 +702,88 @@ def wreck(seed):
     return {"hull": (m, (0, 0, 0))}, {}
 
 
+def fir(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    h = rnd.uniform(3.2, 4.4)
+    m.cyl((0, 0.3, 0), 0.1, 0.6, MAT["bark"], n=6)
+    tiers = rnd.randint(4, 5)
+    for k in range(tiers):
+        t = k / tiers
+        y = 0.5 + t * (h - 0.9)
+        r = (1.0 - t) * 1.05 + 0.18
+        th = (h - 0.5) / tiers * 1.5
+        m.cyl((0, y + th / 2, 0), r, th, MAT["fir"] if k % 2 else MAT["fir_dark"], n=7, r2=0.05, cap=False)
+        m.cyl((0, y + th * 0.45, 0), r * 0.62, th * 0.32, MAT["snow"], n=7, r2=r * 0.18)
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def birch(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    h = rnd.uniform(3.0, 4.2)
+    lean = (rnd.uniform(-0.25, 0.25), rnd.uniform(-0.25, 0.25))
+    m.strut((0, 0, 0), (lean[0], h, lean[1]), 0.09, MAT["birch"])
+    for k in range(4):
+        y = 0.4 + k * 0.6
+        m.box((lean[0] * y / h, y, lean[1] * y / h), (0.2, 0.05, 0.2), MAT["charred"])
+    for k in range(rnd.randint(5, 7)):
+        t = rnd.uniform(0.45, 0.95)
+        a = rnd.uniform(0, 2 * math.pi)
+        start = (lean[0] * t, h * t, lean[1] * t)
+        ln = rnd.uniform(0.5, 1.0) * (1.2 - t)
+        end = (start[0] + math.cos(a) * ln, start[1] + ln * 0.9, start[2] + math.sin(a) * ln)
+        m.strut(start, end, 0.035, MAT["bark"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def old_car(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    paint = MAT["paint_old"] if seed % 2 else MAT["rust"]
+    m.box((0, 0.42, 0), (1.0, 0.42, 2.3), paint, top=(1.0, 0.96))
+    m.box((0, 0.8, 0.12), (0.92, 0.36, 1.1), paint, top=(0.86, 0.8), sides={"front": MAT["glass"], "back": MAT["glass"]})
+    m.box((0, 1.0, 0.12), (0.8, 0.06, 0.9), MAT["snow"])
+    m.box((0, 0.65, -0.82), (0.95, 0.05, 0.6), MAT["snow"])
+    m.box((0, 0.65, 0.95), (0.9, 0.05, 0.36), MAT["snow"])
+    for x in (-0.48, 0.48):
+        for z in (-0.72, 0.72):
+            m.cyl((x, 0.2, z), 0.2, 0.14, MAT["rubber"], n=8, axis="x")
+    m.box((0, 0.36, -1.17), (0.9, 0.12, 0.05), MAT["steel"])
+    if rnd.random() < 0.5:
+        m.box((0.3, 0.06, 0.9), (0.6, 0.12, 0.8), MAT["snow"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def power_pylon():
+    m = Mesh()
+    h = 7.0
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            m.strut((sx * 0.9, 0, sz * 0.9), (sx * 0.25, h, sz * 0.25), 0.07, MAT["steel"])
+    for k in range(5):
+        y = 0.8 + k * 1.3
+        w = 0.9 - (0.65 * y / h)
+        for a, b in (((-w, y, -w), (w, y + 1.3, -w)), ((w, y, w), (-w, y + 1.3, w)), ((-w, y, -w), (-w, y + 1.3, w)), ((w, y, w), (w, y + 1.3, -w))):
+            m.strut(a, b, 0.035, MAT["graphite"])
+    for y, w in ((h - 1.4, 2.4), (h - 0.2, 1.6)):
+        m.box((0, y, 0), (w * 2, 0.14, 0.18), MAT["graphite"])
+        for x in (-w, w):
+            m.cyl((x, y - 0.3, 0), 0.06, 0.5, MAT["glass"], n=5)
+    m.box((0, h + 0.05, 0), (0.4, 0.1, 0.4), MAT["snow"])
+    return {"hull": (m, (0, 0, 0))}, {"wire0": ((-2.4, h - 1.75, 0), None), "wire1": ((2.4, h - 1.75, 0), None), "wire2": ((-1.6, h - 0.55, 0), None), "wire3": ((1.6, h - 0.55, 0), None)}
+
+
+def street_lamp(lit):
+    m = Mesh()
+    m.cyl((0, 1.6, 0), 0.06, 3.2, MAT["graphite"], n=6)
+    m.strut((0, 3.1, 0), (0.7, 3.3, 0), 0.05, MAT["graphite"])
+    m.box((0.8, 3.25, 0), (0.36, 0.12, 0.2), MAT["graphite_dark"])
+    m.box((0.8, 3.17, 0), (0.26, 0.04, 0.14), MAT["lamp"] if lit else MAT["glass"])
+    m.box((0.8, 3.33, 0), (0.34, 0.04, 0.2), MAT["snow"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
 def extractor():
     m = Mesh()
     m.cyl((0, 0.2, 0), 1.3, 0.4, MAT["concrete_dark"], n=8, capmat=MAT["concrete"])
@@ -739,6 +828,16 @@ MODELS = {
     "prop_crystal1": lambda: crystal_growth(1),
     "prop_crystal2": lambda: crystal_growth(2),
     "prop_wreck": lambda: wreck(1),
+    "prop_fir1": lambda: fir(1),
+    "prop_fir2": lambda: fir(2),
+    "prop_fir3": lambda: fir(3),
+    "prop_birch1": lambda: birch(1),
+    "prop_birch2": lambda: birch(2),
+    "prop_car1": lambda: old_car(1),
+    "prop_car2": lambda: old_car(2),
+    "prop_pylon": power_pylon,
+    "prop_lamp": lambda: street_lamp(True),
+    "prop_lamp_off": lambda: street_lamp(False),
     "colony_tank": lambda: tank("base"),
     "colony_tank_assault": lambda: tank("assault"),
     "colony_tank_siege": lambda: tank("siege"),

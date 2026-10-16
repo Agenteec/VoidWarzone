@@ -387,3 +387,27 @@ TEST_CASE("frost shots slow their target") {
         world.step();
     CHECK(reg.get<vw::Unit>(runner).speed == doctest::Approx(4.0f));
 }
+
+TEST_CASE("map buildings and forests block their cells") {
+    const auto map = vw::Map::parse(R"({"width":20,"height":20,"theme":"winter",
+        "buildings":[{"poly":[[2,2],[8,2],[8,5],[2,5]],"levels":9,"kind":"panel"},{"poly":[[15.1,15.1],[15.4,15.1],[15.4,15.4]],"levels":1}],
+        "areas":[{"kind":"forest","poly":[[10,10],[14,10],[14,14],[10,14]]},{"kind":"park","poly":[[0,10],[5,10],[5,15]]}],
+        "paths":[{"kind":"road","width":1.5,"points":[[0,8],[19,8]]}]})");
+    CHECK(map.theme() == "winter");
+    CHECK(map.cellKind(4, 3) == vw::CellKind::Building);
+    CHECK(map.blocked(4, 3));
+    CHECK(map.cellKind(9, 3) == vw::CellKind::Open);
+    CHECK(map.cellKind(15, 15) == vw::CellKind::Building);
+    CHECK(map.cellKind(12, 12) == vw::CellKind::Forest);
+    CHECK(map.cellKind(2, 12) == vw::CellKind::Open);
+    CHECK(map.buildings().size() == 2);
+    CHECK(map.paths().size() == 1);
+}
+
+TEST_CASE("voronezh map loads with lanes on open ground") {
+    const auto map = vw::Map::parse(readData("maps/voronezh_shilovo.json"));
+    CHECK(map.buildings().size() > 100);
+    for (const auto& lane : map.lanes())
+        for (const auto p : lane.points)
+            CHECK_FALSE(map.blocked(vw::Map::cellOf(p)));
+}

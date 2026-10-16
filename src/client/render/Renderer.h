@@ -47,6 +47,8 @@ struct Lighting {
     glm::vec3 sun{0.85f, 0.8f, 0.72f};
     glm::vec3 sky{0.42f, 0.45f, 0.52f};
     std::uint32_t clear = 0x0a0c12ff;
+    glm::vec4 fog{0.0f};
+    float snow = 0.0f;
 };
 
 class Renderer {
@@ -169,6 +171,9 @@ private:
     bgfx::UniformHandle skyColorUniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle shadowParamsUniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle lightMtxUniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle fogUniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle camPosUniform_ = BGFX_INVALID_HANDLE;
+    glm::vec3 eye_{0.0f};
     bgfx::UniformHandle shadowSampler_ = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle shadowTexture_ = BGFX_INVALID_HANDLE;
     bgfx::FrameBufferHandle shadowBuffer_ = BGFX_INVALID_HANDLE;

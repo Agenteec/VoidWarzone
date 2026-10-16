@@ -308,6 +308,9 @@ private:
     void updateParticles(float dt);
     void renderParticles();
     void onUnitDeath(const net::UnitDeath& d);
+    std::vector<glm::vec4> snow_;
+    void updateSnow(float dt);
+    void renderSnow();
     std::unordered_map<std::uint32_t, Shell> shells_;
     std::string banner_;
     float bannerTime_ = 0.0f;

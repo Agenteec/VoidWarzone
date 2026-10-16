@@ -13,6 +13,7 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+#include "City.h"
 #include "render/Gltf.h"
 #include "render/Pie.h"
 
@@ -367,7 +368,7 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
     std::vector<int> queue;
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x)
-            if (!map.blocked(x, y)) {
+            if (map.cellKind(x, y) != CellKind::Rock) {
                 dist[static_cast<std::size_t>(map.index(x, y))] = 0;
                 queue.push_back(map.index(x, y));
             }
@@ -418,6 +419,53 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
         pads.push_back(data.unit(id).radius + 1.6f);
     }
 
+    const bool winter = map.theme() == "winter";
+    const bool city = !map.paths().empty();
+    std::vector<float> roadPaint(out.heights.size(), 0.0f);
+    std::vector<float> dirtPaint(out.heights.size(), 0.0f);
+    auto stamp = [&](std::vector<float>& grid, glm::vec2 a, glm::vec2 b, float half, float strength) {
+        const int x0 = std::max(0, static_cast<int>(std::floor(std::min(a.x, b.x) - half - 1.0f)));
+        const int x1 = std::min(out.columns - 1, static_cast<int>(std::ceil(std::max(a.x, b.x) + half + 1.0f)));
+        const int y0 = std::max(0, static_cast<int>(std::floor(std::min(a.y, b.y) - half - 1.0f)));
+        const int y1 = std::min(out.rows - 1, static_cast<int>(std::ceil(std::max(a.y, b.y) + half + 1.0f)));
+        for (int j = y0; j <= y1; ++j)
+            for (int i = x0; i <= x1; ++i) {
+                const float d = segmentDistance({static_cast<float>(i), static_cast<float>(j)}, a, b);
+                auto& v = grid[static_cast<std::size_t>(j * out.columns + i)];
+                v = std::max(v, strength * (1.0f - smooth(half - 0.3f, half + 0.7f, d)));
+            }
+    };
+    for (const auto& path : map.paths()) {
+        const float half = std::max(path.width, 0.6f) * 0.5f;
+        for (std::size_t k = 0; k + 1 < path.points.size(); ++k) {
+            if (path.kind == "road" && winter)
+                stamp(dirtPaint, path.points[k], path.points[k + 1], half + 0.6f, 0.55f);
+            else if (path.kind == "road")
+                stamp(roadPaint, path.points[k], path.points[k + 1], half, 1.0f);
+            else if (path.kind == "track" || path.kind == "rail")
+                stamp(dirtPaint, path.points[k], path.points[k + 1], half, 0.9f);
+            else if (path.kind == "path")
+                stamp(dirtPaint, path.points[k], path.points[k + 1], 0.5f, 0.6f);
+        }
+    }
+    for (const auto& area : map.areas()) {
+        const float strength = area.kind == "industrial" ? 0.75f : area.kind == "yard" ? 0.5f : 0.0f;
+        if (strength <= 0.0f)
+            continue;
+        glm::vec2 lo = area.poly[0], hi = area.poly[0];
+        for (const auto p : area.poly) {
+            lo = glm::min(lo, p);
+            hi = glm::max(hi, p);
+        }
+        for (int j = std::max(0, static_cast<int>(lo.y)); j <= std::min(out.rows - 1, static_cast<int>(hi.y) + 1); ++j)
+            for (int i = std::max(0, static_cast<int>(lo.x)); i <= std::min(out.columns - 1, static_cast<int>(hi.x) + 1); ++i)
+                if (pointInPolygon({static_cast<float>(i), static_cast<float>(j)}, area.poly)) {
+                    const float n = fbm(static_cast<float>(i) * 0.2f, static_cast<float>(j) * 0.2f, seed + 31u);
+                    auto& v = dirtPaint[static_cast<std::size_t>(j * out.columns + i)];
+                    v = std::max(v, strength * (0.6f + 0.4f * n));
+                }
+    }
+
     std::vector<TerrainVertex> vertices;
     vertices.reserve(out.heights.size());
     auto heightOf = [&](int i, int j) {
@@ -432,14 +480,16 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             const glm::vec2 p{static_cast<float>(i), static_cast<float>(j)};
             const int l = level[static_cast<std::size_t>(j * out.columns + i)];
 
-            float road = 0.0f;
-            for (const auto& lane : map.lanes())
-                for (std::size_t k = 0; k + 1 < lane.points.size(); ++k)
-                    road = std::max(road, 1.0f - smooth(2.6f, 4.2f, segmentDistance(p, lane.points[k], lane.points[k + 1])));
+            const auto vi = static_cast<std::size_t>(j * out.columns + i);
+            float road = roadPaint[vi];
+            if (!city)
+                for (const auto& lane : map.lanes())
+                    for (std::size_t k = 0; k + 1 < lane.points.size(); ++k)
+                        road = std::max(road, 1.0f - smooth(2.6f, 4.2f, segmentDistance(p, lane.points[k], lane.points[k + 1])));
             for (std::size_t k = 0; k < structures.size(); ++k)
                 road = std::max(road, 1.0f - smooth(pads[k] - 0.6f, pads[k] + 0.6f, glm::distance(p, structures[k])));
             const float patch = fbm(p.x * 0.07f + 13.0f, p.y * 0.07f, seed + 101u);
-            float dirt = smooth(0.52f, 0.7f, patch);
+            float dirt = std::max(winter ? 0.0f : smooth(0.52f, 0.7f, patch), dirtPaint[vi]);
             float cliff = std::clamp((1.0f - n.y) * 3.2f, 0.0f, 1.0f);
             if (l > 0) {
                 dirt = std::max(dirt, 0.55f + 0.45f * smooth(0.3f, 0.7f, patch));
@@ -489,8 +539,9 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             chunk.max = {static_cast<float>(x1), static_cast<float>(y1)};
             chunk.terrain = renderer.createTerrain(local, indices);
         }
-    out.terrainTextures = {models.texture("data/terrain/ground.png"), models.texture("data/terrain/soil.png"), models.texture("data/terrain/cliff.png"),
-                           models.texture("data/terrain/road.png")};
+    const std::string terrainDir = winter ? "data/terrain/winter/" : "data/terrain/";
+    out.terrainTextures = {models.texture(terrainDir + "ground.png"), models.texture(terrainDir + "soil.png"), models.texture(terrainDir + "cliff.png"),
+                           models.texture(terrainDir + "road.png")};
 
     out.derrick = models.model("colony_extractor:hull");
 
@@ -508,12 +559,12 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
         bool glow = false;
     };
     std::map<std::tuple<std::size_t, TextureId, TextureId>, Geometry> merged;
-    auto place = [&](const Model* model, glm::vec2 at, float size, bool byHeight) {
+    auto place = [&](const Model* model, glm::vec2 at, float size, bool byHeight, float yaw = -1.0f) {
         if (!model || model->vertices.empty())
             return;
         const float extent = byHeight ? std::max(model->max.y, 1.0f) : std::max({model->max.x - model->min.x, model->max.z - model->min.z, 1.0f});
         float m[16];
-        makeModelMatrix(m, {at.x, out.heightAt(at.x, at.y) - 0.1f, at.y}, unit(rng) * 6.283f, size / extent, {});
+        makeModelMatrix(m, {at.x, out.heightAt(at.x, at.y) - 0.1f, at.y}, yaw < 0.0f ? unit(rng) * 6.283f : yaw, size / extent, {});
         const int cx = std::clamp(static_cast<int>(at.x) / kChunk, 0, chunksX - 1);
         const int cy = std::clamp(static_cast<int>(at.y) / kChunk, 0, chunksY - 1);
         auto& g = merged[{static_cast<std::size_t>(cy * chunksX + cx), model->texture, model->mask}];
@@ -536,7 +587,194 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
         for (const auto i : model->indices)
             g.indices.push_back(base + i);
     };
-    for (int y = 0; y < h; ++y)
+    auto chunkOf = [&](glm::vec2 p) {
+        const int cx = std::clamp(static_cast<int>(p.x) / kChunk, 0, chunksX - 1);
+        const int cy = std::clamp(static_cast<int>(p.y) / kChunk, 0, chunksY - 1);
+        return static_cast<std::size_t>(cy * chunksX + cx);
+    };
+    std::array<std::pair<TextureId, TextureId>, static_cast<std::size_t>(Facade::Count)> facades{};
+    if (!map.buildings().empty())
+        for (std::size_t f = 0; f < facades.size(); ++f) {
+            const std::string name = std::string("data/city/") + facadeName(static_cast<Facade>(f));
+            facades[f] = {models.texture(name + ".png"), models.texture(name + "_mask.png")};
+        }
+    for (std::size_t k = 0; k < map.buildings().size(); ++k) {
+        const auto& b = map.buildings()[k];
+        glm::vec2 c{0.0f};
+        for (const auto p : b.poly)
+            c += p;
+        c /= static_cast<float>(b.poly.size());
+        std::array<MeshData, static_cast<std::size_t>(Facade::Count)> parts;
+        extrudeBuilding(b, seed ^ static_cast<std::uint32_t>(k * 2654435761u), parts);
+        const auto chunk = chunkOf(c);
+        for (std::size_t f = 0; f < parts.size(); ++f) {
+            if (parts[f].indices.empty())
+                continue;
+            auto& g = merged[{chunk, facades[f].first, facades[f].second}];
+            g.texture = facades[f].first;
+            g.mask = facades[f].second;
+            g.glow = true;
+            const auto base = static_cast<std::uint32_t>(g.vertices.size());
+            g.vertices.insert(g.vertices.end(), parts[f].vertices.begin(), parts[f].vertices.end());
+            for (const auto i : parts[f].indices)
+                g.indices.push_back(base + i);
+        }
+    }
+
+    auto freeCell = [&](glm::vec2 p) { return map.cellKind(static_cast<int>(p.x), static_cast<int>(p.y)) == CellKind::Open; };
+    if (winter) {
+        const TextureId asphalt = models.texture("data/terrain/winter/road.png");
+        const TextureId black = models.texture("data/city/flat_mask.png");
+        int order = 0;
+        for (const auto& path : map.paths()) {
+            if (path.kind != "road")
+                continue;
+            const float half = std::max(path.width, 0.7f) * 0.5f;
+            const float y = 0.02f + 0.0005f * static_cast<float>(order++ % 16);
+            for (std::size_t k = 0; k + 1 < path.points.size(); ++k) {
+                const glm::vec2 a = path.points[k];
+                const glm::vec2 b = path.points[k + 1];
+                const float len = glm::distance(a, b);
+                if (len < 1e-3f)
+                    continue;
+                const glm::vec2 dir = (b - a) / len;
+                const glm::vec2 side = glm::vec2(-dir.y, dir.x) * half;
+                const glm::vec2 a0 = a - dir * half * 0.9f;
+                const glm::vec2 b0 = b + dir * half * 0.9f;
+                auto& g = merged[{chunkOf((a + b) * 0.5f), asphalt, black}];
+                g.texture = asphalt;
+                g.mask = black;
+                const auto base = static_cast<std::uint32_t>(g.vertices.size());
+                for (const glm::vec2 p : {a0 - side, b0 - side, b0 + side, a0 + side})
+                    g.vertices.push_back({p.x, y, p.y, 0.0f, 1.0f, 0.0f, p.x / 4.0f, p.y / 4.0f});
+                for (const std::uint32_t i : {0u, 1u, 2u, 0u, 2u, 3u})
+                    g.indices.push_back(base + i);
+            }
+        }
+    }
+    if (winter) {
+        const Model* firs[] = {models.model("prop_fir1:hull"), models.model("prop_fir2:hull"), models.model("prop_fir3:hull")};
+        const Model* birches[] = {models.model("prop_birch1:hull"), models.model("prop_birch2:hull")};
+        const Model* cars[] = {models.model("prop_car1:hull"), models.model("prop_car2:hull")};
+        const Model* lamps[] = {models.model("prop_lamp:hull"), models.model("prop_lamp_off:hull")};
+        const Model* pylon = models.model("prop_pylon:hull");
+        for (const auto& path : map.paths()) {
+            if (path.kind == "road" && path.width >= 1.2f) {
+                float carry = unit(rng) * 9.0f;
+                for (std::size_t k = 0; k + 1 < path.points.size(); ++k) {
+                    const glm::vec2 a = path.points[k];
+                    const glm::vec2 b = path.points[k + 1];
+                    const float len = glm::distance(a, b);
+                    if (len < 1e-3f)
+                        continue;
+                    const glm::vec2 dir = (b - a) / len;
+                    const glm::vec2 side{-dir.y, dir.x};
+                    const float yaw = std::atan2(dir.y, dir.x);
+                    float t = carry;
+                    for (; t < len; t += 9.0f) {
+                        const float s = (static_cast<int>(t) / 9) % 2 ? 1.0f : -1.0f;
+                        const glm::vec2 at = a + dir * t + side * s * (path.width * 0.5f + 0.5f);
+                        if (freeCell(at))
+                            place(lamps[unit(rng) < 0.6f ? 0 : 1], at, 3.0f, true, yaw + (s > 0.0f ? 3.1416f : 0.0f) + kModelYaw);
+                        if (unit(rng) < 0.18f) {
+                            const glm::vec2 car = a + dir * (t + 4.0f) + side * (unit(rng) - 0.5f) * path.width * 0.8f;
+                            if (freeCell(car))
+                                place(cars[unit(rng) < 0.5f ? 0 : 1], car, 1.25f, false, yaw + kModelYaw + (unit(rng) - 0.5f) * 0.8f);
+                        }
+                    }
+                    carry = t - len;
+                }
+            } else if (path.kind == "power") {
+                std::vector<glm::vec3> towers;
+                for (std::size_t k = 0; k + 1 < path.points.size(); ++k) {
+                    const glm::vec2 a = path.points[k];
+                    const glm::vec2 b = path.points[k + 1];
+                    const float len = glm::distance(a, b);
+                    for (float t = 0.0f; t < len; t += 14.0f) {
+                        const glm::vec2 at = a + (b - a) * (t / std::max(len, 1e-3f));
+                        if (!freeCell(at))
+                            continue;
+                        const float yaw = std::atan2(b.y - a.y, b.x - a.x) + 1.5708f;
+                        place(pylon, at, 4.2f, true, yaw);
+                        towers.push_back({at.x, at.y, yaw});
+                    }
+                }
+                if (!pylon || pylon->vertices.empty() || towers.size() < 2)
+                    continue;
+                const float scale = 4.2f / std::max(pylon->max.y, 1.0f);
+                auto& g = merged[{chunkOf(path.points.front()), pylon->texture, pylon->mask}];
+                g.texture = pylon->texture;
+                g.mask = pylon->mask;
+                g.glow = pylon->glow;
+                for (std::size_t k = 0; k + 1 < towers.size(); ++k) {
+                    if (glm::distance(glm::vec2(towers[k]), glm::vec2(towers[k + 1])) > 20.0f)
+                        continue;
+                    for (const float off : {-2.4f, 2.4f, -1.6f, 1.6f}) {
+                        const float hgt = (std::abs(off) > 2.0f ? 5.25f : 6.45f) * scale;
+                        auto end = [&](const glm::vec3& t) {
+                            return glm::vec3(t.x + std::cos(t.z) * off * scale, hgt, t.y + std::sin(t.z) * off * scale);
+                        };
+                        const glm::vec3 p0 = end(towers[k]);
+                        const glm::vec3 p1 = end(towers[k + 1]);
+                        constexpr int kSeg = 6;
+                        auto at = [&](int i) {
+                            const float t = static_cast<float>(i) / kSeg;
+                            glm::vec3 q = glm::mix(p0, p1, t);
+                            q.y -= 4.0f * t * (1.0f - t) * 0.6f;
+                            return q;
+                        };
+                        for (int s = 0; s < kSeg; ++s) {
+                            const glm::vec3 q0 = at(s);
+                            const glm::vec3 q1 = at(s + 1);
+                            const auto base = static_cast<std::uint32_t>(g.vertices.size());
+                            const glm::vec3 up{0.0f, 0.03f, 0.0f};
+                            for (const glm::vec3 v : {q0 - up, q1 - up, q1 + up, q0 + up})
+                                g.vertices.push_back({v.x, v.y, v.z, 0.0f, 1.0f, 0.0f, 0.06f, 0.12f});
+                            for (const std::uint32_t i : {0u, 1u, 2u, 0u, 2u, 3u})
+                                g.indices.push_back(base + i);
+                        }
+                    }
+                }
+            }
+        }
+        std::vector<std::uint8_t> sparse(static_cast<std::size_t>(w * h), 0);
+        for (const auto& area : map.areas()) {
+            if (area.kind != "scrub" && area.kind != "park" && area.kind != "cemetery")
+                continue;
+            glm::vec2 lo = area.poly[0], hi = area.poly[0];
+            for (const auto p : area.poly) {
+                lo = glm::min(lo, p);
+                hi = glm::max(hi, p);
+            }
+            for (int y = std::max(0, static_cast<int>(lo.y)); y <= std::min(h - 1, static_cast<int>(hi.y)); ++y)
+                for (int x = std::max(0, static_cast<int>(lo.x)); x <= std::min(w - 1, static_cast<int>(hi.x)); ++x)
+                    if (pointInPolygon(Map::center({x, y}), area.poly))
+                        sparse[static_cast<std::size_t>(y * w + x)] = 1;
+        }
+        for (int y = 0; y < h; ++y)
+            for (int x = 0; x < w; ++x) {
+                const auto kind = map.cellKind(x, y);
+                const glm::vec2 at{static_cast<float>(x) + 0.2f + unit(rng) * 0.6f, static_cast<float>(y) + 0.2f + unit(rng) * 0.6f};
+                const float roll = unit(rng);
+                const auto vi = static_cast<std::size_t>(y * out.columns + x);
+                if (kind == CellKind::Forest || (kind == CellKind::Rock && cellDist(x, y) >= 1)) {
+                    if (roll < 0.5f)
+                        place(firs[static_cast<std::size_t>(unit(rng) * 2.99f)], at, 3.0f + unit(rng) * 2.2f, true);
+                    else if (roll < 0.7f)
+                        place(birches[static_cast<std::size_t>(unit(rng) * 1.99f)], at, 2.8f + unit(rng) * 1.6f, true);
+                } else if (kind == CellKind::Open && roadPaint[vi] < 0.1f) {
+                    const bool near = sparse[static_cast<std::size_t>(y * w + x)] != 0;
+                    const float forest = fbm(static_cast<float>(x) * 0.06f, static_cast<float>(y) * 0.06f, seed + 7u);
+                    const float chance = near ? 0.06f : 0.002f + std::max(0.0f, forest - 0.6f) * 0.08f;
+                    if (roll < chance)
+                        place(unit(rng) < 0.6f ? birches[static_cast<std::size_t>(unit(rng) * 1.99f)] : firs[static_cast<std::size_t>(unit(rng) * 2.99f)], at,
+                              2.4f + unit(rng) * 2.0f, true);
+                    else if (roll > 0.9993f)
+                        place(wreck, at, 1.6f + unit(rng) * 0.6f, false);
+                }
+            }
+    }
+    for (int y = 0; y < h && !winter; ++y)
         for (int x = 0; x < w; ++x) {
             const int d = cellDist(x, y);
             if (d < 2)

@@ -182,4 +182,37 @@ void App::onUnitDeath(const net::UnitDeath& d) {
     spawnExplosion({d.pos.x, lift, d.pos.y}, def.radius * 2.0f, def.structure, d.team == 1, hull);
 }
 
+void App::updateSnow(float dt) {
+    if (!map_ || map_->theme() != "winter") {
+        snow_.clear();
+        return;
+    }
+    const float r = std::clamp(camera_.distance * 0.9f, 20.0f, 70.0f);
+    const auto target = static_cast<std::size_t>(static_cast<float>(kFxDensity * 900.0f) * (r / 45.0f));
+    const glm::vec2 c = camera_.target;
+    while (snow_.size() < target)
+        snow_.push_back({c.x + fxRandom(-r, r), fxRandom(0.0f, 20.0f), c.y + fxRandom(-r, r), fxRandom(1.2f, 2.4f)});
+    if (snow_.size() > target)
+        snow_.resize(target);
+    const float t = static_cast<float>(now_);
+    const glm::vec2 wind{0.9f + 0.5f * std::sin(t * 0.21f), 0.35f};
+    for (auto& f : snow_) {
+        f.y -= f.w * dt;
+        f.x += (wind.x + std::sin(t * 1.3f + f.w * 7.0f) * 0.4f) * dt;
+        f.z += (wind.y + std::cos(t * 1.1f + f.w * 5.0f) * 0.3f) * dt;
+        if (f.y < 0.0f || std::abs(f.x - c.x) > r || std::abs(f.z - c.y) > r) {
+            f.x = c.x + fxRandom(-r, r);
+            f.z = c.y + fxRandom(-r, r);
+            f.y = f.y < 0.0f ? 20.0f : fxRandom(0.0f, 20.0f);
+        }
+    }
+}
+
+void App::renderSnow() {
+    for (const auto& f : snow_) {
+        const float size = 0.05f + 0.035f * (f.w - 1.2f);
+        renderer_.draw(Mesh::Cube, {f.x, f.y, f.z}, glm::vec3(size), f.w * 3.0f, {0.92f, 0.94f, 0.98f, 1.0f}, Unlit | NoShadow);
+    }
+}
+
 }

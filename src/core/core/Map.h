@@ -43,6 +43,27 @@ struct SpawnerDef {
     std::string building;
 };
 
+enum class CellKind : std::uint8_t { Open, Rock, Building, Forest };
+
+struct BuildingDef {
+    std::vector<glm::vec2> poly;
+    int levels = 5;
+    std::string kind;
+};
+
+struct AreaDef {
+    std::string kind;
+    std::vector<glm::vec2> poly;
+};
+
+struct PathDef {
+    std::string kind;
+    float width = 1.0f;
+    std::vector<glm::vec2> points;
+};
+
+bool pointInPolygon(glm::vec2 p, const std::vector<glm::vec2>& poly);
+
 struct PlayerStart {
     glm::vec2 pos{};
     std::vector<std::string> units;
@@ -97,6 +118,8 @@ public:
 
     void addWall(const Rect& r);
     void setBlocked(int x, int y, bool blocked) { cells_[static_cast<std::size_t>(index(x, y))] = blocked ? 1 : 0; }
+    CellKind cellKind(int x, int y) const { return inside(x, y) ? static_cast<CellKind>(cells_[index(x, y)]) : CellKind::Rock; }
+    void fill(const std::vector<glm::vec2>& poly, CellKind kind);
 
     static glm::ivec2 cellOf(glm::vec2 p) { return {static_cast<int>(std::floor(p.x)), static_cast<int>(std::floor(p.y))}; }
     static glm::vec2 center(glm::ivec2 c) { return glm::vec2(c) + 0.5f; }
@@ -108,6 +131,10 @@ public:
     const PlayerStart& playerStart() const { return playerStart_; }
     const std::vector<ResourcePointDef>& resourcePoints() const { return resourcePoints_; }
     const DefenseDef& defense() const { return defense_; }
+    const std::string& theme() const { return theme_; }
+    const std::vector<BuildingDef>& buildings() const { return buildings_; }
+    const std::vector<AreaDef>& areas() const { return areas_; }
+    const std::vector<PathDef>& paths() const { return paths_; }
     int laneIndex(std::string_view name) const;
 
 private:
@@ -124,6 +151,10 @@ private:
     PlayerStart playerStart_;
     std::vector<ResourcePointDef> resourcePoints_;
     DefenseDef defense_;
+    std::string theme_;
+    std::vector<BuildingDef> buildings_;
+    std::vector<AreaDef> areas_;
+    std::vector<PathDef> paths_;
     std::uint64_t hash_ = 0;
 };
 

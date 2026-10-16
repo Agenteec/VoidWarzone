@@ -7,6 +7,12 @@
       "description": "Four long parallel lanes, fortified bases with factories, generators and labs. The main map."
     },
     {
+      "id": "voronezh_shilovo",
+      "name": "Voronezh: Shilovo",
+      "players": "1-8",
+      "description": "Winter. The panel blocks of Shilovo on the southern edge of Voronezh; the Void portal opened on the ruins of the unfinished nuclear heating plant. Map data © OpenStreetMap contributors (ODbL)."
+    },
+    {
       "id": "siege_test",
       "name": "Proving Grounds",
       "players": "1-4",

@@ -1,0 +1,655 @@
+{
+ "origin": [
+  51.57685,
+  39.1162
+ ],
+ "cell": 6,
+ "width": 512,
+ "height": 352,
+ "osm": "voronezh_shilovo.osm.json",
+ "output": "data/maps/voronezh_shilovo.json",
+ "map": {
+  "name": "Voronezh: Shilovo",
+  "theme": "winter",
+  "playerStart": {
+   "pos": [
+    46,
+    100
+   ],
+   "units": [
+    "tank",
+    "tank",
+    "scout",
+    "scout",
+    "engineer"
+   ]
+  },
+  "units": [
+   {
+    "unit": "core",
+    "role": "core",
+    "team": 0,
+    "pos": [
+     24,
+     100
+    ]
+   },
+   {
+    "unit": "portal",
+    "role": "portal",
+    "team": 1,
+    "pos": [
+     378,
+     282
+    ]
+   },
+   {
+    "unit": "void_pylon",
+    "team": 1,
+    "pos": [
+     366,
+     272
+    ]
+   },
+   {
+    "unit": "void_pylon",
+    "team": 1,
+    "pos": [
+     392,
+     274
+    ]
+   },
+   {
+    "unit": "void_pylon",
+    "team": 1,
+    "pos": [
+     380,
+     298
+    ]
+   },
+   {
+    "unit": "generator",
+    "team": 0,
+    "pos": [
+     14,
+     78
+    ]
+   },
+   {
+    "unit": "lab",
+    "team": 0,
+    "pos": [
+     14,
+     122
+    ]
+   },
+   {
+    "unit": "cannon_tower",
+    "team": 0,
+    "pos": [
+     36,
+     88
+    ]
+   },
+   {
+    "unit": "cannon_tower",
+    "team": 0,
+    "pos": [
+     36,
+     112
+    ]
+   },
+   {
+    "unit": "void_citadel",
+    "team": 1,
+    "pos": [
+     360,
+     290
+    ]
+   },
+   {
+    "unit": "void_citadel",
+    "team": 1,
+    "pos": [
+     396,
+     290
+    ]
+   },
+   {
+    "unit": "void_generator",
+    "team": 1,
+    "pos": [
+     410,
+     262
+    ]
+   },
+   {
+    "unit": "void_lab",
+    "team": 1,
+    "pos": [
+     404,
+     306
+    ]
+   },
+   {
+    "unit": "factory",
+    "team": 0,
+    "pos": [
+     70,
+     40
+    ],
+    "tag": "factory_north"
+   },
+   {
+    "unit": "void_factory",
+    "team": 1,
+    "pos": [
+     352,
+     236
+    ],
+    "tag": "void_factory_north"
+   },
+   {
+    "unit": "factory",
+    "team": 0,
+    "pos": [
+     64,
+     150
+    ],
+    "tag": "factory_center"
+   },
+   {
+    "unit": "void_factory",
+    "team": 1,
+    "pos": [
+     330,
+     268
+    ],
+    "tag": "void_factory_center"
+   },
+   {
+    "unit": "factory",
+    "team": 0,
+    "pos": [
+     52,
+     206
+    ],
+    "tag": "factory_south"
+   },
+   {
+    "unit": "void_factory",
+    "team": 1,
+    "pos": [
+     352,
+     318
+    ],
+    "tag": "void_factory_south"
+   }
+  ],
+  "spawners": [
+   {
+    "unit": "creep_melee",
+    "team": 0,
+    "lane": "north",
+    "interval": 30,
+    "delay": 5,
+    "count": 3,
+    "offset": 6,
+    "building": "factory_north"
+   },
+   {
+    "unit": "creep_ranged",
+    "team": 0,
+    "lane": "north",
+    "interval": 30,
+    "delay": 6,
+    "count": 2,
+    "offset": 6,
+    "building": "factory_north"
+   },
+   {
+    "unit": "void_melee",
+    "team": 1,
+    "lane": "north",
+    "interval": 40,
+    "delay": 30,
+    "count": 2,
+    "offset": 8,
+    "building": "void_factory_north"
+   },
+   {
+    "unit": "void_ranged",
+    "team": 1,
+    "lane": "north",
+    "interval": 40,
+    "delay": 31,
+    "count": 1,
+    "offset": 8,
+    "building": "void_factory_north"
+   },
+   {
+    "unit": "creep_melee",
+    "team": 0,
+    "lane": "center",
+    "interval": 30,
+    "delay": 5,
+    "count": 3,
+    "offset": 6,
+    "building": "factory_center"
+   },
+   {
+    "unit": "creep_ranged",
+    "team": 0,
+    "lane": "center",
+    "interval": 30,
+    "delay": 6,
+    "count": 2,
+    "offset": 6,
+    "building": "factory_center"
+   },
+   {
+    "unit": "void_melee",
+    "team": 1,
+    "lane": "center",
+    "interval": 40,
+    "delay": 30,
+    "count": 2,
+    "offset": 8,
+    "building": "void_factory_center"
+   },
+   {
+    "unit": "void_ranged",
+    "team": 1,
+    "lane": "center",
+    "interval": 40,
+    "delay": 31,
+    "count": 1,
+    "offset": 8,
+    "building": "void_factory_center"
+   },
+   {
+    "unit": "creep_melee",
+    "team": 0,
+    "lane": "south",
+    "interval": 30,
+    "delay": 5,
+    "count": 3,
+    "offset": 6,
+    "building": "factory_south"
+   },
+   {
+    "unit": "creep_ranged",
+    "team": 0,
+    "lane": "south",
+    "interval": 30,
+    "delay": 6,
+    "count": 2,
+    "offset": 6,
+    "building": "factory_south"
+   },
+   {
+    "unit": "void_melee",
+    "team": 1,
+    "lane": "south",
+    "interval": 40,
+    "delay": 30,
+    "count": 2,
+    "offset": 8,
+    "building": "void_factory_south"
+   },
+   {
+    "unit": "void_ranged",
+    "team": 1,
+    "lane": "south",
+    "interval": 40,
+    "delay": 31,
+    "count": 1,
+    "offset": 8,
+    "building": "void_factory_south"
+   }
+  ],
+  "resourcePoints": [
+   {
+    "name": "A",
+    "pos": [
+     232,
+     82
+    ],
+    "radius": 3.5,
+    "income": 3
+   },
+   {
+    "name": "B",
+    "pos": [
+     150,
+     108
+    ],
+    "radius": 3.5,
+    "income": 2
+   },
+   {
+    "name": "C",
+    "pos": [
+     180,
+     250
+    ],
+    "radius": 3.5,
+    "income": 2
+   },
+   {
+    "name": "D",
+    "pos": [
+     290,
+     150
+    ],
+    "radius": 4,
+    "income": 5
+   },
+   {
+    "name": "E",
+    "pos": [
+     260,
+     300
+    ],
+    "radius": 3.5,
+    "income": 4
+   }
+  ],
+  "defense": {
+   "firstWaveDelay": 45,
+   "waveInterval": 45,
+   "baseIncome": 2,
+   "startEnergy": 150,
+   "waves": [
+    {
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 3,
+       "lanes": "all"
+      }
+     ]
+    },
+    {
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 3,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 1,
+       "lanes": "all"
+      }
+     ]
+    },
+    {
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 4,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 2,
+       "lanes": "all"
+      }
+     ]
+    },
+    {
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 3,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 2,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_brute",
+       "count": 1,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_melee",
+       "count": 4,
+       "lanes": "raid"
+      }
+     ]
+    },
+    {
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 3,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 2,
+       "lanes": "all"
+      }
+     ],
+     "boss": {
+      "unit": "void_warden",
+      "lane": "center"
+     }
+    },
+    {
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 4,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 3,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_brute",
+       "count": 1,
+       "lanes": "all"
+      }
+     ]
+    },
+    {
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 4,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 3,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_brute",
+       "count": 2,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_melee",
+       "count": 4,
+       "lanes": "raid"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 2,
+       "lanes": "raid"
+      }
+     ]
+    },
+    {
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 5,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 3,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_brute",
+       "count": 2,
+       "lanes": "all"
+      }
+     ]
+    },
+    {
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 5,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 4,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_brute",
+       "count": 3,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_brute",
+       "count": 2,
+       "lanes": "raid"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 3,
+       "lanes": "raid"
+      }
+     ]
+    },
+    {
+     "delay": 50,
+     "groups": [
+      {
+       "unit": "void_melee",
+       "count": 4,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_ranged",
+       "count": 3,
+       "lanes": "all"
+      },
+      {
+       "unit": "void_brute",
+       "count": 2,
+       "lanes": "all"
+      }
+     ],
+     "boss": {
+      "unit": "void_titan",
+      "lane": "south"
+     }
+    }
+   ]
+  }
+ },
+ "routes": [
+  {
+   "name": "north",
+   "via": [
+    [
+     24,
+     100
+    ],
+    [
+     58,
+     57
+    ],
+    [
+     128,
+     12
+    ],
+    [
+     232,
+     105
+    ],
+    [
+     330,
+     175
+    ],
+    [
+     378,
+     282
+    ]
+   ]
+  },
+  {
+   "name": "center",
+   "via": [
+    [
+     24,
+     100
+    ],
+    [
+     58,
+     133
+    ],
+    [
+     150,
+     152
+    ],
+    [
+     262,
+     190
+    ],
+    [
+     300,
+     262
+    ],
+    [
+     378,
+     282
+    ]
+   ]
+  },
+  {
+   "name": "south",
+   "via": [
+    [
+     24,
+     100
+    ],
+    [
+     34,
+     180
+    ],
+    [
+     38,
+     232
+    ],
+    [
+     150,
+     300
+    ],
+    [
+     280,
+     312
+    ],
+    [
+     378,
+     282
+    ]
+   ]
+  }
+ ]
+}

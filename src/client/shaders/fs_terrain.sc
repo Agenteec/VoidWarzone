@@ -20,5 +20,5 @@ void main()
 	vec4 w = v_color0 / max(dot(v_color0, vec4_splat(1.0)), 0.001);
 	vec3 albedo = ground * w.x + dirt * w.y + cliff * w.z + road * w.w;
 	float diffuse = max(dot(n, u_sunDir.xyz), 0.0);
-	gl_FragColor = vec4(shade(albedo, n, diffuse, v_shadowcoord), 1.0);
+	gl_FragColor = vec4(applyFog(shade(albedo, n, diffuse, v_shadowcoord), v_wpos), 1.0);
 }

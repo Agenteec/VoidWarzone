@@ -138,6 +138,8 @@ bool Renderer::init(SDL_Window* window, float scale, const std::string& backend)
     skyColorUniform_ = bgfx::createUniform("u_skyColor", bgfx::UniformType::Vec4);
     shadowParamsUniform_ = bgfx::createUniform("u_shadowParams", bgfx::UniformType::Vec4);
     lightMtxUniform_ = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
+    fogUniform_ = bgfx::createUniform("u_fog", bgfx::UniformType::Vec4);
+    camPosUniform_ = bgfx::createUniform("u_camPos", bgfx::UniformType::Vec4);
     shadowSampler_ = bgfx::createUniform("s_shadow", bgfx::UniformType::Sampler);
     const auto* caps = bgfx::getCaps();
     shadowsSupported_ = bgfx::isValid(shadowProgram_) && bgfx::isValid(shadowTexProgram_) &&
@@ -180,6 +182,9 @@ void Renderer::shutdown() {
     }
     destroyShadowMap();
     for (auto h : {texProgram_, terrainProgram_, shadowProgram_, shadowTexProgram_})
+        if (bgfx::isValid(h))
+            bgfx::destroy(h);
+    for (auto h : {fogUniform_, camPosUniform_})
         if (bgfx::isValid(h))
             bgfx::destroy(h);
     for (auto h : {colorSampler_, maskSampler_, sunDirUniform_, sunColorUniform_, skyColorUniform_, shadowParamsUniform_, lightMtxUniform_,
@@ -306,6 +311,10 @@ void Renderer::bindLighting() {
     bgfx::setUniform(skyColorUniform_, sky);
     bgfx::setUniform(shadowParamsUniform_, shadow);
     bgfx::setUniform(lightMtxUniform_, lightMtx_);
+    const float fog[4] = {lighting_.fog.x, lighting_.fog.y, lighting_.fog.z, lighting_.fog.w};
+    const float cam[4] = {eye_.x, eye_.y, eye_.z, lighting_.snow};
+    bgfx::setUniform(fogUniform_, fog);
+    bgfx::setUniform(camPosUniform_, cam);
     if (bgfx::isValid(shadowTexture_))
         bgfx::setTexture(4, shadowSampler_, shadowTexture_, kShadowSamplerFlags);
 }
@@ -324,6 +333,7 @@ void Renderer::begin(const Camera& camera) {
     bgfx::setViewRect(kWorldView, 0, 0, w, h);
     bgfx::setViewRect(kOverlayView, 0, 0, w, h);
     bgfx::setViewTransform(kWorldView, camera.view(), camera.proj());
+    eye_ = camera.eye();
 
     float ortho[16];
     bx::mtxOrtho(ortho, 0.0f, static_cast<float>(width_), static_cast<float>(height_), 0.0f, -1.0f, 1.0f, 0.0f, homogeneousDepth());

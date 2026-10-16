@@ -178,6 +178,17 @@ void App::applyGraphics() {
     default:
         break;
     }
+    if (map_ && map_->theme() == "winter") {
+        static constexpr glm::vec3 kFog[] = {{0.6f, 0.63f, 0.68f}, {0.34f, 0.32f, 0.38f}, {0.08f, 0.09f, 0.13f}};
+        const int p = std::clamp(lightPreset_, 0, 2);
+        l.sun *= p == 2 ? 0.8f : 0.5f;
+        l.sky = glm::mix(l.sky, kFog[p] * 1.05f, 0.6f);
+        l.sunDir = glm::vec3(l.sunDir.x, std::max(l.sunDir.y, 0.6f), l.sunDir.z);
+        l.fog = glm::vec4(kFog[p], 0.011f);
+        l.snow = 1.0f;
+        const auto byte = [](float v) { return static_cast<std::uint32_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f); };
+        l.clear = byte(kFog[p].x) << 24 | byte(kFog[p].y) << 16 | byte(kFog[p].z) << 8 | 0xffu;
+    }
     renderer_.setLighting(l);
     renderer_.setShadowSize(kShadowSizes[std::clamp(shadowQuality_, 0, 3)]);
 }
@@ -462,6 +473,8 @@ void App::enterGame() {
         mapVisualsHash_ = map_->hash();
     }
     buildMinimap();
+    applyGraphics();
+    snow_.clear();
     selected_.clear();
     effects_.clear();
     shells_.clear();
@@ -511,11 +524,17 @@ void App::buildMinimap() {
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x) {
             const glm::vec2 p = Map::center({x, y});
-            std::uint32_t c = 0xff50606cu;
-            if (map_->blocked(x, y))
+            const bool winter = map_->theme() == "winter";
+            std::uint32_t c = winter ? 0xffcec6c0u : 0xff50606cu;
+            const auto kind = map_->cellKind(x, y);
+            if (kind == CellKind::Building)
+                c = 0xff4c4642u;
+            else if (kind == CellKind::Forest)
+                c = 0xff3e5040u;
+            else if (map_->blocked(x, y))
                 c = ((x * 7 + y * 13) % 5 == 0) ? 0xff282c3au : 0xff242632u;
             else if (nearLane(p))
-                c = 0xff6c7070u;
+                c = winter ? 0xffa09a96u : 0xff6c7070u;
             pixels[static_cast<std::size_t>(y * w + x)] = c;
         }
     minimap_ = renderer_.createTextureRgba(w, h, pixels.data());
@@ -530,6 +549,7 @@ void App::leaveGame(std::string status) {
     host_.reset();
     hostMap_.reset();
     map_.reset();
+    applyGraphics();
     entities_.clear();
     selected_.clear();
     prediction_.clear();
@@ -1115,6 +1135,7 @@ void App::updateGame(float dt) {
     for (const auto& d : net_.takeDeaths())
         onUnitDeath(d);
     updateParticles(dt);
+    updateSnow(dt);
     bannerTime_ = std::max(0.0f, bannerTime_ - dt);
 
     for (auto& [id, s] : shells_)
@@ -1360,6 +1381,7 @@ void App::renderWorld() {
             spawnFrostBurst(shell.last, shell.frostScale);
     std::erase_if(shells_, [](const auto& kv) { return !kv.second.seen; });
     renderParticles();
+    renderSnow();
     renderResourcePoints();
 
     for (const auto& fx : effects_) {
