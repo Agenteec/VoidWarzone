@@ -708,22 +708,60 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                     g.indices.push_back(base + i);
         }
     }
-    for (const auto& area : map.areas()) {
-        if (area.kind != "industrial" || area.poly.size() < 3)
+    std::vector<std::uint8_t> fenced(static_cast<std::size_t>(w * h), 0);
+    auto roadAt = [&](glm::vec2 q) {
+        const int cx = std::clamp(static_cast<int>(q.x), 0, out.columns - 1);
+        const int cy = std::clamp(static_cast<int>(q.y), 0, out.rows - 1);
+        return roadPaint[static_cast<std::size_t>(cy * out.columns + cx)];
+    };
+    for (std::size_t k = 0; k < map.buildings().size(); ++k) {
+        const auto& b = map.buildings()[k];
+        if (b.kind != "industrial" || b.poly.size() < 3 || b.ruin)
             continue;
-        for (std::size_t i = 0; i < area.poly.size(); ++i) {
-            const glm::vec2 a = area.poly[i];
-            const glm::vec2 b = area.poly[(i + 1) % area.poly.size()];
-            const float len = glm::distance(a, b);
-            if (len < 1.0f || unit(rng) < 0.3f)
-                continue;
-            const glm::vec2 d = (b - a) / len;
+        std::size_t longest = 0;
+        for (std::size_t i = 0; i < b.poly.size(); ++i)
+            if (glm::distance(b.poly[i], b.poly[(i + 1) % b.poly.size()]) >
+                glm::distance(b.poly[longest], b.poly[(longest + 1) % b.poly.size()]))
+                longest = i;
+        const glm::vec2 ax = glm::normalize(b.poly[(longest + 1) % b.poly.size()] - b.poly[longest]);
+        const glm::vec2 ay{-ax.y, ax.x};
+        glm::vec2 lo{1e9f}, hi{-1e9f};
+        for (const auto p : b.poly) {
+            const glm::vec2 local{glm::dot(p, ax), glm::dot(p, ay)};
+            lo = glm::min(lo, local);
+            hi = glm::max(hi, local);
+        }
+        lo -= glm::vec2(1.6f);
+        hi += glm::vec2(1.6f);
+        const glm::vec2 corners[4] = {ax * lo.x + ay * lo.y, ax * hi.x + ay * lo.y, ax * hi.x + ay * hi.y, ax * lo.x + ay * hi.y};
+        int gateSide = 0;
+        float gateRoad = -1.0f;
+        for (int side = 0; side < 4; ++side) {
+            const glm::vec2 mid = (corners[side] + corners[(side + 1) % 4]) * 0.5f;
+            const glm::vec2 outward = glm::normalize(mid - (corners[0] + corners[2]) * 0.5f);
+            const float r = std::max(roadAt(mid + outward * 1.5f), roadAt(mid + outward * 3.0f));
+            if (r > gateRoad) {
+                gateRoad = r;
+                gateSide = side;
+            }
+        }
+        for (int side = 0; side < 4; ++side) {
+            const glm::vec2 a = corners[side];
+            const glm::vec2 c = corners[(side + 1) % 4];
+            const float len = glm::distance(a, c);
+            const int panels = std::max(1, static_cast<int>(std::round(len / 1.03f)));
+            const glm::vec2 d = (c - a) / len;
             const float yaw = std::fmod(-std::atan2(d.y, d.x) + 1.5708f + 6.2832f, 6.2832f);
-            for (float t = 0.55f; t < len - 0.5f; t += 1.1f) {
-                const glm::vec2 q = a + d * t;
+            for (int i = 0; i < panels; ++i) {
+                if (side == gateSide && std::abs(static_cast<float>(i) - static_cast<float>(panels - 1) * 0.5f) < 1.1f)
+                    continue;
+                const glm::vec2 q = a + d * ((static_cast<float>(i) + 0.5f) * len / static_cast<float>(panels));
                 const int cx = static_cast<int>(q.x);
                 const int cy = static_cast<int>(q.y);
-                if (!map.inside(cx, cy) || !freeCell(q) || roadPaint[static_cast<std::size_t>(cy * out.columns + cx)] > 0.05f || unit(rng) < 0.12f)
+                if (!map.inside(cx, cy) || !freeCell(q) || roadAt(q) > 0.05f || fenced[static_cast<std::size_t>(cy * w + cx)])
+                    continue;
+                fenced[static_cast<std::size_t>(cy * w + cx)] = 1;
+                if (unit(rng) < 0.06f)
                     continue;
                 placeProp("prop_fence", q, yaw);
             }

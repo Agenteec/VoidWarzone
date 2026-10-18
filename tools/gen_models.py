@@ -15,7 +15,9 @@ import sys
 
 from PIL import Image, ImageDraw
 
-CELL = 64
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+CELL = 128
 GRID = 8
 ROWS = 6
 
@@ -68,30 +70,113 @@ MATERIALS = [
 MAT = {m[0]: i for i, m in enumerate(MATERIALS)}
 
 
+def material_detail(name, size, seed):
+    """Grayscale-ish detail multiplier (around 1.0) plus an optional colour overlay for one palette cell."""
+    import numpy as np
+    from texlib import cell_ids, fbm, ridged, worley
+    yy, xx = np.mgrid[0:size, 0:size] / size
+    fine = fbm(seed, 16, 3, size=size)
+    base = fbm(seed + 1, 4, 4, size=size)
+    k = 0.9 + 0.2 * (base * 0.6 + fine * 0.4)
+    over = None
+    if name.startswith("concrete") or name in ("rock", "rock_dark", "bone"):
+        cracks = worley(seed + 2, 6, size=size, second=True)
+        k = k * np.where(cracks < 0.03, 0.72, 1.0)
+        pores = np.random.default_rng(seed).random((size, size)) < 0.01
+        k = np.where(pores, k * 0.75, k)
+        k = k * (1.0 - 0.18 * np.clip(fbm(seed + 3, 2, 3, size=size) * yy * 1.6 - 0.5, 0, 1))
+    elif name in ("steel", "graphite", "graphite_dark", "team", "team_dark", "paint_old", "paint_red", "paint_white", "paint_blue"):
+        k = 0.95 + 0.08 * fine
+        rnd = np.random.default_rng(seed)
+        for _ in range(int(size * 0.12)):
+            x0, y0 = rnd.integers(0, size, 2)
+            length = rnd.integers(size // 10, size // 3)
+            ang = rnd.uniform(0, np.pi)
+            for t in range(length):
+                x = int(x0 + np.cos(ang) * t) % size
+                y = int(y0 + np.sin(ang) * t) % size
+                k[y, x] *= 1.18
+        if name.startswith("paint"):
+            rust = np.clip((fbm(seed + 4, 6, 4, size=size) - 0.62) * 4.0, 0, 1)
+            over = ((118, 64, 36), rust * 0.6)
+        if name.startswith("team"):
+            k = np.where((np.arange(size)[None, :] % (size // 4)) < 2, k * 0.85, k)
+    elif name.startswith("container"):
+        ribs = 0.88 + 0.12 * np.sin(xx * np.pi * 2 * 14)
+        k = k * ribs
+        rust = np.clip((fbm(seed + 4, 6, 4, size=size) - 0.6) * 4.0, 0, 1) * (0.4 + yy)
+        over = ((120, 66, 38), np.clip(rust, 0, 1) * 0.7)
+    elif name in ("rust", "rust_light"):
+        k = 0.8 + 0.4 * ridged(seed + 5, 8, 3, size=size)
+        pits = worley(seed + 6, 14, size=size) < 0.12
+        k = np.where(pits, k * 0.7, k)
+    elif name == "hazard":
+        stripe = ((xx + yy) * 6.0) % 1.0 < 0.5
+        over = ((30, 30, 30), np.where(stripe, 1.0, 0.0) * 0.9)
+    elif name in ("wood", "bark"):
+        grain = 0.85 + 0.15 * np.sin((xx * 40 + fbm(seed + 7, 4, 3, size=size) * 8))
+        planks = (np.arange(size)[:, None] % (size // 4)) < 2
+        k = grain * np.where(planks, 0.6, 1.0)
+    elif name == "sandbag":
+        cell = cell_ids(seed + 8, 5, size=size)
+        edge = worley(seed + 8, 5, size=size, second=True)
+        k = (0.85 + 0.25 * cell) * np.where(edge < 0.06, 0.65, 1.0) * (0.92 + 0.12 * fine)
+    elif name == "brick":
+        rows = (np.arange(size)[:, None] % (size // 8)) < 2
+        shift = ((np.arange(size)[:, None] // (size // 8)) % 2) * (size // 8)
+        cols = ((np.arange(size)[None, :] + shift) % (size // 4)) < 2
+        k = np.where(rows | cols, 1.25, 0.85 + 0.25 * cell_ids(seed + 9, 12, size=size))
+    elif name in ("rubber", "trash", "charred"):
+        k = 0.75 + 0.5 * fbm(seed + 10, 12, 3, size=size)
+        if name == "charred":
+            over = ((10, 10, 10), np.clip(base * 1.4 - 0.4, 0, 1) * 0.6)
+    elif name == "snow":
+        k = 0.96 + 0.06 * fine
+        sparkle = np.random.default_rng(seed).random((size, size)) < 0.006
+        k = np.where(sparkle, 1.12, k)
+    elif name in ("glass", "glass_dark"):
+        streak = np.clip(1.0 - np.abs((xx + yy * 0.6) % 0.7 - 0.2) * 8.0, 0, 1)
+        k = 0.85 + 0.35 * streak + 0.05 * fine
+    elif name in ("fir", "fir_dark", "moss"):
+        k = 0.75 + 0.5 * ridged(seed + 11, 16, 3, size=size)
+    elif name.startswith("void") and name not in ("void_crystal", "void_vein"):
+        veins = ridged(seed + 12, 4, 4, size=size) > 0.92
+        over = ((160, 60, 200), np.where(veins, 0.6, 0.0))
+    elif name == "birch":
+        marks = (fbm(seed + 13, 8, 3, size=size) > 0.66) & ((np.arange(size)[:, None] % 9) < 3)
+        k = np.where(marks, 0.35, 0.95 + 0.08 * fine)
+    return k, over
+
+
 def palette():
-    rnd = random.Random(7)
-    color = Image.new("RGBA", (CELL * GRID, CELL * ROWS))
+    import numpy as np
+    color = np.zeros((CELL * ROWS, CELL * GRID, 4), dtype=np.uint8)
+    color[..., 3] = 255
     mask = Image.new("RGBA", (CELL * GRID, CELL * ROWS), (0, 0, 0, 255))
-    px = color.load()
-    for i, (_, rgb, team, glow) in enumerate(MATERIALS):
+    idx = np.arange(CELL)
+    edge = np.minimum(np.minimum(idx[:, None], idx[None, :]), np.minimum(CELL - 1 - idx[:, None], CELL - 1 - idx[None, :]))
+    bevel = np.where(edge < CELL // 32, 0.62, np.where(edge < CELL // 12, 1.1, 1.0))
+    for i, (name, rgb, team, glow) in enumerate(MATERIALS):
         cx, cy = (i % GRID) * CELL, (i // GRID) * CELL
-        for y in range(CELL):
-            for x in range(CELL):
-                edge = min(x, y, CELL - 1 - x, CELL - 1 - y)
-                k = 1.0 + rnd.uniform(-0.05, 0.05)
-                if edge < 3:
-                    k *= 0.62
-                elif edge < 6:
-                    k *= 1.12
-                if glow and edge >= 6:
-                    k = 1.0 + rnd.uniform(-0.02, 0.02)
-                px[cx + x, cy + y] = tuple(max(0, min(255, int(c * k))) for c in rgb) + (255,)
+        if glow and name not in ("glass",):
+            k = np.ones((CELL, CELL)) * 1.0
+            over = None
+        else:
+            k, over = material_detail(name, CELL, 100 + i * 17)
+        cell = np.array(rgb, dtype=np.float64)[None, None, :] * k[..., None]
+        if over is not None:
+            ocol, amount = over
+            a = np.clip(amount, 0, 1)[..., None]
+            cell = cell * (1 - a) + np.array(ocol, dtype=np.float64) * a
+        cell = cell * bevel[..., None]
+        color[cy:cy + CELL, cx:cx + CELL, :3] = np.clip(cell, 0, 255).astype(np.uint8)
         ImageDraw.Draw(mask).rectangle([cx, cy, cx + CELL - 1, cy + CELL - 1], fill=(team, glow, 0, 255))
+
     def png(img):
         b = io.BytesIO()
         img.save(b, "PNG", optimize=True)
         return b.getvalue()
-    return png(color), png(mask)
+    return png(Image.fromarray(color, "RGBA")), png(mask)
 
 
 class Mesh:

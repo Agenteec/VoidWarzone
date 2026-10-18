@@ -148,6 +148,38 @@ def panel():
     return img, mask
 
 
+def soot(img, mask, rnd, plumes):
+    """Burnt flats: black soot plumes rising from broken windows."""
+    rgb = np.array(img, dtype=np.float64)
+    m = np.array(mask)
+    yy, xx = np.mgrid[0:T, 0:T]
+    noise = fbm(int(rnd.integers(0, 10000)), 8, 4)
+    for _ in range(plumes):
+        bx, fy = int(rnd.integers(0, 8)), int(rnd.integers(1, 8))
+        cx = bx * CELL + CELL / 2
+        y0 = fy * CELL + CELL * 0.7
+        h = CELL * rnd.uniform(1.6, 3.0)
+        t = np.clip((y0 - yy) / h, 0, 1)
+        width = CELL * (0.32 + 0.55 * t)
+        inside = (yy <= y0) & (yy >= y0 - h) & (np.abs(xx - cx + (noise - 0.5) * CELL * 0.5) < width)
+        dark = np.where(inside, np.clip((1.0 - t) ** 0.5 * (0.75 + 0.5 * noise), 0, 1), 0.0)
+        rgb = rgb * (1.0 - dark[..., None] * 0.92) + np.array([14, 12, 12]) * dark[..., None] * 0.92
+        wy0, wx0 = int(fy * CELL + CELL * 0.22), int(bx * CELL + CELL * 0.25)
+        rgb[wy0:wy0 + int(CELL * 0.48), wx0:wx0 + int(CELL * 0.5)] = (10, 9, 9)
+        m[wy0:wy0 + int(CELL * 0.48), wx0:wx0 + int(CELL * 0.5)] = 0
+    return to_img(rgb), Image.fromarray(m)
+
+
+def panel_burnt():
+    img, mask = panel()
+    return soot(img, mask, np.random.default_rng(391), 7)
+
+
+def brick_burnt():
+    img, mask = brick()
+    return soot(img, mask, np.random.default_rng(392), 6)
+
+
 def ruin():
     rnd = np.random.default_rng(305)
     rgb = concrete(306, [(0.0, (92, 90, 86)), (0.5, (118, 114, 108)), (1.0, (138, 134, 126))])
@@ -275,7 +307,7 @@ def main():
     os.makedirs(city, exist_ok=True)
     for name, fn in (("ground", winter_ground), ("soil", winter_soil), ("cliff", winter_cliff), ("road", winter_road)):
         save(os.path.join(terrain, name + ".png"), fn())
-    for name, fn in (("panel", panel), ("ruin", ruin), ("brick", brick), ("industrial", industrial), ("house", house), ("garage", garage),
+    for name, fn in (("panel", panel), ("panel_burnt", panel_burnt), ("brick_burnt", brick_burnt), ("ruin", ruin), ("brick", brick), ("industrial", industrial), ("house", house), ("garage", garage),
                      ("roof", roof), ("slate", slate), ("rubble", rubble)):
         img, mask = fn()
         img.save(os.path.join(city, name + ".png"), optimize=True)

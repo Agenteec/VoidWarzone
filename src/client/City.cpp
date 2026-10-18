@@ -58,7 +58,7 @@ Facade wallFacade(const std::string& kind) {
 }
 
 const char* facadeName(Facade f) {
-    static constexpr const char* kNames[] = {"panel", "brick", "industrial", "house", "roof", "slate", "ruin", "garage", "rubble"};
+    static constexpr const char* kNames[] = {"panel", "brick", "industrial", "house", "roof", "slate", "ruin", "garage", "rubble", "panel_burnt", "brick_burnt"};
     return kNames[static_cast<std::size_t>(f)];
 }
 
@@ -235,7 +235,13 @@ void extrudeBuilding(const BuildingDef& b, std::uint32_t seed, std::array<MeshDa
     const float storey = top / static_cast<float>(std::max(b.levels, 1));
     const float ou = static_cast<float>(seed % 8u) / kTile;
     const float ov = static_cast<float>((seed / 8u) % 8u) / kTile;
-    const Facade wall = b.ruin ? Facade::Ruin : wallFacade(b.kind);
+    Facade wall = b.ruin ? Facade::Ruin : wallFacade(b.kind);
+    if (!b.ruin && (seed >> 11) % 100u < 35u) {
+        if (wall == Facade::Panel)
+            wall = Facade::PanelBurnt;
+        else if (wall == Facade::Brick)
+            wall = Facade::BrickBurnt;
+    }
     auto& walls = out[static_cast<std::size_t>(wall)];
     const float orient = signedArea(poly) >= 0.0f ? 1.0f : -1.0f;
     const float phase = static_cast<float>(seed % 997u) * 0.37f;
