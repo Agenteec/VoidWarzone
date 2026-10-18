@@ -749,10 +749,10 @@ def birch(seed):
     return {"hull": (m, (0, 0, 0))}, {}
 
 
-def old_car(seed):
+def old_car(seed, paint_name=None):
     rnd = random.Random(seed)
     m = Mesh()
-    paint = MAT["paint_old"] if seed % 2 else MAT["rust"]
+    paint = MAT[paint_name] if paint_name else (MAT["paint_old"] if seed % 2 else MAT["rust"])
     m.box((0, 0.42, 0), (1.0, 0.42, 2.3), paint, top=(1.0, 0.96))
     m.box((0, 0.8, 0.12), (0.92, 0.36, 1.1), paint, top=(0.86, 0.8), sides={"front": MAT["glass"], "back": MAT["glass"]})
     m.box((0, 1.0, 0.12), (0.8, 0.06, 0.9), MAT["snow"])
@@ -764,6 +764,107 @@ def old_car(seed):
     m.box((0, 0.36, -1.17), (0.9, 0.12, 0.05), MAT["steel"])
     if rnd.random() < 0.5:
         m.box((0.3, 0.06, 0.9), (0.6, 0.12, 0.8), MAT["snow"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def burnt_car(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    m.box((0, 0.3, 0), (1.0, 0.36, 2.3), MAT["charred"], top=(1.0, 0.96), sides={"left": MAT["rust"]})
+    m.box((0, 0.62, 0.12), (0.9, 0.3, 1.1), MAT["charred"], top=(0.8, 0.7), sides={"front": MAT["trash"], "back": MAT["trash"]})
+    m.box((0.1, 0.8, 0.1), (0.5, 0.05, 0.6), MAT["snow"])
+    for x in (-0.48, 0.48):
+        for z in (-0.72, 0.72):
+            m.box((x, 0.08, z), (0.14, 0.12, 0.3), MAT["rust"])
+    m.box((0, 0.3, -1.25), (0.8, 0.3, 0.3), MAT["rust"], top=(0.6, 0.6), shift=(0.1, -0.05))
+    if rnd.random() < 0.5:
+        m.box((0.6, 0.05, 0.4), (0.5, 0.08, 0.7), MAT["charred"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def tank_wreck(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    for sx in (-1, 1):
+        m.box((sx * 0.68, 0.28, 0.0), (0.42, 0.5, 2.4), MAT["charred"], top=(1.0, 0.9))
+        for z in (-0.8, -0.25, 0.3, 0.85):
+            m.cyl((sx * 0.9, 0.26, z), 0.2, 0.04, MAT["rust"], n=8, axis="x")
+    m.box((0.0, 0.62, 0.1), (1.3, 0.42, 1.9), MAT["rust"], top=(0.9, 0.8), shift=(0.0, 0.1), sides={"left": MAT["charred"]})
+    m.box((0.0, 0.85, 0.2), (1.0, 0.05, 1.2), MAT["snow"], top=(0.8, 0.8))
+    tx, tz = rnd.uniform(0.9, 1.3), rnd.uniform(-0.8, 0.8)
+    m.box((tx, 0.25, tz), (0.9, 0.45, 1.0), MAT["charred"], top=(0.75, 0.75))
+    m.box((tx, 0.5, tz), (0.7, 0.05, 0.8), MAT["snow"])
+    m.strut((tx, 0.3, tz - 0.4), (tx + 0.3, 0.12, tz - 1.6), 0.07, MAT["graphite_dark"])
+    m.strut((0.0, 0.9, -0.3), (0.0, 1.5, -0.15), 0.12, MAT["charred"])
+    for k in range(3):
+        m.box((rnd.uniform(-1.4, 1.6), 0.05, rnd.uniform(-1.5, 1.5)), (0.3, 0.08, 0.5), MAT["rust"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def bus_wreck(burnt):
+    m = Mesh()
+    body = MAT["charred"] if burnt else MAT["paint_old"]
+    m.box((0, 0.95, 0), (1.25, 1.3, 5.2), body, top=(0.97, 0.98), sides={"left": MAT["glass_dark"], "right": MAT["glass_dark"]})
+    m.box((0, 1.25, 0), (1.3, 0.3, 5.0), MAT["trash"] if burnt else MAT["paint_white"])
+    m.box((0, 1.64, 0), (1.15, 0.06, 4.9), MAT["snow"])
+    for x in (-0.55, 0.55):
+        for z in (-1.8, 1.8):
+            m.cyl((x, 0.28, z), 0.28, 0.2, MAT["rubber"] if not burnt else MAT["rust"], n=8, axis="x")
+    m.box((0, 0.9, -2.62), (1.1, 0.8, 0.05), MAT["glass_dark"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def truck_wreck():
+    m = Mesh()
+    raider_wheels(m, 1.4, 0.7, 0.38)
+    m.box((0, 0.65, 0), (1.3, 0.3, 3.2), MAT["charred"])
+    m.box((0, 1.1, 1.15), (1.25, 0.75, 0.9), MAT["rust"], top=(0.92, 0.85), sides={"front": MAT["trash"]})
+    m.box((0, 1.15, -0.55), (1.3, 0.9, 2.1), MAT["container_green"], top=(1, 1), sides={"right": MAT["rust"]})
+    m.box((0, 1.62, -0.55), (1.2, 0.05, 2.0), MAT["snow"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def hedgehog():
+    m = Mesh()
+    for a, b in (((-0.6, 0.05, -0.6), (0.6, 1.1, 0.6)), ((0.6, 0.05, -0.6), (-0.6, 1.1, 0.6)), ((0.0, 0.05, -0.8), (0.0, 1.1, 0.8))):
+        m.strut(a, b, 0.07, MAT["rust"])
+    m.box((0, 0.62, 0), (0.25, 0.04, 0.25), MAT["snow"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def barricade():
+    m = Mesh()
+    m.box((-0.9, 0.35, 0), (1.4, 0.7, 0.7), MAT["concrete_light"], top=(0.9, 0.8))
+    for k in range(5):
+        m.box((0.4 + k * 0.32, 0.15, 0.05), (0.34, 0.26, 0.5), MAT["sandbag"], top=(0.9, 0.85))
+    for k in range(3):
+        m.box((0.55 + k * 0.4, 0.4, 0.05), (0.38, 0.24, 0.5), MAT["sandbag"], top=(0.9, 0.85))
+    m.box((-0.9, 0.72, 0), (1.3, 0.05, 0.6), MAT["snow"])
+    m.strut((1.6, 0.0, -0.3), (2.1, 0.9, 0.1), 0.05, MAT["rust"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def fence_panel():
+    m = Mesh()
+    m.box((0, 0.6, 0), (2.0, 1.2, 0.08), MAT["concrete_light"], top=(1, 1))
+    for z in (-0.045, 0.045):
+        for k in range(3):
+            m.box((-0.6 + k * 0.6, 0.6, z), (0.32, 0.32, 0.02), MAT["concrete_dark"], top=(0.2, 0.2))
+    m.box((1.0, 0.65, 0), (0.14, 1.3, 0.14), MAT["concrete_dark"])
+    m.box((0, 1.22, 0), (2.0, 0.04, 0.12), MAT["snow"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def crater_debris(seed):
+    rnd = random.Random(seed)
+    m = Mesh()
+    for k in range(10):
+        a = 2 * math.pi * k / 10 + rnd.uniform(-0.2, 0.2)
+        r = rnd.uniform(0.9, 1.2)
+        m.box((math.cos(a) * r, 0.08, math.sin(a) * r), (0.5, rnd.uniform(0.1, 0.25), 0.4), MAT["rock_dark"] if k % 2 else MAT["charred"],
+              top=(0.6, 0.6))
+    for k in range(4):
+        m.box((rnd.uniform(-0.5, 0.5), 0.03, rnd.uniform(-0.5, 0.5)), (0.25, 0.06, 0.2), MAT["rust"])
     return {"hull": (m, (0, 0, 0))}, {}
 
 
@@ -1079,7 +1180,7 @@ MODELS = {
     "prop_tree3": lambda: dead_tree(3),
     "prop_crystal1": lambda: crystal_growth(1),
     "prop_crystal2": lambda: crystal_growth(2),
-    "prop_wreck": lambda: wreck(1),
+    "prop_wreck": lambda: tank_wreck(3),
     "prop_fir1": lambda: fir(1),
     "prop_fir2": lambda: fir(2),
     "prop_fir3": lambda: fir(3),
@@ -1087,6 +1188,20 @@ MODELS = {
     "prop_birch2": lambda: birch(2),
     "prop_car1": lambda: old_car(1),
     "prop_car2": lambda: old_car(2),
+    "prop_car3": lambda: old_car(3, "paint_white"),
+    "prop_car4": lambda: old_car(4, "paint_red"),
+    "prop_car5": lambda: old_car(5, "paint_blue"),
+    "prop_car_burnt1": lambda: burnt_car(1),
+    "prop_car_burnt2": lambda: burnt_car(2),
+    "prop_tank_wreck1": lambda: tank_wreck(1),
+    "prop_tank_wreck2": lambda: tank_wreck(2),
+    "prop_bus": lambda: bus_wreck(False),
+    "prop_bus_burnt": lambda: bus_wreck(True),
+    "prop_truck_wreck": truck_wreck,
+    "prop_hedgehog": hedgehog,
+    "prop_barricade": barricade,
+    "prop_fence": fence_panel,
+    "prop_crater": lambda: crater_debris(1),
     "prop_pylon": power_pylon,
     "prop_lamp": lambda: street_lamp(True),
     "prop_lamp_off": lambda: street_lamp(False),

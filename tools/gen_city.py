@@ -84,7 +84,7 @@ def weathering(seed, strength):
     return 1.0 - strength * drip
 
 
-def windows(img, mask, rnd, frame, glass, lit_chance, wide=0.5, tall=0.48, sill=True, skip=0.0, top=0.22, broken=0.0):
+def windows(img, mask, rnd, frame, glass, lit_chance, wide=0.5, tall=0.48, sill=True, skip=0.0, top=0.22, broken=0.22, boarded=0.07):
     d = ImageDraw.Draw(img)
     m = ImageDraw.Draw(mask)
     for fy in range(8):
@@ -100,6 +100,11 @@ def windows(img, mask, rnd, frame, glass, lit_chance, wide=0.5, tall=0.48, sill=
                 d.rectangle((x0, y0, x1, y1), fill=(14, 12, 12))
                 d.line((x0, y0, x1, y1 - 3), fill=(30, 30, 32), width=1)
                 d.rectangle((x0 - 2, y0 - 6, x1 + 2, y0 - 2), fill=(28, 26, 26))
+                continue
+            if rnd.random() < boarded:
+                d.rectangle((x0, y0, x1, y1), fill=(84, 66, 48))
+                for k in range(y0 + 2, y1, 4):
+                    d.line((x0, k, x1, k + (1 if rnd.random() < 0.5 else -1)), fill=(58, 44, 32))
                 continue
             if rnd.random() < lit_chance:
                 warm = (int(240 + 15 * rnd.random()), int(180 + 50 * rnd.random()), int(90 + 50 * rnd.random()))
@@ -139,7 +144,7 @@ def panel():
                 x0, y0 = bx * CELL + 2, fy * CELL + int(CELL * 0.72)
                 d.rectangle((x0, y0, x0 + CELL - 4, y0 + int(CELL * 0.24)), fill=(194, 192, 186) if rnd.random() < 0.6 else (116, 126, 118))
     mask = Image.new("RGB", (T, T), (0, 0, 0))
-    windows(img, mask, rnd, (208, 206, 200), (54, 62, 72), 0.08)
+    windows(img, mask, rnd, (208, 206, 200), (44, 50, 58), 0.01)
     return img, mask
 
 
@@ -150,7 +155,7 @@ def ruin():
     rgb = blend(rgb, (30, 28, 28), soot * 0.75)
     img = to_img(rgb)
     mask = Image.new("RGB", (T, T), (0, 0, 0))
-    windows(img, mask, rnd, (90, 88, 84), (20, 20, 22), 0.0, broken=0.7)
+    windows(img, mask, rnd, (90, 88, 84), (20, 20, 22), 0.0, broken=0.7, boarded=0.1)
     return img, mask
 
 
@@ -168,7 +173,7 @@ def brick():
     rgb = shade(rgb, weathering(314, 0.3))
     img = to_img(rgb)
     mask = Image.new("RGB", (T, T), (0, 0, 0))
-    windows(img, mask, rnd, (190, 190, 186), (50, 58, 66), 0.07, wide=0.56, tall=0.5)
+    windows(img, mask, rnd, (190, 190, 186), (42, 48, 54), 0.008, wide=0.56, tall=0.5)
     return img, mask
 
 
@@ -187,7 +192,7 @@ def industrial():
     for fy in (1, 5):
         y0 = fy * CELL + 4
         for bx in range(8):
-            lit = rnd.random() < 0.06
+            lit = rnd.random() < 0.01
             box = (bx * CELL + 3, y0, bx * CELL + CELL - 3, y0 + 9)
             d.rectangle(box, fill=(255, 205, 120) if lit else (40, 48, 56))
             if lit:
@@ -205,7 +210,7 @@ def house():
     rgb = shade(rgb, weathering(333, 0.3))
     img = to_img(rgb)
     mask = Image.new("RGB", (T, T), (0, 0, 0))
-    windows(img, mask, rnd, (228, 226, 214), (40, 46, 52), 0.12, wide=0.42, tall=0.46, skip=0.35, top=0.25)
+    windows(img, mask, rnd, (228, 226, 214), (36, 40, 46), 0.015, wide=0.42, tall=0.46, skip=0.35, top=0.25, boarded=0.15)
     return img, mask
 
 

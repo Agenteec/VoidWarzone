@@ -470,6 +470,21 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                 }
     }
 
+    std::vector<glm::vec3> craters;
+    if (winter && city) {
+        std::mt19937 craterRng(seed ^ 0x51ed27u);
+        std::uniform_real_distribution<float> u01(0.0f, 1.0f);
+        const int count = w * h / 450;
+        for (int i = 0; i < count; ++i) {
+            const glm::vec2 p{u01(craterRng) * static_cast<float>(w), u01(craterRng) * static_cast<float>(h)};
+            if (map.cellKind(static_cast<int>(p.x), static_cast<int>(p.y)) != CellKind::Open)
+                continue;
+            const float r = 0.9f + u01(craterRng) * 1.1f;
+            craters.push_back({p.x, p.y, r});
+            stamp(dirtPaint, p, p + glm::vec2(0.01f, 0.0f), r, 1.0f);
+        }
+    }
+
     std::vector<TerrainVertex> vertices;
     vertices.reserve(out.heights.size());
     auto heightOf = [&](int i, int j) {
@@ -564,12 +579,12 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
         bool cutaway = false;
     };
     std::map<std::tuple<std::size_t, TextureId, TextureId>, Geometry> merged;
-    auto place = [&](const Model* model, glm::vec2 at, float size, bool byHeight, float yaw = -1.0f) {
+    auto place = [&](const Model* model, glm::vec2 at, float size, bool byHeight, float yaw = 1e9f) {
         if (!model || model->vertices.empty())
             return;
         const float extent = byHeight ? std::max(model->max.y, 1.0f) : std::max({model->max.x - model->min.x, model->max.z - model->min.z, 1.0f});
         float m[16];
-        makeModelMatrix(m, {at.x, out.heightAt(at.x, at.y) - 0.1f, at.y}, yaw < 0.0f ? unit(rng) * 6.283f : yaw, size / extent, {});
+        makeModelMatrix(m, {at.x, out.heightAt(at.x, at.y) - 0.1f, at.y}, yaw > 1e8f ? unit(rng) * 6.283f : yaw, size / extent, {});
         const int cx = std::clamp(static_cast<int>(at.x) / kChunk, 0, chunksX - 1);
         const int cy = std::clamp(static_cast<int>(at.y) / kChunk, 0, chunksY - 1);
         auto& g = merged[{static_cast<std::size_t>(cy * chunksX + cx), model->texture, model->mask}];
@@ -653,7 +668,13 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
     static constexpr PropLook kPropLooks[] = {{"prop_gas_station", 6.0f, false}, {"prop_substation", 4.0f, false}, {"prop_water_tower", 5.5f, true},
                                               {"prop_cell_tower", 9.0f, true},   {"prop_bus_stop", 1.8f, false},  {"prop_kiosk", 1.3f, false},
                                               {"prop_crane", 13.0f, true},       {"prop_trash1", 1.2f, false},    {"prop_trash2", 1.2f, false},
-                                              {"prop_barrels", 0.9f, false},     {"prop_tires", 0.8f, false},     {"prop_blocks", 1.6f, false}};
+                                              {"prop_barrels", 0.9f, false},     {"prop_tires", 0.8f, false},     {"prop_blocks", 1.6f, false},
+                                              {"prop_car1", 1.0f, false},        {"prop_car2", 1.0f, false},      {"prop_car3", 1.0f, false},
+                                              {"prop_car4", 1.0f, false},        {"prop_car5", 1.0f, false},      {"prop_car_burnt1", 1.0f, false},
+                                              {"prop_car_burnt2", 1.0f, false},  {"prop_bus", 2.0f, false},       {"prop_bus_burnt", 2.0f, false},
+                                              {"prop_truck_wreck", 1.6f, false}, {"prop_tank_wreck1", 1.7f, false}, {"prop_tank_wreck2", 1.7f, false},
+                                              {"prop_hedgehog", 0.55f, false},   {"prop_barricade", 1.5f, false}, {"prop_fence", 1.1f, false},
+                                              {"prop_crater", 2.6f, false}};
     auto placeProp = [&](const std::string& name, glm::vec2 at, float yaw) {
         for (const auto& look : kPropLooks)
             if (name == look.name) {
@@ -664,6 +685,50 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
     };
     for (const auto& p : map.props())
         placeProp(p.model, p.pos, p.yaw * 0.0174533f);
+    if (!craters.empty()) {
+        const TextureId rubble = models.texture("data/city/rubble.png");
+        const TextureId flat = models.texture("data/city/flat_mask.png");
+        for (const auto& c : craters) {
+            placeProp("prop_crater", {c.x, c.y}, c.x * 3.7f);
+            auto& g = merged[{chunkOf({c.x, c.y}), rubble, flat}];
+            g.texture = rubble;
+            g.mask = flat;
+            const auto base = static_cast<std::uint32_t>(g.vertices.size());
+            const glm::vec2 center{c.x, c.y};
+            g.vertices.push_back({c.x, out.heightAt(c.x, c.y) - 0.05f, c.y, 0.0f, 1.0f, 0.0f, c.x / 2.0f, c.y / 2.0f});
+            constexpr int kSeg = 12;
+            for (int k = 0; k <= kSeg; ++k) {
+                const float ang = static_cast<float>(k) / kSeg * 6.2832f;
+                const float r = c.z * (0.85f + 0.15f * std::sin(ang * 3.0f + c.x));
+                const glm::vec2 q = center + glm::vec2(std::cos(ang), std::sin(ang)) * r;
+                g.vertices.push_back({q.x, out.heightAt(q.x, q.y) + 0.06f, q.y, 0.0f, 1.0f, 0.0f, q.x / 2.0f, q.y / 2.0f});
+            }
+            for (std::uint32_t k = 0; k < kSeg; ++k)
+                for (const std::uint32_t i : {0u, k + 1, k + 2})
+                    g.indices.push_back(base + i);
+        }
+    }
+    for (const auto& area : map.areas()) {
+        if (area.kind != "industrial" || area.poly.size() < 3)
+            continue;
+        for (std::size_t i = 0; i < area.poly.size(); ++i) {
+            const glm::vec2 a = area.poly[i];
+            const glm::vec2 b = area.poly[(i + 1) % area.poly.size()];
+            const float len = glm::distance(a, b);
+            if (len < 1.0f || unit(rng) < 0.3f)
+                continue;
+            const glm::vec2 d = (b - a) / len;
+            const float yaw = std::fmod(-std::atan2(d.y, d.x) + 1.5708f + 6.2832f, 6.2832f);
+            for (float t = 0.55f; t < len - 0.5f; t += 1.1f) {
+                const glm::vec2 q = a + d * t;
+                const int cx = static_cast<int>(q.x);
+                const int cy = static_cast<int>(q.y);
+                if (!map.inside(cx, cy) || !freeCell(q) || roadPaint[static_cast<std::size_t>(cy * out.columns + cx)] > 0.05f || unit(rng) < 0.12f)
+                    continue;
+                placeProp("prop_fence", q, yaw);
+            }
+        }
+    }
     static constexpr const char* kClutter[] = {"prop_trash1", "prop_trash2", "prop_barrels", "prop_tires", "prop_blocks"};
     for (std::size_t k = 0; k < map.buildings().size(); ++k) {
         const auto& b = map.buildings()[k];
@@ -691,6 +756,21 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             }
             continue;
         }
+        if (!b.ruin && (b.kind == "panel" || b.kind == "block")) {
+            const glm::vec2 e0 = b.poly[longest];
+            const glm::vec2 e1 = b.poly[(longest + 1) % b.poly.size()];
+            const glm::vec2 along = glm::normalize(e1 - e0);
+            const float len = glm::distance(e0, e1);
+            const int cars = static_cast<int>(unit(rng) * 5.0f);
+            float t = 1.0f + unit(rng) * std::max(0.0f, len - 6.0f);
+            for (int i = 0; i < cars && t < len - 0.5f; ++i, t += 0.75f + unit(rng) * 0.5f) {
+                const glm::vec2 q = e0 + along * t + outward * (1.9f + unit(rng) * 0.2f);
+                if (!freeCell(q) || roadPaint[static_cast<std::size_t>(static_cast<int>(q.y) * out.columns + static_cast<int>(q.x))] > 0.2f)
+                    continue;
+                static constexpr const char* kParked[] = {"prop_car1", "prop_car2", "prop_car3", "prop_car4", "prop_car5", "prop_car_burnt1"};
+                placeProp(kParked[static_cast<std::size_t>(unit(rng) * 5.99f)], q, std::atan2(outward.y, outward.x) + kModelYaw + (unit(rng) - 0.5f) * 0.3f);
+            }
+        }
         const int count = b.ruin ? 3 : unit(rng) < 0.45f ? 1 : 0;
         for (int i = 0; i < count; ++i) {
             const std::size_t e = static_cast<std::size_t>(unit(rng) * static_cast<float>(b.poly.size())) % b.poly.size();
@@ -709,7 +789,24 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             if (path.kind != "road")
                 continue;
             const float half = std::max(path.width, 0.7f) * 0.5f;
-            const float lift = 0.05f + 0.001f * static_cast<float>(order++ % 16);
+            const float lift = 0.05f;
+            ++order;
+            for (const glm::vec2 c : path.points) {
+                auto& g = merged[{chunkOf(c), asphalt, black}];
+                g.texture = asphalt;
+                g.mask = black;
+                const auto base = static_cast<std::uint32_t>(g.vertices.size());
+                g.vertices.push_back({c.x, out.heightAt(c.x, c.y) + lift, c.y, 0.0f, 1.0f, 0.0f, c.x / 4.0f, c.y / 4.0f});
+                constexpr int kSeg = 14;
+                for (int s = 0; s <= kSeg; ++s) {
+                    const float ang = static_cast<float>(s) / kSeg * 6.2832f;
+                    const glm::vec2 q = c + glm::vec2(std::cos(ang), std::sin(ang)) * half;
+                    g.vertices.push_back({q.x, out.heightAt(q.x, q.y) + lift, q.y, 0.0f, 1.0f, 0.0f, q.x / 4.0f, q.y / 4.0f});
+                }
+                for (std::uint32_t s = 0; s < kSeg; ++s)
+                    for (const std::uint32_t i : {0u, s + 1, s + 2})
+                        g.indices.push_back(base + i);
+            }
             for (std::size_t k = 0; k + 1 < path.points.size(); ++k) {
                 const glm::vec2 a = path.points[k];
                 const glm::vec2 b = path.points[k + 1];
@@ -718,8 +815,8 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                     continue;
                 const glm::vec2 dir = (b - a) / len;
                 const glm::vec2 side = glm::vec2(-dir.y, dir.x) * half;
-                const glm::vec2 a0 = a - dir * half * 0.9f;
-                const glm::vec2 b0 = b + dir * half * 0.9f;
+                const glm::vec2 a0 = a;
+                const glm::vec2 b0 = b;
                 const int steps = std::max(1, static_cast<int>(std::ceil(glm::distance(a0, b0))));
                 auto& g = merged[{chunkOf((a + b) * 0.5f), asphalt, black}];
                 g.texture = asphalt;
@@ -758,12 +855,28 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                     for (; t < len; t += 9.0f) {
                         const float s = (static_cast<int>(t) / 9) % 2 ? 1.0f : -1.0f;
                         const glm::vec2 at = a + dir * t + side * s * (path.width * 0.5f + 0.5f);
-                        if (freeCell(at))
-                            place(lamps[unit(rng) < 0.6f ? 0 : 1], at, 3.0f, true, yaw + (s > 0.0f ? 3.1416f : 0.0f) + kModelYaw);
-                        if (unit(rng) < 0.18f) {
+                        if (freeCell(at) && unit(rng) < 0.85f)
+                            place(lamps[unit(rng) < 0.05f ? 0 : 1], at, 3.0f, true, yaw + (s > 0.0f ? 3.1416f : 0.0f) + kModelYaw + (unit(rng) < 0.15f ? 0.5f : 0.0f));
+                        const float roll = unit(rng);
+                        if (roll < 0.28f) {
                             const glm::vec2 car = a + dir * (t + 4.0f) + side * (unit(rng) - 0.5f) * path.width * 0.8f;
+                            const float kind = unit(rng);
+                            static constexpr const char* kCivil[] = {"prop_car1", "prop_car2", "prop_car3", "prop_car4", "prop_car5"};
+                            const std::string name = kind < 0.5f ? kCivil[static_cast<std::size_t>(unit(rng) * 4.99f)]
+                                                   : kind < 0.8f ? (unit(rng) < 0.5f ? "prop_car_burnt1" : "prop_car_burnt2")
+                                                   : kind < 0.88f ? (unit(rng) < 0.5f ? "prop_bus" : "prop_bus_burnt")
+                                                   : kind < 0.94f ? "prop_truck_wreck"
+                                                                  : (unit(rng) < 0.5f ? "prop_tank_wreck1" : "prop_tank_wreck2");
                             if (freeCell(car))
-                                place(cars[unit(rng) < 0.5f ? 0 : 1], car, 1.25f, false, yaw + kModelYaw + (unit(rng) - 0.5f) * 0.8f);
+                                placeProp(name, car, yaw + kModelYaw + (unit(rng) - 0.5f) * 0.9f);
+                        } else if (roll > 0.965f && path.width >= 1.5f) {
+                            const glm::vec2 c = a + dir * (t + 4.0f);
+                            if (freeCell(c + side * (path.width * 0.5f + 0.4f)))
+                                placeProp("prop_barricade", c + side * (path.width * 0.5f - 0.2f), yaw + kModelYaw + 1.5708f);
+                            for (int h2 = 0; h2 < 3; ++h2) {
+                                const glm::vec2 q = c - side * (path.width * (0.1f + 0.2f * static_cast<float>(h2))) + dir * (unit(rng) - 0.5f);
+                                placeProp("prop_hedgehog", q, unit(rng) * 6.283f);
+                            }
                         }
                     }
                     carry = t - len;

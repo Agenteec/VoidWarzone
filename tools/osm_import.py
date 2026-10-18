@@ -228,6 +228,45 @@ def garages(spec, existing):
     return out
 
 
+def nudge_props(m):
+    """Moves props off roads and buildings (OSM nodes often sit on the road edge); drops the ones with no room nearby."""
+    blocked, road = raster(m)
+    h, w = len(blocked), len(blocked[0])
+
+    def clear(x, y, r):
+        for yy in range(int(y - r - 1), int(y + r + 2)):
+            for xx in range(int(x - r - 1), int(x + r + 2)):
+                if not (0 <= xx < w and 0 <= yy < h):
+                    return False
+                if (xx + 0.5 - x) ** 2 + (yy + 0.5 - y) ** 2 > (r + 1.0) ** 2:
+                    continue
+                if blocked[yy][xx] or road[yy][xx] > 0:
+                    return False
+        return True
+
+    out = []
+    for p in m.get("props", []):
+        r = max(p.get("radius", 0.0), 0.8)
+        x, y = p["pos"]
+        best = None
+        for ring in range(0, 10):
+            for dy in range(-ring, ring + 1):
+                for dx in range(-ring, ring + 1):
+                    if max(abs(dx), abs(dy)) != ring:
+                        continue
+                    if clear(x + dx, y + dy, r):
+                        d = dx * dx + dy * dy
+                        if best is None or d < best[0]:
+                            best = (d, x + dx, y + dy)
+            if best:
+                break
+        if best:
+            q = dict(p)
+            q["pos"] = r2((best[1], best[2]))
+            out.append(q)
+    return out
+
+
 def ruin_chance(spec, c, kind):
     if kind in ("house", "shed", "garage"):
         return 0.0
@@ -350,7 +389,7 @@ def prop_of(t):
         return "prop_water_tower"
     if mm in ("mast", "tower", "communications_tower"):
         return "prop_cell_tower"
-    if t.get("power") in ("substation", "transformer"):
+    if t.get("power") == "substation":
         return "prop_substation"
     if t.get("highway") == "bus_stop":
         return "prop_bus_stop"
@@ -531,6 +570,7 @@ def main():
         m["props"] = [p for p in m["props"] if free([p["pos"]])]
     if spec.get("elevation", True):
         m["elevation"] = elevation(spec, base)
+    m["props"] = nudge_props(m)
     if "routes" in spec:
         m["lanes"] = build_lanes(m, spec["routes"], spec.get("laneSimplify", 3.0))
     out = os.path.join(os.path.dirname(base), "..", spec["output"]) if not os.path.isabs(spec["output"]) else spec["output"]
