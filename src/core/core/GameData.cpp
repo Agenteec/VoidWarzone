@@ -268,6 +268,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         }
         def.builder = u.value("builder", def.builder);
         def.deployOnly = u.value("deployOnly", false);
+        def.produceTime = u.value("produceTime", std::max(2.0f, def.cost / 10.0f));
         {
             Links l{u.value("deploy", ""), u.value("undeploy", ""), u.value("requires", ""), u.value("producedAt", std::vector<std::string>{})};
             if (!l.deploy.empty() || !l.undeploy.empty() || !l.requires_.empty() || !l.producedAt.empty())
@@ -353,8 +354,10 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             def.undeploy = resolve(l.undeploy);
         if (!l.requires_.empty())
             def.needs = resolve(l.requires_);
-        for (const auto& name : l.producedAt)
+        for (const auto& name : l.producedAt) {
             def.producedAt.push_back(resolve(name));
+            d.units_[def.producedAt.back()].factory = true;
+        }
     }
     for (const auto& [i, name] : produceNames) {
         d.units_[i].produces = d.find(name);

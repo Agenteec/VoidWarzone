@@ -75,6 +75,18 @@ void writeView(Writer& w, const ClientView& v) {
             w.u16(o.y);
         }
     }
+    w.u8(static_cast<std::uint8_t>(std::min<std::size_t>(v.factories.size(), 255)));
+    for (std::size_t k = 0; k < v.factories.size() && k < 255; ++k) {
+        const auto& f = v.factories[k];
+        w.u32(f.id);
+        w.u8(static_cast<std::uint8_t>(f.queue.size()));
+        for (const auto q : f.queue)
+            w.u16(q);
+        w.u8(f.progress);
+        w.u8(f.hasRally ? 1 : 0);
+        w.u16(f.rallyX);
+        w.u16(f.rallyY);
+    }
 }
 
 bool readView(Reader& r, ClientView& v) {
@@ -114,7 +126,25 @@ bool readView(Reader& r, ClientView& v) {
         if (!r.ok())
             return false;
     }
+    v.factories.resize(r.u8());
+    for (auto& f : v.factories) {
+        f.id = r.u32();
+        f.queue.resize(r.u8());
+        for (auto& q : f.queue)
+            q = r.u16();
+        f.progress = r.u8();
+        f.hasRally = r.u8() != 0;
+        f.rallyX = r.u16();
+        f.rallyY = r.u16();
+    }
     return r.ok();
+}
+
+const OwnFactory* ClientView::factory(std::uint32_t id) const {
+    for (const auto& f : factories)
+        if (f.id == id)
+            return &f;
+    return nullptr;
 }
 
 const OwnUnit* ClientView::unit(std::uint32_t id) const {

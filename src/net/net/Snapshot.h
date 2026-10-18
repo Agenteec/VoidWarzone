@@ -90,14 +90,25 @@ struct OwnUnit {
     std::vector<std::uint16_t> items;
 };
 
+struct OwnFactory {
+    std::uint32_t id = 0;
+    std::vector<std::uint16_t> queue;
+    std::uint8_t progress = 0;
+    bool hasRally = false;
+    std::uint16_t rallyX = 0;
+    std::uint16_t rallyY = 0;
+};
+
 struct ClientView {
     std::uint32_t commandSeq = 0;
     std::uint32_t energy = 0;
     std::uint16_t shards = 0;
     std::vector<std::uint16_t> stash;
     std::vector<OwnUnit> units;
+    std::vector<OwnFactory> factories;
 
     const OwnUnit* unit(std::uint32_t id) const;
+    const OwnFactory* factory(std::uint32_t id) const;
 };
 
 struct Snapshot {

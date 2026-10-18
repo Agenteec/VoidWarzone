@@ -985,8 +985,17 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         armOrder(Arm::Unload);
     } else if (key == SDLK_Z || key == SDLK_X || key == SDLK_C || key == SDLK_V || key == SDLK_N) {
         const auto index = static_cast<std::size_t>(key == SDLK_Z ? 0 : key == SDLK_X ? 1 : key == SDLK_C ? 2 : key == SDLK_V ? 3 : 4);
-        if (const auto list = productionList(); index < list.size())
-            net_.sendCommand(RecruitCommand{0, list[index]});
+        const auto* factory = selectedFactory();
+        std::vector<UnitDefId> list;
+        if (factory) {
+            for (const auto id : data_->recruitable())
+                if (const auto& at = data_->unit(id).producedAt; std::find(at.begin(), at.end(), factory->def) != at.end())
+                    list.push_back(id);
+        } else {
+            list = productionList();
+        }
+        if (index < list.size())
+            net_.sendCommand(RecruitCommand{0, list[index], factory ? static_cast<entt::entity>(factory->id) : entt::entity{entt::null}});
     } else if (buildKeyIndex(key) >= 0) {
         armBuild(static_cast<std::size_t>(buildKeyIndex(key)));
     } else if (key == SDLK_B || key == SDLK_I || key == SDLK_L) {
@@ -1141,6 +1150,11 @@ void App::issueCommandAt(glm::vec2 point, bool attackMove, bool patrol) {
     if (const auto* first = findEntity(selected_.front()))
         ownTeam = first->team;
 
+    for (const auto id : selected_)
+        if (const auto* e = findEntity(id); e && isOwn(*e) && data_->unit(e->def).factory) {
+            net_.sendCommand(StructureCommand{0, static_cast<entt::entity>(id), StructureOp::Rally, 0, point});
+            addEffect(Mesh::Cylinder, {point.x, 0.1f, point.y}, {0.4f, 1.0f, 0.5f, 0.8f}, 0.4f, 1.4f, 0.35f);
+        }
     const auto* target = entityAt(*ground, 0.4f);
     const bool resumable = target && target->team == ownTeam && data_->unit(target->def).structure && target->hp < target->maxHp &&
                            !selectedBuilders().empty();
@@ -1502,6 +1516,7 @@ void App::renderWorld() {
     }
 
     renderVoidFx();
+    renderRallyPoints();
     renderBuildGhost();
     renderWaypoints();
     renderSkillPreview();

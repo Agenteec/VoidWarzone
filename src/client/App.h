@@ -178,6 +178,11 @@ private:
     bool ownCompleted(UnitDefId def) const;
     const char* missingFor(const UnitDef& def) const;
     std::vector<UnitDefId> productionList() const;
+    const net::InterpolatedEntity* selectedFactory() const;
+    std::vector<entt::entity> selectedOwnStructures() const;
+    void renderRallyPoints();
+    double demolishArmed_ = -10.0;
+    bool hadFactory_ = false;
     float liftOf(const net::InterpolatedEntity& e) const;
     void updateAirLift(float dt);
     std::unordered_map<std::uint32_t, float> airLift_;

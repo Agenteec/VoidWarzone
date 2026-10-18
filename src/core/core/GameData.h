@@ -121,6 +121,8 @@ struct UnitDef {
     bool deployOnly = false;
     std::vector<UnitDefId> producedAt;
     UnitDefId needs = kInvalidUnitDef;
+    bool factory = false;
+    float produceTime = 0.0f;
     float produceInterval = 20.0f;
     int produceMax = 4;
     std::optional<WeaponDef> weapon;

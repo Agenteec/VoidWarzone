@@ -60,6 +60,44 @@ bool App::ownCompleted(UnitDefId def) const {
     return false;
 }
 
+const net::InterpolatedEntity* App::selectedFactory() const {
+    for (const auto id : selected_)
+        if (const auto* e = findEntity(id); e && isOwn(*e) && data_->unit(e->def).factory && !(e->flags & net::kStateBuilding))
+            return e;
+    return nullptr;
+}
+
+std::vector<entt::entity> App::selectedOwnStructures() const {
+    std::vector<entt::entity> out;
+    for (const auto id : selected_)
+        if (const auto* e = findEntity(id); e && isOwn(*e) && data_->unit(e->def).structure)
+            out.push_back(static_cast<entt::entity>(id));
+    return out;
+}
+
+void App::renderRallyPoints() {
+    const auto* latest = net_.latest();
+    if (!latest)
+        return;
+    for (const auto id : selected_) {
+        const auto* e = findEntity(id);
+        const auto* f = latest->view.factory(id);
+        if (!e || !f || !f->hasRally)
+            continue;
+        const glm::vec2 p{net::dequantizePos(f->rallyX), net::dequantizePos(f->rallyY)};
+        const glm::vec4 c{0.4f, 1.0f, 0.5f, 1.0f};
+        const glm::vec2 d = p - e->pos;
+        const int steps = std::max(1, static_cast<int>(glm::length(d) / 3.0f));
+        for (int s = 0; s < steps; s += 2) {
+            const glm::vec2 a = e->pos + d * (static_cast<float>(s) / static_cast<float>(steps));
+            const glm::vec2 b = e->pos + d * (static_cast<float>(s + 1) / static_cast<float>(steps));
+            renderer_.drawBeam({a.x, 0.25f, a.y}, {b.x, 0.25f, b.y}, 0.06f, c, true);
+        }
+        renderer_.drawBeam({p.x, 0.0f, p.y}, {p.x, 1.6f, p.y}, 0.05f, {0.8f, 0.8f, 0.8f, 1.0f}, true);
+        renderer_.draw(Mesh::Cube, {p.x + 0.25f, 1.4f, p.y}, {0.5f, 0.3f, 0.04f}, 0.0f, c, Unlit);
+    }
+}
+
 std::vector<UnitDefId> App::productionList() const {
     const bool mission = map_ && map_->mission().enabled;
     std::vector<UnitDefId> out;
@@ -175,7 +213,7 @@ bool App::buildValid(UnitDefId id, glm::vec2 pos) const {
         const auto& other = data_->unit(ph.def);
         around.push_back({ph.pos, other.radius, true, other.wall, 0});
     }
-    const SiteStatus status = checkSite(*map_, def, pos, 0, around, map_->mission().enabled);
+    const SiteStatus status = checkSite(*map_, def, pos, 0, around);
     return status == SiteStatus::Ok || status == SiteStatus::Occupied;
 }
 
@@ -256,12 +294,6 @@ void App::renderBuildGhost() {
         }
         return;
     }
-    if (map_->mission().enabled)
-        for (const auto& e : entities_)
-            if (e.kind == net::EntityKind::Unit && e.hp > 0 && e.team == 0 && data_->unit(e.def).structure) {
-                const float r = (kBaseBuildRadius + data_->unit(e.def).radius) * 2.0f;
-                renderer_.draw(Mesh::Cylinder, {e.pos.x, 0.02f, e.pos.y}, {r, 0.02f, r}, 0.0f, glm::vec4{0.3f, 0.75f, 1.0f, 0.06f}, Unlit | Alpha);
-            }
     const glm::vec2 pos = snapBuild(*ground);
     const float d = data_->unit(def).radius * 2.0f;
     const float h = std::max(visuals_[def].height, 0.8f);

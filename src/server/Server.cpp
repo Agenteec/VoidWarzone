@@ -472,6 +472,19 @@ ClientView Server::buildView(const Client& client) const {
     v.energy = static_cast<std::uint32_t>(std::max(0.0f, player.energy));
     v.shards = static_cast<std::uint16_t>(std::clamp(player.shards, 0, 65535));
     v.stash.assign(player.stash.begin(), player.stash.end());
+    for (auto [e, owner, factory] : world_->registry().view<const Owner, const Factory>().each()) {
+        if (owner.player != client.player)
+            continue;
+        OwnFactory f;
+        f.id = entt::to_integral(e);
+        f.queue = factory.queue;
+        const float total = factory.queue.empty() ? 1.0f : std::max(0.1f, data_.unit(factory.queue.front()).produceTime);
+        f.progress = static_cast<std::uint8_t>(std::clamp(factory.progress / total, 0.0f, 1.0f) * 255.0f);
+        f.hasRally = factory.hasRally;
+        f.rallyX = quantizePos(factory.rally.x);
+        f.rallyY = quantizePos(factory.rally.y);
+        v.factories.push_back(std::move(f));
+    }
     for (auto [e, owner, prog] : world_->registry().view<const Owner, const Progression>().each()) {
         if (owner.player != client.player)
             continue;

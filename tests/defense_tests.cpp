@@ -376,14 +376,13 @@ TEST_CASE("mobile hq deploys, packs up and gates production") {
     const auto truck = find("truck");
     world.apply(RecruitCommand{0, data.find("truck")});
     CHECK(countDef(world, data, "truck") == 1);
-    CHECK(world.checkSite(data.find("workshop"), {14.5f, 14.5f}, 0, false) == SiteStatus::FarFromBase);
+    CHECK(world.checkSite(data.find("workshop"), {45.5f, 45.5f}, 0, false) == SiteStatus::Ok);
 
     world.apply(DeployCommand{0, {find("kshm")}});
     run(world, 0.2f);
     REQUIRE(exists("hq"));
     CHECK_FALSE(exists("kshm"));
     CHECK(world.checkSite(data.find("workshop"), {18.5f, 10.5f}, 0, false) == SiteStatus::Ok);
-    CHECK(world.checkSite(data.find("workshop"), {45.5f, 45.5f}, 0, false) == SiteStatus::FarFromBase);
 
     world.apply(BuildCommand{{truck}, data.find("shop"), {18.5f, 16.5f}, false});
     run(world, 0.2f);
@@ -392,8 +391,21 @@ TEST_CASE("mobile hq deploys, packs up and gates production") {
     run(world, 12.0f);
     REQUIRE(exists("workshop"));
     CHECK_FALSE(world.registry().all_of<Construction>(find("workshop")));
-    world.apply(RecruitCommand{0, data.find("truck")});
+    const auto shop = find("workshop");
+    world.apply(StructureCommand{0, shop, StructureOp::Rally, 0, {30.5f, 20.5f}});
+    const float before = world.player(0).energy;
+    world.apply(RecruitCommand{0, data.find("truck"), shop});
+    world.apply(RecruitCommand{0, data.find("truck"), shop});
+    CHECK(world.registry().get<Factory>(shop).queue.size() == 2);
+    world.apply(StructureCommand{0, shop, StructureOp::Cancel, 1, {}});
+    CHECK(world.player(0).energy == doctest::Approx(before - 50.0f));
+    CHECK(countDef(world, data, "truck") == 1);
+    run(world, 6.0f);
     CHECK(countDef(world, data, "truck") == 2);
+    CHECK(world.registry().get<Factory>(shop).queue.empty());
+    world.apply(StructureCommand{0, shop, StructureOp::Demolish, 0, {}});
+    run(world, 0.5f);
+    CHECK_FALSE(exists("workshop"));
 
     world.apply(DeployCommand{0, {find("hq")}});
     run(world, 0.2f);

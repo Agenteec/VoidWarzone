@@ -95,6 +95,13 @@ struct Tag {
     std::string name;
 };
 
+struct Factory {
+    std::vector<std::uint16_t> queue;
+    float progress = 0.0f;
+    glm::vec2 rally{};
+    bool hasRally = false;
+};
+
 struct Modules {
     std::array<std::uint16_t, 3> slots{0xffff, 0xffff, 0xffff};
 };

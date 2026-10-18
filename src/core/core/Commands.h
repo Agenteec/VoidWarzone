@@ -31,6 +31,17 @@ struct StopCommand {
 struct RecruitCommand {
     std::uint8_t player = 0;
     std::uint16_t unit = 0;
+    entt::entity factory = entt::null;
+};
+
+enum class StructureOp : std::uint8_t { Rally, Cancel, Demolish };
+
+struct StructureCommand {
+    std::uint8_t player = 0;
+    entt::entity target = entt::null;
+    StructureOp op = StructureOp::Rally;
+    std::uint8_t slot = 0;
+    glm::vec2 point{};
 };
 
 struct PromoteCommand {
@@ -99,7 +110,7 @@ struct DeployCommand {
 };
 
 using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand, PromoteCommand, CastCommand, LearnCommand, BuyCommand,
-                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand, UnloadCommand, ModuleCommand, DeployCommand>;
+                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand, UnloadCommand, ModuleCommand, DeployCommand, StructureCommand>;
 
 template <class T>
 concept UnitCommand = requires(T t) { t.units; };

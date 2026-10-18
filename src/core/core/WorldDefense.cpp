@@ -99,6 +99,66 @@ void World::grantTeamEnergy(float amount) {
             p.energy += share;
 }
 
+void World::handle(const StructureCommand& cmd) {
+    if (!alive(cmd.target) || !registry_.all_of<Structure, Owner>(cmd.target) || registry_.get<Owner>(cmd.target).player != cmd.player)
+        return;
+    const auto& def = data_->unit(registry_.get<Unit>(cmd.target).def);
+    if (cmd.op == StructureOp::Rally) {
+        if (auto* f = registry_.try_get<Factory>(cmd.target)) {
+            f->rally = cmd.point;
+            f->hasRally = true;
+        }
+    } else if (cmd.op == StructureOp::Cancel) {
+        auto* f = registry_.try_get<Factory>(cmd.target);
+        if (!f || cmd.slot >= f->queue.size())
+            return;
+        if (cmd.player < kMaxPlayers)
+            players_[cmd.player].energy += data_->unit(f->queue[cmd.slot]).cost;
+        f->queue.erase(f->queue.begin() + cmd.slot);
+        if (cmd.slot == 0)
+            f->progress = 0.0f;
+    } else if (cmd.op == StructureOp::Demolish) {
+        if (def.deployOnly || core_ == cmd.target)
+            return;
+        if (cmd.player < kMaxPlayers)
+            players_[cmd.player].energy += def.cost * 0.5f;
+        if (auto* f = registry_.try_get<Factory>(cmd.target); f && cmd.player < kMaxPlayers)
+            for (const auto u : f->queue)
+                players_[cmd.player].energy += data_->unit(u).cost;
+        auto& health = registry_.get<Health>(cmd.target);
+        health.hp = 0.0f;
+        health.lastHitBy = -1;
+    }
+}
+
+void World::updateFactories() {
+    struct Ready {
+        entt::entity factory;
+        UnitDefId unit;
+    };
+    std::vector<Ready> ready;
+    for (auto [e, factory] : registry_.view<Factory>(entt::exclude<Construction>).each()) {
+        if (factory.queue.empty() || !alive(e))
+            continue;
+        factory.progress += kTickDt;
+        if (factory.progress >= data_->unit(factory.queue.front()).produceTime)
+            ready.push_back({e, factory.queue.front()});
+    }
+    for (const auto& r : ready) {
+        auto& factory = registry_.get<Factory>(r.factory);
+        const glm::vec2 at = registry_.get<Position>(r.factory).value;
+        const float radius = registry_.get<Unit>(r.factory).radius;
+        const glm::vec2 dir = factory.hasRally && glm::distance(factory.rally, at) > 0.5f ? glm::normalize(factory.rally - at) : glm::vec2(0.0f, 1.0f);
+        const glm::vec2 pos = Map::center(nearestFree(navMap(), Map::cellOf(at + dir * (radius + 1.4f))));
+        const auto* owner = registry_.try_get<Owner>(r.factory);
+        const auto made = spawn(r.unit, registry_.get<Team>(r.factory).id, pos, owner ? static_cast<int>(owner->player) : -1);
+        if (factory.hasRally && registry_.all_of<Order>(made))
+            registry_.get<Order>(made) = {OrderType::Move, factory.rally, entt::null, pos};
+        factory.queue.erase(factory.queue.begin());
+        factory.progress = 0.0f;
+    }
+}
+
 void World::handle(const DeployCommand& cmd) {
     for (const auto e : cmd.targets) {
         if (!alive(e))
@@ -168,14 +228,32 @@ void World::handle(const RecruitCommand& cmd) {
         if (def.needs != kInvalidUnitDef && !own(def.needs, nullptr, nullptr))
             return;
         if (!def.producedAt.empty()) {
-            bool found = false;
-            for (const auto at : def.producedAt)
-                if (own(at, &origin, &ring)) {
-                    found = true;
-                    break;
+            entt::entity best = entt::null;
+            std::size_t shortest = kQueueSize;
+            auto consider = [&](entt::entity f) {
+                if (!alive(f) || registry_.all_of<Construction>(f) || !registry_.all_of<Factory, Owner, Unit>(f))
+                    return;
+                if (registry_.get<Owner>(f).player != cmd.player)
+                    return;
+                const UnitDefId kind = registry_.get<Unit>(f).def;
+                if (std::find(def.producedAt.begin(), def.producedAt.end(), kind) == def.producedAt.end())
+                    return;
+                const auto size = registry_.get<Factory>(f).queue.size();
+                if (size < shortest) {
+                    shortest = size;
+                    best = f;
                 }
-            if (!found)
+            };
+            if (cmd.factory != entt::null && registry_.valid(cmd.factory))
+                consider(cmd.factory);
+            if (best == entt::null)
+                for (auto [f, factory] : registry_.view<Factory>().each())
+                    consider(f);
+            if (best == entt::null)
                 return;
+            player.energy -= def.cost;
+            registry_.get<Factory>(best).queue.push_back(cmd.unit);
+            return;
         }
     }
     player.energy -= def.cost;
@@ -191,7 +269,7 @@ SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team, bool
         return SiteStatus::Blocked;
     const auto& def = data_->unit(id);
     std::vector<SiteBlocker> around;
-    const float reach = def.radius + data_->maxRadius() + std::max(kEnemyBuildGap, kBaseBuildRadius) + 1.0f;
+    const float reach = def.radius + data_->maxRadius() + kEnemyBuildGap + 1.0f;
     for (auto [e, p, unit, t] : registry_.view<const Position, const Unit, const Team>().each()) {
         if (glm::distance(p.value, pos) > reach || !alive(e))
             continue;
@@ -216,7 +294,7 @@ SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team, bool
                     addPhantom(o, t.id);
         }
     }
-    return vw::checkSite(*map_, def, pos, team, around, buildNeedsBase());
+    return vw::checkSite(*map_, def, pos, team, around);
 }
 
 void World::clearSite(UnitDefId id, glm::vec2 pos, std::uint8_t team) {

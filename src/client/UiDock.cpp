@@ -76,6 +76,10 @@ void App::drawDock() {
     const float energy = static_cast<float>(latest->view.energy);
     const bool hasSelection = !selected_.empty();
     const bool builders = !selectedBuilders().empty();
+    const auto* factory = selectedFactory();
+    if (factory && !hadFactory_)
+        dock_ = Dock::Production;
+    hadFactory_ = factory != nullptr;
     if (builders && !hadBuilders_)
         dock_ = Dock::Build;
     else if (!builders && hadBuilders_ && dock_ == Dock::Build)
@@ -126,6 +130,23 @@ void App::drawDock() {
             if (cardButton("deploy", pack ? ICON_FA_TRUCK : ICON_FA_HOME, pack ? "Pack up" : "Deploy", "Y", true, false, cell))
                 pressKey(SDLK_Y, false);
             ImGui::SetItemTooltip(pack ? "Pack the HQ back into the KShM to move it [Y]" : "Deploy the KShM into a field HQ here [Y]. New buildings must stand near your base.");
+        }
+        if (const auto structures = selectedOwnStructures(); !structures.empty()) {
+            const auto* first = findEntity(entt::to_integral(structures.front()));
+            const bool canDemolish = first && !data_->unit(first->def).deployOnly;
+            const bool confirm = now_ - demolishArmed_ < 3.0;
+            next();
+            if (cardButton("demolish", ICON_FA_TRASH, confirm ? "Confirm" : "Demolish", "", canDemolish, confirm, cell)) {
+                if (confirm) {
+                    for (const auto e : structures)
+                        net_.sendCommand(StructureCommand{0, e, StructureOp::Demolish, 0, {}});
+                    demolishArmed_ = -10.0;
+                    selected_.clear();
+                } else {
+                    demolishArmed_ = now_;
+                }
+            }
+            ImGui::SetItemTooltip("Demolish the selected buildings, refunds half of their cost (click twice)");
         }
         next();
         if (cardButton("stop", ICON_FA_STOP, "Stop", "S", hasSelection, false, cell))
@@ -192,7 +213,16 @@ void App::drawDock() {
             panel_ = panel_ == Panel::Learn ? Panel::None : Panel::Learn;
         ImGui::SetItemTooltip("Learn hero skills [L]");
     } else if (dock_ == Dock::Production) {
-        const auto list = productionList();
+        std::vector<UnitDefId> list;
+        const net::OwnFactory* queue = factory ? latest->view.factory(factory->id) : nullptr;
+        if (factory) {
+            ImGui::TextDisabled("%s", data_->unit(factory->def).name.c_str());
+            for (const auto id : data_->recruitable())
+                if (const auto& at = data_->unit(id).producedAt; std::find(at.begin(), at.end(), factory->def) != at.end())
+                    list.push_back(id);
+        } else {
+            list = productionList();
+        }
         for (std::size_t i = 0; i < list.size() && i < 12; ++i) {
             const auto& def = data_->unit(list[i]);
             next();
@@ -200,12 +230,40 @@ void App::drawDock() {
             std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
             const char* key = i < 5 ? kRecruitKeyNames[i] : "";
             const char* missing = missingFor(def);
-            if (cardButton(def.id.c_str(), def.name.substr(0, 7).c_str(), cost, key, energy >= def.cost && !missing, false, cell))
-                net_.sendCommand(RecruitCommand{0, list[i]});
+            const bool full = queue && queue->queue.size() >= World::kQueueSize;
+            if (cardButton(def.id.c_str(), def.name.substr(0, 7).c_str(), cost, key, energy >= def.cost && !missing && !full, false, cell))
+                net_.sendCommand(RecruitCommand{0, list[i], factory ? static_cast<entt::entity>(factory->id) : entt::entity{entt::null}});
             unitTooltip(def, "Recruit", key);
             if (missing && ImGui::BeginItemTooltip()) {
                 ImGui::TextColored(toVec(kBad), "needs a %s", missing);
                 ImGui::EndTooltip();
+            }
+            if (!def.producedAt.empty() && ImGui::BeginItemTooltip()) {
+                ImGui::TextDisabled("build time %.0f s", def.produceTime);
+                ImGui::EndTooltip();
+            }
+        }
+        if (queue) {
+            column = 0;
+            ImGui::Spacing();
+            if (queue->queue.empty())
+                ImGui::TextDisabled("queue empty - right click the ground to set a rally point");
+            for (std::size_t q = 0; q < queue->queue.size(); ++q) {
+                if (q > 0)
+                    ImGui::SameLine();
+                const auto& def = data_->unit(queue->queue[q]);
+                ImGui::PushID(static_cast<int>(q) + 1000);
+                const ImVec2 size{cell.x * 0.78f, cell.y * 0.62f};
+                if (ImGui::Button(def.name.substr(0, 6).c_str(), size))
+                    net_.sendCommand(StructureCommand{0, static_cast<entt::entity>(factory->id), StructureOp::Cancel, static_cast<std::uint8_t>(q), {}});
+                if (q == 0) {
+                    const ImVec2 a = ImGui::GetItemRectMin();
+                    const ImVec2 b = ImGui::GetItemRectMax();
+                    const float k = static_cast<float>(queue->progress) / 255.0f;
+                    ImGui::GetWindowDrawList()->AddRectFilled({a.x, b.y - 4.0f * s}, {a.x + (b.x - a.x) * k, b.y}, kGood, 2.0f);
+                }
+                ImGui::SetItemTooltip("%s - click to cancel and refund", def.name.c_str());
+                ImGui::PopID();
             }
         }
     } else if (dock_ == Dock::Refit) {

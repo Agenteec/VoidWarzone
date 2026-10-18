@@ -114,7 +114,9 @@ public:
     void releasePlayer(std::uint8_t player);
     std::string saveState() const;
     void handle(const DeployCommand& cmd);
-    bool buildNeedsBase() const { return map_ && map_->mission().enabled; }
+    void handle(const StructureCommand& cmd);
+    static constexpr std::size_t kQueueSize = 5;
+    bool campaignRules() const { return map_ && map_->mission().enabled; }
     const std::vector<std::uint8_t>& objectives() const { return objectiveState_; }
     std::vector<std::string> takeMessages() { return std::exchange(messages_, {}); }
     float missionTime() const { return static_cast<float>(tick_) * kTickDt; }
@@ -268,6 +270,7 @@ private:
     std::vector<std::string> messages_;
     bool missionStarted_ = false;
     void updateMission();
+    void updateFactories();
     void runAction(const MissionAction& action);
     bool tagAlive(const std::string& tag) const;
     bool playerNear(glm::vec2 pos, float radius) const;

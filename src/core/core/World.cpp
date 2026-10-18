@@ -160,6 +160,8 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
             ++builtVersion_;
         if (def.produces != kInvalidUnitDef)
             registry_.emplace<Producer>(e, Producer{def.produces, def.produceInterval, def.produceInterval, def.produceMax, {}});
+        if (def.factory)
+            registry_.emplace<Factory>(e);
     } else {
         registry_.emplace<Order>(e);
         registry_.emplace<Motion>(e);
@@ -301,6 +303,8 @@ void World::apply(const Command& command) {
                         give(e, {OrderType::Build, site, entt::null, site, siteDef});
                     else if (ally && transport && !registry_.all_of<Air>(e) && !registry_.all_of<Cargo>(e))
                         give(e, {OrderType::Board, {}, cmd.target, {}});
+                    else if (ally && structure && data_->unit(registry_.get<Unit>(e).def).repair > 0.0f)
+                        give(e, {OrderType::Move, site, entt::null, registry_.get<Position>(e).value});
                     else if (!ally && canHit(e, cmd.target))
                         give(e, {OrderType::Attack, {}, cmd.target, {}});
                     else if (!ally)
@@ -315,7 +319,7 @@ void World::apply(const Command& command) {
             } else if constexpr (std::is_same_v<T, BuildCommand>) {
                 if (cmd.unit >= data_->units().size() || !data_->unit(cmd.unit).buildable || data_->unit(cmd.unit).deployOnly)
                     return;
-                if (const UnitDefId need = data_->unit(cmd.unit).needs; need != kInvalidUnitDef && buildNeedsBase()) {
+                if (const UnitDefId need = data_->unit(cmd.unit).needs; need != kInvalidUnitDef && campaignRules()) {
                     const std::uint8_t team = registry_.get<Team>(units.front()).id;
                     bool have = false;
                     for (auto [e, unit, t] : registry_.view<const Unit, const Team>(entt::exclude<Construction>).each())
@@ -328,7 +332,7 @@ void World::apply(const Command& command) {
                     if (!data_->unit(registry_.get<Unit>(e).def).builder)
                         continue;
                     const SiteStatus status = checkSite(cmd.unit, pos, registry_.get<Team>(e).id, true);
-                    if (status == SiteStatus::Blocked || status == SiteStatus::NearEnemy || status == SiteStatus::FarFromBase)
+                    if (status == SiteStatus::Blocked || status == SiteStatus::NearEnemy)
                         return;
                     give(e, {OrderType::Build, pos, entt::null, pos, cmd.unit});
                 }
@@ -378,6 +382,7 @@ void World::step() {
     run([&] {
         updateSpawners();
         updateProducers();
+        updateFactories();
         updateConstruction();
     });
     run([&] { updateHeroes(); });

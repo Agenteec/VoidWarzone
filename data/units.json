@@ -1916,7 +1916,9 @@
         "model": {
           "glb": "colony_builder_truck"
         }
-      }
+      },
+      "repair": 15,
+      "repairRange": 3
     },
     {
       "id": "uaz",
