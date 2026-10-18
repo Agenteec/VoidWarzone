@@ -48,11 +48,11 @@
     132
    ],
    "units": [
-    "tank",
-    "tank",
-    "scout",
-    "engineer",
-    "engineer"
+    "builder_truck",
+    "builder_truck",
+    "uaz",
+    "mtlb",
+    "mtlb"
    ]
   },
   "defense": {
@@ -82,8 +82,9 @@
   ],
   "units": [
    {
-    "unit": "lab",
+    "unit": "hq",
     "team": 0,
+    "owner": 0,
     "pos": [
      104,
      128
@@ -91,11 +92,21 @@
     "tag": "hq"
    },
    {
-    "unit": "tower",
+    "unit": "gun_tower",
     "team": 0,
+    "owner": 0,
     "pos": [
      124,
      124
+    ]
+   },
+   {
+    "unit": "workshop",
+    "team": 0,
+    "owner": 0,
+    "pos": [
+     96,
+     140
     ]
    },
    {

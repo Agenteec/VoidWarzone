@@ -313,14 +313,22 @@ void World::apply(const Command& command) {
                     if (registry_.all_of<Cargo>(e))
                         give(e, {OrderType::Unload, cmd.point, entt::null, cmd.point});
             } else if constexpr (std::is_same_v<T, BuildCommand>) {
-                if (cmd.unit >= data_->units().size() || !data_->unit(cmd.unit).buildable)
+                if (cmd.unit >= data_->units().size() || !data_->unit(cmd.unit).buildable || data_->unit(cmd.unit).deployOnly)
                     return;
+                if (const UnitDefId need = data_->unit(cmd.unit).needs; need != kInvalidUnitDef && buildNeedsBase()) {
+                    const std::uint8_t team = registry_.get<Team>(units.front()).id;
+                    bool have = false;
+                    for (auto [e, unit, t] : registry_.view<const Unit, const Team>(entt::exclude<Construction>).each())
+                        have = have || (unit.def == need && t.id == team && alive(e));
+                    if (!have)
+                        return;
+                }
                 const glm::vec2 pos = snapBuild(cmd.pos);
                 for (const auto e : units) {
                     if (!data_->unit(registry_.get<Unit>(e).def).builder)
                         continue;
                     const SiteStatus status = checkSite(cmd.unit, pos, registry_.get<Team>(e).id, true);
-                    if (status == SiteStatus::Blocked || status == SiteStatus::NearEnemy)
+                    if (status == SiteStatus::Blocked || status == SiteStatus::NearEnemy || status == SiteStatus::FarFromBase)
                         return;
                     give(e, {OrderType::Build, pos, entt::null, pos, cmd.unit});
                 }

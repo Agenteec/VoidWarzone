@@ -45,8 +45,8 @@ def spawn(u, count, pos, target=None, team=1, tag=None, player=False):
 M1 = {
     "name": "Cold Start",
     "theme": "winter",
-    "playerStart": {"pos": [30, 100], "units": ["tank", "tank", "scout", "scout", "engineer"]},
-    "defense": {"startEnergy": 300, "baseIncome": 1.5, "waves": []},
+    "playerStart": {"pos": [30, 100], "units": ["kshm", "builder_truck", "builder_truck", "uaz", "uaz", "mtlb"]},
+    "defense": {"startEnergy": 450, "baseIncome": 1.5, "waves": []},
     "resourcePoints": [{"name": "A", "pos": [150, 108], "radius": 3.5, "income": 2}, {"name": "B", "pos": [232, 82], "radius": 3.5, "income": 3}],
     "units": [
         unit("raider_bunker", [140, 150], tag="outpost"), unit("raider_bunker", [151, 160], tag="outpost"),
@@ -66,7 +66,7 @@ M1 = {
             {"id": "alive", "text": "Keep the column alive", "type": "survive", "time": 99999, "optional": True},
         ],
         "triggers": [
-            {"when": "start", "do": [say("Column, this is Command. Radio is dead past the ring road. Move east into the blocks and report.")]},
+            {"when": "start", "do": [say("Column, this is Command. Deploy the KShM into a field HQ (Y), build a workshop, then move east into the blocks."),]},
             {"when": "objective", "objective": "blocks", "do": [
                 say("Smoke over the gas station. Marauders. They've dug in with sandbags - take them out."),
                 {"type": "reveal", "objective": "outpost"}]},
@@ -74,7 +74,7 @@ M1 = {
             {"when": "destroyed", "tag": "outpost", "do": [
                 say("Outpost is clear. Fuel trucks are yours. Their main camp is in the garages south-east of the road."),
                 {"type": "energy", "amount": 250}, {"type": "reveal", "objective": "camp"},
-                spawn("tank", 2, [40, 110], player=True), say("Two more tanks from the depot are joining you.")]},
+                spawn("mtlb", 2, [40, 110], player=True), say("Two MT-LBs from the depot are joining you.")]},
             {"when": "area", "pos": [205, 232], "radius": 22, "do": [
                 say("Movement in the garages! Technicals coming from the field."),
                 spawn("raider_technical", 2, [270, 270], [210, 236]), spawn("raider_buggy", 3, [260, 300], [210, 236])]},
@@ -86,12 +86,12 @@ M1 = {
 M2 = {
     "name": "Holdout",
     "theme": "winter",
-    "playerStart": {"pos": [118, 132], "units": ["tank", "tank", "scout", "engineer", "engineer"]},
+    "playerStart": {"pos": [118, 132], "units": ["builder_truck", "builder_truck", "uaz", "mtlb", "mtlb"]},
     "defense": {"startEnergy": 600, "baseIncome": 2.5, "waves": []},
     "resourcePoints": [{"name": "A", "pos": [150, 108], "radius": 3.5, "income": 3}, {"name": "B", "pos": [90, 170], "radius": 3.5, "income": 3}],
     "units": [
-        unit("lab", [104, 128], team=0, tag="hq"),
-        unit("tower", [124, 124], team=0),
+        {"unit": "hq", "team": 0, "owner": 0, "pos": [104, 128], "tag": "hq"},
+        {"unit": "gun_tower", "team": 0, "owner": 0, "pos": [124, 124]}, {"unit": "workshop", "team": 0, "owner": 0, "pos": [96, 140]},
         unit("raider_camp", [300, 150], tag="nest"), unit("raider_bunker", [290, 140], tag="nest"), unit("raider_bunker", [306, 162], tag="nest"),
     ],
     "mission": {
@@ -121,7 +121,7 @@ M2 = {
 M3 = {
     "name": "Glow over the Plant",
     "theme": "winter",
-    "playerStart": {"pos": [180, 200], "units": ["tank", "tank", "tank", "scout", "engineer"]},
+    "playerStart": {"pos": [180, 200], "units": ["kshm", "builder_truck", "uaz", "mtlb", "mtlb", "mtlb"]},
     "defense": {"startEnergy": 500, "baseIncome": 2.0, "waves": []},
     "resourcePoints": [{"name": "A", "pos": [260, 300], "radius": 3.5, "income": 3}, {"name": "B", "pos": [290, 150], "radius": 4, "income": 4}],
     "units": [

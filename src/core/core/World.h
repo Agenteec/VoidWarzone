@@ -113,6 +113,8 @@ public:
     std::vector<entt::entity> spawnPlayer(std::uint8_t player, std::uint8_t team = 0);
     void releasePlayer(std::uint8_t player);
     std::string saveState() const;
+    void handle(const DeployCommand& cmd);
+    bool buildNeedsBase() const { return map_ && map_->mission().enabled; }
     const std::vector<std::uint8_t>& objectives() const { return objectiveState_; }
     std::vector<std::string> takeMessages() { return std::exchange(messages_, {}); }
     float missionTime() const { return static_cast<float>(tick_) * kTickDt; }

@@ -13,6 +13,7 @@ namespace vw {
 
 inline constexpr float kEnemyBuildGap = 8.0f;
 inline constexpr float kStructureGap = 1.5f;
+inline constexpr float kBaseBuildRadius = 12.0f;
 
 struct SiteBlocker {
     glm::vec2 pos{};
@@ -22,12 +23,12 @@ struct SiteBlocker {
     std::uint8_t team = 0;
 };
 
-enum class SiteStatus : std::uint8_t { Ok, Blocked, Occupied, NearEnemy };
+enum class SiteStatus : std::uint8_t { Ok, Blocked, Occupied, NearEnemy, FarFromBase };
 
 inline glm::vec2 snapBuild(glm::vec2 pos) {
     return {std::floor(pos.x) + 0.5f, std::floor(pos.y) + 0.5f};
 }
 
-SiteStatus checkSite(const Map& terrain, const UnitDef& def, glm::vec2 pos, std::uint8_t team, const std::vector<SiteBlocker>& around);
+SiteStatus checkSite(const Map& terrain, const UnitDef& def, glm::vec2 pos, std::uint8_t team, const std::vector<SiteBlocker>& around, bool needBase = false);
 
 }

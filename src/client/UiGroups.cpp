@@ -44,6 +44,45 @@ std::vector<entt::entity> App::selectedTransports() const {
     return out;
 }
 
+std::vector<entt::entity> App::selectedDeployable() const {
+    std::vector<entt::entity> out;
+    for (const auto id : selected_)
+        if (const auto* e = findEntity(id); e && isOwn(*e) && !(e->flags & net::kStateBuilding) &&
+                                              (data_->unit(e->def).deploy != kInvalidUnitDef || data_->unit(e->def).undeploy != kInvalidUnitDef))
+            out.push_back(static_cast<entt::entity>(id));
+    return out;
+}
+
+bool App::ownCompleted(UnitDefId def) const {
+    for (const auto& e : entities_)
+        if (e.kind == net::EntityKind::Unit && e.def == def && e.hp > 0 && isOwn(e) && !(e.flags & net::kStateBuilding))
+            return true;
+    return false;
+}
+
+std::vector<UnitDefId> App::productionList() const {
+    const bool mission = map_ && map_->mission().enabled;
+    std::vector<UnitDefId> out;
+    for (const auto id : data_->recruitable())
+        if (data_->unit(id).producedAt.empty() != mission)
+            out.push_back(id);
+    return out;
+}
+
+const char* App::missingFor(const UnitDef& def) const {
+    if (!map_ || !map_->mission().enabled)
+        return nullptr;
+    if (def.needs != kInvalidUnitDef && !ownCompleted(def.needs))
+        return data_->unit(def.needs).name.c_str();
+    if (!def.producedAt.empty()) {
+        for (const auto at : def.producedAt)
+            if (ownCompleted(at))
+                return nullptr;
+        return data_->unit(def.producedAt.front()).name.c_str();
+    }
+    return nullptr;
+}
+
 float App::liftOf(const net::InterpolatedEntity& e) const {
     if (!data_->unit(e.def).air)
         return 0.0f;
@@ -136,7 +175,7 @@ bool App::buildValid(UnitDefId id, glm::vec2 pos) const {
         const auto& other = data_->unit(ph.def);
         around.push_back({ph.pos, other.radius, true, other.wall, 0});
     }
-    const SiteStatus status = checkSite(*map_, def, pos, 0, around);
+    const SiteStatus status = checkSite(*map_, def, pos, 0, around, map_->mission().enabled);
     return status == SiteStatus::Ok || status == SiteStatus::Occupied;
 }
 
@@ -217,6 +256,12 @@ void App::renderBuildGhost() {
         }
         return;
     }
+    if (map_->mission().enabled)
+        for (const auto& e : entities_)
+            if (e.kind == net::EntityKind::Unit && e.hp > 0 && e.team == 0 && data_->unit(e.def).structure) {
+                const float r = (kBaseBuildRadius + data_->unit(e.def).radius) * 2.0f;
+                renderer_.draw(Mesh::Cylinder, {e.pos.x, 0.02f, e.pos.y}, {r, 0.02f, r}, 0.0f, glm::vec4{0.3f, 0.75f, 1.0f, 0.06f}, Unlit | Alpha);
+            }
     const glm::vec2 pos = snapBuild(*ground);
     const float d = data_->unit(def).radius * 2.0f;
     const float h = std::max(visuals_[def].height, 0.8f);

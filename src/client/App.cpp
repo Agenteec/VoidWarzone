@@ -978,12 +978,15 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         controlGroup(static_cast<int>(key - SDLK_0), ctrl, shift);
     } else if (panel_ != Panel::None && ((key >= SDLK_1 && key <= SDLK_9) || key == SDLK_0)) {
         handlePanelKey(key, shift);
+    } else if (key == SDLK_Y && !selectedDeployable().empty()) {
+        net_.sendCommand(DeployCommand{0, selectedDeployable()});
+        selected_.clear();
     } else if (key == SDLK_U && !selectedTransports().empty()) {
         armOrder(Arm::Unload);
     } else if (key == SDLK_Z || key == SDLK_X || key == SDLK_C || key == SDLK_V || key == SDLK_N) {
         const auto index = static_cast<std::size_t>(key == SDLK_Z ? 0 : key == SDLK_X ? 1 : key == SDLK_C ? 2 : key == SDLK_V ? 3 : 4);
-        if (index < data_->recruitable().size())
-            net_.sendCommand(RecruitCommand{0, data_->recruitable()[index]});
+        if (const auto list = productionList(); index < list.size())
+            net_.sendCommand(RecruitCommand{0, list[index]});
     } else if (buildKeyIndex(key) >= 0) {
         armBuild(static_cast<std::size_t>(buildKeyIndex(key)));
     } else if (key == SDLK_B || key == SDLK_I || key == SDLK_L) {

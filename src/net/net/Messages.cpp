@@ -72,6 +72,9 @@ void writeCommand(Writer& w, std::uint32_t seq, const Command& command) {
                 w.u32(entt::to_integral(c.unit));
                 w.u16(c.module);
                 return;
+            } else if constexpr (std::is_same_v<T, DeployCommand>) {
+                writeUnits(w, c.targets);
+                return;
             } else {
                 writeUnits(w, c.units);
             }
@@ -180,6 +183,13 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
         c.unit = static_cast<entt::entity>(r.u32());
         c.slot = r.u8();
         command = c;
+        break;
+    }
+    case 14: {
+        DeployCommand c;
+        if (!readUnits(r, c.targets))
+            return false;
+        command = std::move(c);
         break;
     }
     case 13: {

@@ -116,6 +116,11 @@ struct UnitDef {
     float buildTime = 10.0f;
     float priority = 1.0f;
     UnitDefId produces = kInvalidUnitDef;
+    UnitDefId deploy = kInvalidUnitDef;
+    UnitDefId undeploy = kInvalidUnitDef;
+    bool deployOnly = false;
+    std::vector<UnitDefId> producedAt;
+    UnitDefId needs = kInvalidUnitDef;
     float produceInterval = 20.0f;
     int produceMax = 4;
     std::optional<WeaponDef> weapon;

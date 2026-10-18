@@ -48,11 +48,12 @@
     200
    ],
    "units": [
-    "tank",
-    "tank",
-    "tank",
-    "scout",
-    "engineer"
+    "kshm",
+    "builder_truck",
+    "uaz",
+    "mtlb",
+    "mtlb",
+    "mtlb"
    ]
   },
   "defense": {

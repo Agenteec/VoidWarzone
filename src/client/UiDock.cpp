@@ -119,6 +119,14 @@ void App::drawDock() {
                 armOrder(Arm::Unload);
             ImGui::SetItemTooltip("Unload passengers at a point [U]. Right click a transport with ground units to board it.");
         }
+        if (const auto deployable = selectedDeployable(); !deployable.empty()) {
+            const auto* first = findEntity(entt::to_integral(deployable.front()));
+            const bool pack = first && data_->unit(first->def).undeploy != kInvalidUnitDef;
+            next();
+            if (cardButton("deploy", pack ? ICON_FA_TRUCK : ICON_FA_HOME, pack ? "Pack up" : "Deploy", "Y", true, false, cell))
+                pressKey(SDLK_Y, false);
+            ImGui::SetItemTooltip(pack ? "Pack the HQ back into the KShM to move it [Y]" : "Deploy the KShM into a field HQ here [Y]. New buildings must stand near your base.");
+        }
         next();
         if (cardButton("stop", ICON_FA_STOP, "Stop", "S", hasSelection, false, cell))
             pressKey(SDLK_S, false);
@@ -184,16 +192,21 @@ void App::drawDock() {
             panel_ = panel_ == Panel::Learn ? Panel::None : Panel::Learn;
         ImGui::SetItemTooltip("Learn hero skills [L]");
     } else if (dock_ == Dock::Production) {
-        const auto& list = data_->recruitable();
-        for (std::size_t i = 0; i < list.size() && i < 8; ++i) {
-            next();
+        const auto list = productionList();
+        for (std::size_t i = 0; i < list.size() && i < 12; ++i) {
             const auto& def = data_->unit(list[i]);
+            next();
             char cost[16];
             std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
             const char* key = i < 5 ? kRecruitKeyNames[i] : "";
-            if (cardButton(def.id.c_str(), def.name.substr(0, 7).c_str(), cost, key, energy >= def.cost, false, cell))
+            const char* missing = missingFor(def);
+            if (cardButton(def.id.c_str(), def.name.substr(0, 7).c_str(), cost, key, energy >= def.cost && !missing, false, cell))
                 net_.sendCommand(RecruitCommand{0, list[i]});
             unitTooltip(def, "Recruit", key);
+            if (missing && ImGui::BeginItemTooltip()) {
+                ImGui::TextColored(toVec(kBad), "needs a %s", missing);
+                ImGui::EndTooltip();
+            }
         }
     } else if (dock_ == Dock::Refit) {
         const auto* own = focusedOwn();
@@ -288,16 +301,21 @@ void App::drawDock() {
         }
     } else if (dock_ == Dock::Build) {
         const auto& list = data_->buildable();
-        for (std::size_t i = 0; i < list.size() && i < 8; ++i) {
+        for (std::size_t i = 0; i < list.size() && i < 12; ++i) {
             next();
             const auto& def = data_->unit(list[i]);
             char cost[16];
             std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
             const char* key = i < 5 ? kBuildKeyNames[i] : "";
             const bool armed = buildArmed_ == static_cast<int>(list[i]);
-            if (cardButton(def.id.c_str(), def.name.substr(0, 8).c_str(), cost, touch ? "" : key, builders && (energy >= def.cost || armed), armed, cell))
+            const char* missing = map_ && map_->mission().enabled && def.needs != kInvalidUnitDef && !ownCompleted(def.needs) ? data_->unit(def.needs).name.c_str() : nullptr;
+            if (cardButton(def.id.c_str(), def.name.substr(0, 8).c_str(), cost, touch ? "" : key, builders && !missing && (energy >= def.cost || armed), armed, cell))
                 armBuild(i);
             unitTooltip(def, "Build", key);
+            if (missing && ImGui::BeginItemTooltip()) {
+                ImGui::TextColored(toVec(kBad), "needs a %s", missing);
+                ImGui::EndTooltip();
+            }
             if (def.produces != kInvalidUnitDef && ImGui::BeginItemTooltip()) {
                 ImGui::TextDisabled("makes a %s every %.0fs (up to %d)", data_->unit(def.produces).name.c_str(), def.produceInterval, def.produceMax);
                 ImGui::EndTooltip();

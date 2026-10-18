@@ -93,8 +93,13 @@ struct ModuleCommand {
     std::uint16_t module = 0;
 };
 
+struct DeployCommand {
+    std::uint8_t player = 0;
+    std::vector<entt::entity> targets;
+};
+
 using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand, PromoteCommand, CastCommand, LearnCommand, BuyCommand,
-                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand, UnloadCommand, ModuleCommand>;
+                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand, UnloadCommand, ModuleCommand, DeployCommand>;
 
 template <class T>
 concept UnitCommand = requires(T t) { t.units; };

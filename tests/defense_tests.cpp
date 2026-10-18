@@ -349,3 +349,54 @@ TEST_CASE("mission objectives and triggers drive the match") {
     CHECK(next.spawnRoster(0, roster).size() == 1);
     CHECK(countDef(next, data, "soldier") == 2);
 }
+
+TEST_CASE("mobile hq deploys, packs up and gates production") {
+    const auto data = GameData::parse(R"({"units":[
+        {"id":"kshm","maxHp":1000,"radius":0.8,"speed":3,"deploy":"hq"},
+        {"id":"hq","structure":true,"buildable":true,"deployOnly":true,"maxHp":4000,"radius":2,"undeploy":"kshm"},
+        {"id":"truck","cost":50,"maxHp":200,"radius":0.5,"speed":4,"builder":true,"producedAt":["workshop"]},
+        {"id":"workshop","structure":true,"buildable":true,"cost":100,"maxHp":2000,"radius":2,"buildTime":2},
+        {"id":"lab","structure":true,"buildable":true,"cost":100,"maxHp":2000,"radius":1.5,"buildTime":2},
+        {"id":"shop","structure":true,"buildable":true,"cost":100,"maxHp":2000,"radius":2,"buildTime":2,"requires":"lab"}
+    ]})");
+    const auto map = Map::parse(R"({"width":60,"height":60,"playerStart":{"pos":[10,10],"units":["kshm","truck"]},
+        "defense":{"startEnergy":1000,"baseIncome":0,"waves":[]},
+        "mission":{"objectives":[{"id":"x","type":"survive","time":9999}]}})");
+    World world(data, map);
+    world.spawnPlayer(0);
+    run(world, 0.2f);
+    auto find = [&](const char* id) {
+        for (auto [e, unit] : world.registry().view<const Unit>().each())
+            if (unit.def == data.find(id))
+                return e;
+        return entt::entity{entt::null};
+    };
+    auto exists = [&](const char* id) { return find(id) != entt::null; };
+    CHECK(data.buildable().size() == 3);
+    const auto truck = find("truck");
+    world.apply(RecruitCommand{0, data.find("truck")});
+    CHECK(countDef(world, data, "truck") == 1);
+    CHECK(world.checkSite(data.find("workshop"), {14.5f, 14.5f}, 0, false) == SiteStatus::FarFromBase);
+
+    world.apply(DeployCommand{0, {find("kshm")}});
+    run(world, 0.2f);
+    REQUIRE(exists("hq"));
+    CHECK_FALSE(exists("kshm"));
+    CHECK(world.checkSite(data.find("workshop"), {18.5f, 10.5f}, 0, false) == SiteStatus::Ok);
+    CHECK(world.checkSite(data.find("workshop"), {45.5f, 45.5f}, 0, false) == SiteStatus::FarFromBase);
+
+    world.apply(BuildCommand{{truck}, data.find("shop"), {18.5f, 16.5f}, false});
+    run(world, 0.2f);
+    CHECK(world.registry().get<Order>(truck).type != OrderType::Build);
+    world.apply(BuildCommand{{truck}, data.find("workshop"), {18.5f, 10.5f}, false});
+    run(world, 12.0f);
+    REQUIRE(exists("workshop"));
+    CHECK_FALSE(world.registry().all_of<Construction>(find("workshop")));
+    world.apply(RecruitCommand{0, data.find("truck")});
+    CHECK(countDef(world, data, "truck") == 2);
+
+    world.apply(DeployCommand{0, {find("hq")}});
+    run(world, 0.2f);
+    CHECK_FALSE(exists("hq"));
+    CHECK(exists("kshm"));
+}

@@ -1450,7 +1450,7 @@
     },
     {
       "id": "wall",
-      "name": "Wall",
+      "name": "Concrete Blocks",
       "structure": true,
       "buildable": true,
       "cost": 15,
@@ -1470,7 +1470,7 @@
     },
     {
       "id": "gun_tower",
-      "name": "MG Tower",
+      "name": "MG Nest",
       "structure": true,
       "buildable": true,
       "cost": 90,
@@ -1494,7 +1494,7 @@
         "shape": "cylinder",
         "height": 3.0,
         "model": {
-          "glb": "colony_mg_tower"
+          "glb": "colony_mg_nest"
         },
         "shot": "frost"
       },
@@ -1502,7 +1502,7 @@
     },
     {
       "id": "cannon_hardpoint",
-      "name": "Hardpoint",
+      "name": "Pillbox",
       "structure": true,
       "buildable": true,
       "cost": 220,
@@ -1527,6 +1527,153 @@
       "buildTime": 14
     },
     {
+      "id": "zu23",
+      "name": "ZU-23 AA",
+      "structure": true,
+      "buildable": true,
+      "cost": 140,
+      "maxHp": 1100,
+      "armor": 3,
+      "radius": 0.9,
+      "buildTime": 9,
+      "weapon": {
+        "damage": 14,
+        "range": 9,
+        "cooldown": 0.25,
+        "projectileSpeed": 34,
+        "type": "kinetic",
+        "targets": "air"
+      },
+      "visual": {
+        "shape": "cylinder",
+        "height": 1.0,
+        "model": {
+          "glb": "colony_zu23"
+        }
+      }
+    },
+    {
+      "id": "mortar_pit",
+      "name": "Mortar Pit",
+      "structure": true,
+      "buildable": true,
+      "cost": 180,
+      "maxHp": 1000,
+      "armor": 3,
+      "radius": 0.9,
+      "buildTime": 10,
+      "weapon": {
+        "damage": 45,
+        "range": 12,
+        "cooldown": 3.0,
+        "projectileSpeed": 11,
+        "type": "explosive",
+        "splash": 1.6,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cylinder",
+        "height": 0.8,
+        "model": {
+          "glb": "colony_mortar_pit"
+        }
+      }
+    },
+    {
+      "id": "power_plant",
+      "name": "Diesel Generator",
+      "structure": true,
+      "buildable": true,
+      "cost": 200,
+      "maxHp": 2400,
+      "armor": 6,
+      "radius": 1.4,
+      "income": 1.5,
+      "visual": {
+        "shape": "cube",
+        "height": 3.5,
+        "model": {
+          "glb": "colony_diesel"
+        }
+      },
+      "buildTime": 14
+    },
+    {
+      "id": "workshop",
+      "name": "Workshop",
+      "structure": true,
+      "buildable": true,
+      "cost": 220,
+      "maxHp": 3200,
+      "armor": 5,
+      "radius": 2.1,
+      "buildTime": 16,
+      "visual": {
+        "shape": "cube",
+        "height": 2.2,
+        "model": {
+          "glb": "colony_workshop"
+        }
+      }
+    },
+    {
+      "id": "laboratory",
+      "name": "Laboratory",
+      "structure": true,
+      "buildable": true,
+      "cost": 260,
+      "maxHp": 2400,
+      "armor": 4,
+      "radius": 1.9,
+      "buildTime": 18,
+      "visual": {
+        "shape": "cube",
+        "height": 2.0,
+        "model": {
+          "glb": "colony_laboratory"
+        }
+      }
+    },
+    {
+      "id": "tank_shop",
+      "name": "Tank Shop",
+      "structure": true,
+      "buildable": true,
+      "cost": 420,
+      "maxHp": 4200,
+      "armor": 6,
+      "radius": 2.6,
+      "buildTime": 22,
+      "requires": "laboratory",
+      "visual": {
+        "shape": "cube",
+        "height": 2.8,
+        "model": {
+          "glb": "colony_tank_shop"
+        }
+      }
+    },
+    {
+      "id": "repair_bay",
+      "name": "Repair Bay",
+      "structure": true,
+      "buildable": true,
+      "cost": 160,
+      "maxHp": 2000,
+      "armor": 4,
+      "radius": 1.7,
+      "buildTime": 12,
+      "repair": 30,
+      "repairRange": 4,
+      "visual": {
+        "shape": "cube",
+        "height": 2.6,
+        "model": {
+          "glb": "colony_repair_bay"
+        }
+      }
+    },
+    {
       "id": "auto_factory",
       "name": "Factory",
       "structure": true,
@@ -1548,25 +1695,6 @@
         }
       },
       "buildTime": 18
-    },
-    {
-      "id": "power_plant",
-      "name": "Generator",
-      "structure": true,
-      "buildable": true,
-      "cost": 200,
-      "maxHp": 2400,
-      "armor": 6,
-      "radius": 1.6,
-      "income": 1.5,
-      "visual": {
-        "shape": "cube",
-        "height": 3.5,
-        "model": {
-          "glb": "colony_generator"
-        }
-      },
-      "buildTime": 14
     },
     {
       "id": "raider_buggy",
@@ -1721,6 +1849,191 @@
         ],
         "model": {
           "glb": "raider_camp"
+        }
+      }
+    },
+    {
+      "id": "kshm",
+      "name": "Mobile HQ (KShM)",
+      "maxHp": 1100,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 0.85,
+      "speed": 2.6,
+      "sight": 11,
+      "accel": 3.0,
+      "turnRate": 2.0,
+      "deploy": "hq",
+      "priority": 4,
+      "visual": {
+        "shape": "cube",
+        "height": 1.6,
+        "model": {
+          "glb": "colony_kshm"
+        }
+      }
+    },
+    {
+      "id": "hq",
+      "name": "Field HQ",
+      "structure": true,
+      "buildable": true,
+      "deployOnly": true,
+      "maxHp": 4200,
+      "armor": 5,
+      "radius": 2.1,
+      "sight": 13,
+      "income": 0.6,
+      "undeploy": "kshm",
+      "priority": 2,
+      "visual": {
+        "shape": "cube",
+        "height": 2.0,
+        "model": {
+          "glb": "colony_hq"
+        }
+      }
+    },
+    {
+      "id": "builder_truck",
+      "name": "Builder Truck",
+      "cost": 70,
+      "maxHp": 300,
+      "armor": 2,
+      "armorType": "light",
+      "radius": 0.65,
+      "speed": 4.2,
+      "sight": 8,
+      "accel": 6.0,
+      "turnRate": 4.0,
+      "builder": true,
+      "producedAt": [
+        "workshop"
+      ],
+      "visual": {
+        "shape": "cube",
+        "height": 1.4,
+        "model": {
+          "glb": "colony_builder_truck"
+        }
+      }
+    },
+    {
+      "id": "uaz",
+      "name": "UAZ (MG)",
+      "cost": 55,
+      "maxHp": 180,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.5,
+      "speed": 6.8,
+      "sight": 10,
+      "accel": 9.0,
+      "turnRate": 5.5,
+      "skills": [
+        "blink",
+        "rapid_fire",
+        "shock_mine",
+        "drones",
+        "hunter_aura",
+        "emp_burst"
+      ],
+      "producedAt": [
+        "workshop"
+      ],
+      "weapon": {
+        "damage": 8,
+        "range": 5.5,
+        "cooldown": 0.3,
+        "projectileSpeed": 26,
+        "type": "kinetic",
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "sphere",
+        "height": 1.0,
+        "model": {
+          "glb": "colony_uaz"
+        }
+      }
+    },
+    {
+      "id": "mtlb",
+      "name": "MT-LB (23 mm)",
+      "cost": 110,
+      "maxHp": 400,
+      "armor": 2,
+      "armorType": "heavy",
+      "radius": 0.66,
+      "speed": 4.6,
+      "sight": 9,
+      "accel": 6.0,
+      "turnRate": 3.6,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura",
+        "artillery_strike"
+      ],
+      "producedAt": [
+        "workshop",
+        "tank_shop"
+      ],
+      "weapon": {
+        "damage": 13,
+        "range": 6.5,
+        "cooldown": 0.32,
+        "projectileSpeed": 30,
+        "type": "piercing",
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "glb": "colony_mtlb"
+        }
+      }
+    },
+    {
+      "id": "tractor_tank",
+      "name": "Tractor Tank",
+      "cost": 170,
+      "maxHp": 620,
+      "armor": 4,
+      "armorType": "heavy",
+      "radius": 0.72,
+      "speed": 3.2,
+      "sight": 9,
+      "accel": 4.0,
+      "turnRate": 2.6,
+      "skills": [
+        "siege_shot",
+        "fortify",
+        "rally",
+        "repair_field",
+        "command_aura",
+        "artillery_strike"
+      ],
+      "producedAt": [
+        "tank_shop"
+      ],
+      "requires": "laboratory",
+      "weapon": {
+        "damage": 42,
+        "range": 7,
+        "cooldown": 1.7,
+        "projectileSpeed": 24,
+        "type": "piercing",
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.4,
+        "model": {
+          "glb": "colony_tractor_tank"
         }
       }
     }

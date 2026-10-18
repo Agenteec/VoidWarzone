@@ -99,6 +99,51 @@ void World::grantTeamEnergy(float amount) {
             p.energy += share;
 }
 
+void World::handle(const DeployCommand& cmd) {
+    for (const auto e : cmd.targets) {
+        if (!alive(e))
+            continue;
+        const auto* owner = registry_.try_get<Owner>(e);
+        if (!owner || owner->player != cmd.player)
+            continue;
+        const auto& def = data_->unit(registry_.get<Unit>(e).def);
+        const UnitDefId into = def.deploy != kInvalidUnitDef ? def.deploy : def.undeploy;
+        if (into == kInvalidUnitDef || registry_.all_of<Construction>(e) || registry_.all_of<Carried>(e))
+            continue;
+        glm::vec2 pos = registry_.get<Position>(e).value;
+        const auto& target = data_->unit(into);
+        if (target.structure) {
+            pos = snapBuild(pos);
+            std::vector<SiteBlocker> around;
+            for (auto [o, p, unit, t] : registry_.view<const Position, const Unit, const Team>().each())
+                if (o != e && alive(o) && glm::distance(p.value, pos) < target.radius + data_->maxRadius() + kEnemyBuildGap + 1.0f)
+                    around.push_back({p.value, unit.radius, registry_.all_of<Structure>(o), data_->unit(unit.def).wall, t.id});
+            const SiteStatus status = vw::checkSite(*map_, target, pos, registry_.get<Team>(e).id, around);
+            if (status == SiteStatus::Blocked || status == SiteStatus::NearEnemy)
+                continue;
+        }
+        const auto& health = registry_.get<Health>(e);
+        const float frac = health.max > 0.0f ? health.hp / health.max : 1.0f;
+        const std::uint8_t team = registry_.get<Team>(e).id;
+        const std::uint8_t player = owner->player;
+        std::optional<std::string> tag;
+        if (const auto* t = registry_.try_get<Tag>(e))
+            tag = t->name;
+        const bool wasCore = core_ == e;
+        if (registry_.all_of<Structure>(e))
+            navDirty_ = true;
+        registry_.destroy(e);
+        const auto made = spawn(into, team, pos, player);
+        if (tag)
+            registry_.emplace<Tag>(made, Tag{*tag});
+        if (wasCore)
+            core_ = made;
+        auto& h = registry_.get<Health>(made);
+        h.hp = std::max(1.0f, h.max * frac);
+        events_.push_back({EventType::Summon, made, entt::null, pos, pos, 0.0f});
+    }
+}
+
 void World::handle(const RecruitCommand& cmd) {
     if (!map_ || cmd.player >= kMaxPlayers || cmd.unit >= data_->units().size())
         return;
@@ -106,10 +151,38 @@ void World::handle(const RecruitCommand& cmd) {
     const auto& def = data_->unit(cmd.unit);
     if (!player.active || def.cost <= 0.0f || player.energy < def.cost)
         return;
+    glm::vec2 origin = playerBase(cmd.player);
+    float ring = 0.0f;
+    if (map_->mission().enabled) {
+        auto own = [&](UnitDefId want, glm::vec2* where, float* radius) {
+            for (auto [e, unit, owner, pos] : registry_.view<const Unit, const Owner, const Position>(entt::exclude<Construction>).each())
+                if (unit.def == want && owner.player == cmd.player && alive(e)) {
+                    if (where)
+                        *where = pos.value;
+                    if (radius)
+                        *radius = unit.radius;
+                    return true;
+                }
+            return false;
+        };
+        if (def.needs != kInvalidUnitDef && !own(def.needs, nullptr, nullptr))
+            return;
+        if (!def.producedAt.empty()) {
+            bool found = false;
+            for (const auto at : def.producedAt)
+                if (own(at, &origin, &ring)) {
+                    found = true;
+                    break;
+                }
+            if (!found)
+                return;
+        }
+    }
     player.energy -= def.cost;
     const int slot = recruitCount_++ % 9;
-    const glm::vec2 offset{static_cast<float>(slot % 3 - 1) * 1.5f, static_cast<float>(slot / 3 - 1) * 1.5f};
-    const glm::vec2 pos = Map::center(nearestFree(*map_, Map::cellOf(playerBase(cmd.player) + offset)));
+    const glm::vec2 offset = ring > 0.0f ? glm::vec2(std::cos(static_cast<float>(slot) * 0.7f), std::sin(static_cast<float>(slot) * 0.7f)) * (ring + 1.5f)
+                                         : glm::vec2(static_cast<float>(slot % 3 - 1) * 1.5f, static_cast<float>(slot / 3 - 1) * 1.5f);
+    const glm::vec2 pos = Map::center(nearestFree(navMap(), Map::cellOf(origin + offset)));
     spawn(cmd.unit, 0, pos, cmd.player);
 }
 
@@ -118,7 +191,7 @@ SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team, bool
         return SiteStatus::Blocked;
     const auto& def = data_->unit(id);
     std::vector<SiteBlocker> around;
-    const float reach = def.radius + data_->maxRadius() + kEnemyBuildGap + 1.0f;
+    const float reach = def.radius + data_->maxRadius() + std::max(kEnemyBuildGap, kBaseBuildRadius) + 1.0f;
     for (auto [e, p, unit, t] : registry_.view<const Position, const Unit, const Team>().each()) {
         if (glm::distance(p.value, pos) > reach || !alive(e))
             continue;
@@ -143,7 +216,7 @@ SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team, bool
                     addPhantom(o, t.id);
         }
     }
-    return vw::checkSite(*map_, def, pos, team, around);
+    return vw::checkSite(*map_, def, pos, team, around, buildNeedsBase());
 }
 
 void World::clearSite(UnitDefId id, glm::vec2 pos, std::uint8_t team) {

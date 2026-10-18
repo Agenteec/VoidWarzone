@@ -223,6 +223,11 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
     }
     std::unordered_map<std::size_t, std::string> produceNames;
     std::unordered_map<std::size_t, std::string> refitNames;
+    struct Links {
+        std::string deploy, undeploy, requires_;
+        std::vector<std::string> producedAt;
+    };
+    std::unordered_map<std::size_t, Links> links;
     for (const auto& u : unitsJson.at("units")) {
         UnitDef def;
         def.id = u.at("id").get<std::string>();
@@ -262,6 +267,12 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             def.auras.push_back(it->second);
         }
         def.builder = u.value("builder", def.builder);
+        def.deployOnly = u.value("deployOnly", false);
+        {
+            Links l{u.value("deploy", ""), u.value("undeploy", ""), u.value("requires", ""), u.value("producedAt", std::vector<std::string>{})};
+            if (!l.deploy.empty() || !l.undeploy.empty() || !l.requires_.empty() || !l.producedAt.empty())
+                links.emplace(d.units_.size(), std::move(l));
+        }
         def.wall = u.value("wall", def.wall);
         def.buildTime = u.value("buildTime", def.buildTime);
         const bool armed = u.contains("weapon");
@@ -328,6 +339,23 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             throw std::runtime_error("unknown refit base: " + name);
     }
 
+    for (const auto& [i, l] : links) {
+        auto resolve = [&](const std::string& name) {
+            const UnitDefId id = d.find(name);
+            if (id == kInvalidUnitDef)
+                throw std::runtime_error("unknown unit link: " + name);
+            return id;
+        };
+        auto& def = d.units_[i];
+        if (!l.deploy.empty())
+            def.deploy = resolve(l.deploy);
+        if (!l.undeploy.empty())
+            def.undeploy = resolve(l.undeploy);
+        if (!l.requires_.empty())
+            def.needs = resolve(l.requires_);
+        for (const auto& name : l.producedAt)
+            def.producedAt.push_back(resolve(name));
+    }
     for (const auto& [i, name] : produceNames) {
         d.units_[i].produces = d.find(name);
         if (d.units_[i].produces == kInvalidUnitDef)
@@ -336,7 +364,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
 
     for (std::size_t i = 0; i < d.units_.size(); ++i) {
         auto& def = d.units_[i];
-        if (def.buildable)
+        if (def.buildable && !def.deployOnly)
             d.buildable_.push_back(static_cast<UnitDefId>(i));
         else if (def.cost > 0.0f && !def.structure)
             d.recruitable_.push_back(static_cast<UnitDefId>(i));

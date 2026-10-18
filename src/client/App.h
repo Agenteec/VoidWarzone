@@ -174,6 +174,10 @@ private:
     static glm::vec4 orderColor(std::uint8_t type);
     std::vector<entt::entity> selectedBuilders() const;
     std::vector<entt::entity> selectedTransports() const;
+    std::vector<entt::entity> selectedDeployable() const;
+    bool ownCompleted(UnitDefId def) const;
+    const char* missingFor(const UnitDef& def) const;
+    std::vector<UnitDefId> productionList() const;
     float liftOf(const net::InterpolatedEntity& e) const;
     void updateAirLift(float dt);
     std::unordered_map<std::uint32_t, float> airLift_;
