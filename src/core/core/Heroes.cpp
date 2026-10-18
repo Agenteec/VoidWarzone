@@ -103,6 +103,13 @@ void World::refreshStats(entt::entity e) {
     if (const auto* buffs = registry_.try_get<Buffs>(e))
         for (const auto& b : buffs->list)
             mods.add(b.mods);
+    if (const auto* owner = registry_.try_get<Owner>(e); owner && owner->player < kMaxPlayers) {
+        const auto& unitDef = data_->unit(registry_.get<Unit>(e).def);
+        const auto& done = players_[owner->player].researched;
+        for (std::size_t i = 0; i < done.size(); ++i)
+            if (done[i] && data_->research(static_cast<ResearchId>(i)).applies(unitDef))
+                mods.add(data_->research(static_cast<ResearchId>(i)).mods);
+    }
     if (const auto* boss = registry_.try_get<Boss>(e); boss && boss->enraged) {
         const auto& def = data_->unit(registry_.get<Unit>(e).def);
         if (def.boss && def.boss->enrage) {

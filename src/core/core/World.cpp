@@ -162,6 +162,8 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
             registry_.emplace<Producer>(e, Producer{def.produces, def.produceInterval, def.produceInterval, def.produceMax, {}});
         if (def.factory)
             registry_.emplace<Factory>(e);
+        if (def.lab)
+            registry_.emplace<Lab>(e);
     } else {
         registry_.emplace<Order>(e);
         registry_.emplace<Motion>(e);
@@ -171,8 +173,11 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
             registry_.emplace<Cargo>(e);
         registry_.emplace<Progress>(e, Progress{pos});
     }
-    if (owner >= 0)
+    if (owner >= 0) {
         registry_.emplace<Owner>(e, static_cast<std::uint8_t>(owner));
+        if (owner < kMaxPlayers && !players_[static_cast<std::size_t>(owner)].researched.empty())
+            refreshStats(e);
+    }
     events_.push_back({EventType::Spawn, e, entt::null, pos, pos});
     return e;
 }
@@ -319,6 +324,11 @@ void World::apply(const Command& command) {
             } else if constexpr (std::is_same_v<T, BuildCommand>) {
                 if (cmd.unit >= data_->units().size() || !data_->unit(cmd.unit).buildable || data_->unit(cmd.unit).deployOnly)
                     return;
+                if (const ResearchId topic = data_->unit(cmd.unit).research; topic != kInvalidId && campaignRules()) {
+                    const auto* owner = registry_.try_get<Owner>(units.front());
+                    if (!owner || !researched(owner->player, topic))
+                        return;
+                }
                 if (const UnitDefId need = data_->unit(cmd.unit).needs; need != kInvalidUnitDef && campaignRules()) {
                     const std::uint8_t team = registry_.get<Team>(units.front()).id;
                     bool have = false;
@@ -383,6 +393,7 @@ void World::step() {
         updateSpawners();
         updateProducers();
         updateFactories();
+        updateResearch();
         updateConstruction();
     });
     run([&] { updateHeroes(); });
@@ -883,6 +894,8 @@ void World::resolveCollisions() {
 
 void World::damage(entt::entity target, float amount, int sourceOwner, entt::entity source, DamageType type) {
     if (registry_.all_of<Invulnerable>(target))
+        return;
+    if (const auto* owner = registry_.try_get<Owner>(target); owner && owner->player < kMaxPlayers && players_[owner->player].god)
         return;
     auto& h = registry_.get<Health>(target);
     const auto& combat = data_->combat();

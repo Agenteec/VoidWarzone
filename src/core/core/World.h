@@ -51,6 +51,8 @@ struct PlayerState {
     int kills = 0;
     int shards = 0;
     std::vector<ItemId> stash;
+    std::vector<std::uint8_t> researched;
+    bool god = false;
 };
 
 struct ResourcePointState {
@@ -115,6 +117,14 @@ public:
     std::string saveState() const;
     void handle(const DeployCommand& cmd);
     void handle(const StructureCommand& cmd);
+    void handle(const CheatCommand& cmd);
+    void setCheats(bool on) { cheats_ = on; }
+    bool cheats() const { return cheats_; }
+    bool researched(std::uint8_t player, ResearchId topic) const;
+    bool canResearch(std::uint8_t player, ResearchId topic) const;
+    void grantResearch(std::uint8_t player, ResearchId topic);
+    std::string exportResearch(std::uint8_t player) const;
+    void importResearch(std::uint8_t player, std::string_view list);
     static constexpr std::size_t kQueueSize = 5;
     bool campaignRules() const { return map_ && map_->mission().enabled; }
     const std::vector<std::uint8_t>& objectives() const { return objectiveState_; }
@@ -271,6 +281,9 @@ private:
     bool missionStarted_ = false;
     void updateMission();
     void updateFactories();
+    void updateResearch();
+    void refreshOwned(std::uint8_t player);
+    bool cheats_ = false;
     void runAction(const MissionAction& action);
     bool tagAlive(const std::string& tag) const;
     bool playerNear(glm::vec2 pos, float radius) const;

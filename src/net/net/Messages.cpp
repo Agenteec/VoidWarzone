@@ -83,6 +83,15 @@ void writeCommand(Writer& w, std::uint32_t seq, const Command& command) {
             } else if constexpr (std::is_same_v<T, DeployCommand>) {
                 writeUnits(w, c.targets);
                 return;
+            } else if constexpr (std::is_same_v<T, CheatCommand>) {
+                w.u8(static_cast<std::uint8_t>(c.op));
+                w.u16(c.unit);
+                w.u8(c.team);
+                w.u8(c.count);
+                w.f32(c.point.x);
+                w.f32(c.point.y);
+                writeUnits(w, c.targets);
+                return;
             } else {
                 writeUnits(w, c.units);
             }
@@ -154,7 +163,7 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
     case 15: {
         StructureCommand c;
         c.target = static_cast<entt::entity>(r.u32());
-        c.op = static_cast<StructureOp>(std::min<int>(r.u8(), 2));
+        c.op = static_cast<StructureOp>(std::min<int>(r.u8(), 3));
         c.slot = r.u8();
         c.point = {r.f32(), r.f32()};
         if (!std::isfinite(c.point.x) || !std::isfinite(c.point.y))
@@ -203,6 +212,21 @@ bool readCommand(Reader& r, std::uint32_t& seq, Command& command) {
         c.unit = static_cast<entt::entity>(r.u32());
         c.slot = r.u8();
         command = c;
+        break;
+    }
+    case 16: {
+        CheatCommand c;
+        const auto op = r.u8();
+        if (op >= static_cast<std::uint8_t>(CheatOp::Count))
+            return false;
+        c.op = static_cast<CheatOp>(op);
+        c.unit = r.u16();
+        c.team = std::min<std::uint8_t>(r.u8(), 1);
+        c.count = r.u8();
+        c.point = {r.f32(), r.f32()};
+        if (!std::isfinite(c.point.x) || !std::isfinite(c.point.y) || !readUnits(r, c.targets))
+            return false;
+        command = std::move(c);
         break;
     }
     case 14: {

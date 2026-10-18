@@ -61,6 +61,7 @@ public:
     void sendReady(bool ready);
     void sendPlayerSetup(std::uint8_t target, std::uint8_t color, std::uint8_t team);
     void sendKick(std::uint8_t target);
+    void sendCheats(bool on);
     void sendSettings(const std::string& map, std::uint8_t mode, std::uint8_t difficulty, std::uint8_t maxPlayers);
     void sendStart();
     void sendSaveGame(const std::string& name);

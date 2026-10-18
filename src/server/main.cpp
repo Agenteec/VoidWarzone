@@ -143,7 +143,7 @@ int main(int argc, char** argv) {
     }
 
     try {
-        const auto data = vw::GameData::parse(readFile(dataDir / "units.json"), readFile(dataDir / "skills.json"), readFile(dataDir / "items.json"));
+        const auto data = vw::GameData::parse(readFile(dataDir / "units.json"), readFile(dataDir / "skills.json"), readFile(dataDir / "items.json"), readFile(dataDir / "research.json"));
         const auto map = vw::Map::parse(readFile(dataDir / "maps" / (config.mapName + ".json")));
         if (simPlayers >= 0)
             return simulate(data, map, config.difficulty, config.mode, simPlayers);

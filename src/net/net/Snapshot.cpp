@@ -87,6 +87,21 @@ void writeView(Writer& w, const ClientView& v) {
         w.u16(f.rallyX);
         w.u16(f.rallyY);
     }
+    w.u8(static_cast<std::uint8_t>(std::min<std::size_t>(v.labs.size(), 255)));
+    for (std::size_t k = 0; k < v.labs.size() && k < 255; ++k) {
+        w.u32(v.labs[k].id);
+        w.u16(v.labs[k].topic);
+        w.u8(v.labs[k].progress);
+    }
+    const std::size_t topics = std::min<std::size_t>(v.research.size(), 255);
+    w.u8(static_cast<std::uint8_t>(topics));
+    for (std::size_t k = 0; k < topics; k += 8) {
+        std::uint8_t bits = 0;
+        for (std::size_t b = 0; b < 8 && k + b < topics; ++b)
+            bits |= static_cast<std::uint8_t>((v.research[k + b] ? 1 : 0) << b);
+        w.u8(bits);
+    }
+    w.u8(v.flags);
 }
 
 bool readView(Reader& r, ClientView& v) {
@@ -137,7 +152,27 @@ bool readView(Reader& r, ClientView& v) {
         f.rallyX = r.u16();
         f.rallyY = r.u16();
     }
+    v.labs.resize(r.u8());
+    for (auto& l : v.labs) {
+        l.id = r.u32();
+        l.topic = r.u16();
+        l.progress = r.u8();
+    }
+    v.research.assign(r.u8(), 0);
+    for (std::size_t k = 0; k < v.research.size(); k += 8) {
+        const std::uint8_t bits = r.u8();
+        for (std::size_t b = 0; b < 8 && k + b < v.research.size(); ++b)
+            v.research[k + b] = (bits >> b) & 1;
+    }
+    v.flags = r.u8();
     return r.ok();
+}
+
+const OwnLab* ClientView::lab(std::uint32_t id) const {
+    for (const auto& l : labs)
+        if (l.id == id)
+            return &l;
+    return nullptr;
 }
 
 const OwnFactory* ClientView::factory(std::uint32_t id) const {

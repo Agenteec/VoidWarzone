@@ -131,6 +131,13 @@ ModuleId GameData::findModule(std::string_view id) const {
     return kInvalidId;
 }
 
+ResearchId GameData::findResearch(std::string_view id) const {
+    for (std::size_t i = 0; i < research_.size(); ++i)
+        if (research_[i].id == id)
+            return static_cast<ResearchId>(i);
+    return kInvalidId;
+}
+
 const char* moduleSlotName(ModuleSlot s) {
     return s == ModuleSlot::Weapon ? "weapon" : s == ModuleSlot::System ? "system" : "armor";
 }
@@ -152,7 +159,7 @@ const char* armorTypeName(ArmorType t) {
     return kArmorNames[std::min(static_cast<int>(t), static_cast<int>(ArmorType::Count) - 1)];
 }
 
-GameData GameData::parse(std::string_view unitsText, std::string_view skillsText, std::string_view itemsText) {
+GameData GameData::parse(std::string_view unitsText, std::string_view skillsText, std::string_view itemsText, std::string_view researchText) {
     GameData d;
 
     std::unordered_map<std::string, SkillId> skillIndex;
@@ -267,6 +274,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             def.auras.push_back(it->second);
         }
         def.builder = u.value("builder", def.builder);
+        def.lab = u.value("lab", def.lab);
         def.deployOnly = u.value("deployOnly", false);
         def.produceTime = u.value("produceTime", std::max(2.0f, def.cost / 10.0f));
         {
@@ -404,7 +412,51 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         }
     }
 
-    d.hash_ = fnv1a(itemsText, fnv1a(skillsText, fnv1a(unitsText)));
+    if (!researchText.empty()) {
+        const json rj = json::parse(researchText);
+        std::unordered_map<std::string, ResearchId> index;
+        std::vector<std::vector<std::string>> after;
+        for (const auto& t : rj.at("topics")) {
+            ResearchDef def;
+            def.id = t.at("id").get<std::string>();
+            def.name = t.value("name", def.id);
+            def.desc = t.value("desc", "");
+            def.cost = t.value("cost", def.cost);
+            def.time = t.value("time", def.time);
+            if (const auto m = t.find("mods"); m != t.end())
+                def.mods = parseMods(*m);
+            const std::string scope = t.value("applies", "all");
+            def.scope = scope == "vehicles" ? ResearchScope::Vehicles : scope == "structures" ? ResearchScope::Structures : ResearchScope::All;
+            if (const auto w = t.find("weapon"); w != t.end())
+                def.weapon = static_cast<int>(parseDamage(w->get<std::string>()));
+            if (index.contains(def.id))
+                throw std::runtime_error("duplicate research: " + def.id);
+            const auto id = static_cast<ResearchId>(d.research_.size());
+            index.emplace(def.id, id);
+            for (const auto& u : t.value("unlocks", json::array())) {
+                const UnitDefId unit = d.find(u.get<std::string>());
+                if (unit == kInvalidUnitDef)
+                    throw std::runtime_error("unknown research unlock: " + u.get<std::string>());
+                def.unlocks.push_back(unit);
+                d.units_[unit].research = id;
+            }
+            after.push_back(t.value("after", std::vector<std::string>{}));
+            d.research_.push_back(std::move(def));
+        }
+        if (d.research_.size() > 255)
+            throw std::runtime_error("too many research topics");
+        for (std::size_t i = 0; i < d.research_.size(); ++i) {
+            for (const auto& name : after[i]) {
+                const auto it = index.find(name);
+                if (it == index.end() || it->second >= i)
+                    throw std::runtime_error("research '" + d.research_[i].id + "' must come after a known topic: " + name);
+                d.research_[i].after.push_back(it->second);
+                d.research_[i].tier = std::max(d.research_[i].tier, d.research_[it->second].tier + 1);
+            }
+        }
+    }
+
+    d.hash_ = fnv1a(researchText, fnv1a(itemsText, fnv1a(skillsText, fnv1a(unitsText))));
     return d;
 }
 

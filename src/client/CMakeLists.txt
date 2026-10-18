@@ -13,6 +13,7 @@ set(VW_CLIENT_SOURCES
     Ui.cpp
     UiDesktop.cpp
     UiDock.cpp
+    UiDebug.cpp
     UiGroups.cpp
     UiFx.cpp
     City.cpp

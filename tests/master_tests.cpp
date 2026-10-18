@@ -124,7 +124,7 @@ TEST_CASE("lobby routes signaling") {
 
 TEST_CASE("join a hosted game by room code over ice") {
     NetLibrary lib;
-    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
     const auto map = Map::parse(readData("maps/siege_test.json"));
     MasterThread master;
 

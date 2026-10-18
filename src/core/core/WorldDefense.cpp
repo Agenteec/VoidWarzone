@@ -108,7 +108,24 @@ void World::handle(const StructureCommand& cmd) {
             f->rally = cmd.point;
             f->hasRally = true;
         }
+    } else if (cmd.op == StructureOp::Research) {
+        auto* lab = registry_.try_get<Lab>(cmd.target);
+        if (!lab || lab->topic != kInvalidId || registry_.all_of<Construction>(cmd.target) || !canResearch(cmd.player, cmd.slot))
+            return;
+        const auto& topic = data_->research(cmd.slot);
+        if (players_[cmd.player].energy < topic.cost)
+            return;
+        players_[cmd.player].energy -= topic.cost;
+        lab->topic = cmd.slot;
+        lab->progress = 0.0f;
     } else if (cmd.op == StructureOp::Cancel) {
+        if (auto* lab = registry_.try_get<Lab>(cmd.target); lab && lab->topic < data_->research().size()) {
+            if (cmd.player < kMaxPlayers)
+                players_[cmd.player].energy += data_->research(lab->topic).cost;
+            lab->topic = kInvalidId;
+            lab->progress = 0.0f;
+            return;
+        }
         auto* f = registry_.try_get<Factory>(cmd.target);
         if (!f || cmd.slot >= f->queue.size())
             return;
@@ -125,6 +142,8 @@ void World::handle(const StructureCommand& cmd) {
         if (auto* f = registry_.try_get<Factory>(cmd.target); f && cmd.player < kMaxPlayers)
             for (const auto u : f->queue)
                 players_[cmd.player].energy += data_->unit(u).cost;
+        if (auto* lab = registry_.try_get<Lab>(cmd.target); lab && lab->topic < data_->research().size() && cmd.player < kMaxPlayers)
+            players_[cmd.player].energy += data_->research(lab->topic).cost;
         auto& health = registry_.get<Health>(cmd.target);
         health.hp = 0.0f;
         health.lastHitBy = -1;
@@ -226,6 +245,8 @@ void World::handle(const RecruitCommand& cmd) {
             return false;
         };
         if (def.needs != kInvalidUnitDef && !own(def.needs, nullptr, nullptr))
+            return;
+        if (def.research != kInvalidId && !researched(cmd.player, def.research))
             return;
         if (!def.producedAt.empty()) {
             entt::entity best = entt::null;

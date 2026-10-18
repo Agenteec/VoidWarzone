@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
     if (!lib.ok())
         return 1;
     juice_set_log_level(logLevel);
-    const auto data = vw::GameData::parse(readFile(dataDir / "units.json"), readFile(dataDir / "skills.json"), readFile(dataDir / "items.json"));
+    const auto data = vw::GameData::parse(readFile(dataDir / "units.json"), readFile(dataDir / "skills.json"), readFile(dataDir / "items.json"), readFile(dataDir / "research.json"));
 
     vw::net::PortMapper mapper;
     if (upnp) {

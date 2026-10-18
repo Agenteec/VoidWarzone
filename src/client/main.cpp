@@ -94,6 +94,12 @@ int main(int argc, char** argv) {
             options.touch = true;
         else if (arg == "--cheats")
             options.cheats = true;
+        else if (arg == "--select" && hasValue)
+            options.select = argv[++i];
+        else if (arg == "--debug")
+            options.debug = true;
+        else if (arg == "--research-tree")
+            options.researchTree = true;
         else if (arg == "--difficulty" && hasValue)
             vw::parseDifficulty(argv[++i], options.difficulty);
         else if (arg == "--windowed")

@@ -65,6 +65,8 @@ void App::drawHud() {
     drawLevelUps();
     if (guideOpen_)
         drawGuide();
+    drawResearchTree();
+    drawDebug();
 
     const float s = uiScale();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
@@ -638,6 +640,10 @@ void App::drawPauseMenu() {
     if (ImGui::Button(ICON_FA_BOOK "  Guide  [F1]", {full, 36.0f * s})) {
         pauseOpen_ = false;
         guideOpen_ = true;
+    }
+    if (ImGui::Button(ICON_FA_BUG "  Debug & cheats  [F9]", {full, 32.0f * s})) {
+        pauseOpen_ = false;
+        debugOpen_ = true;
     }
     ImGui::Spacing();
     drawSettings();

@@ -138,7 +138,7 @@ TEST_CASE("build command roundtrip and arena map") {
     CHECK(b->queue);
     CHECK(b->units.size() == 1);
 
-    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
     const auto map = Map::parse(readData("maps/void_arena.json"));
     CHECK(data.buildable().size() == 11);
     World world(data, map, Difficulty::Normal, GameMode::Arena);
@@ -152,7 +152,7 @@ TEST_CASE("build command roundtrip and arena map") {
 
 TEST_CASE("server and client over loopback") {
     NetLibrary lib;
-    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
     const auto map = Map::parse(readData("maps/siege_test.json"));
 
     server::ServerConfig config;
@@ -211,7 +211,7 @@ TEST_CASE("server and client over loopback") {
 
 TEST_CASE("lobby picks map and mode, starts and returns") {
     NetLibrary lib;
-    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
     const auto map = Map::parse(readData("maps/siege_test.json"));
 
     server::ServerConfig config;
@@ -290,7 +290,7 @@ TEST_CASE("lobby picks map and mode, starts and returns") {
 
 TEST_CASE("server denies data mismatch") {
     NetLibrary lib;
-    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
     const auto map = Map::parse(readData("maps/siege_test.json"));
     server::ServerConfig config;
     config.port = 0;
@@ -312,7 +312,7 @@ TEST_CASE("server denies data mismatch") {
 
 TEST_CASE("lan browser finds server") {
     NetLibrary lib;
-    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"));
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
     const auto map = Map::parse(readData("maps/siege_test.json"));
     server::ServerConfig config;
     config.port = 0;

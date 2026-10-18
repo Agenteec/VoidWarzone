@@ -34,7 +34,7 @@ struct RecruitCommand {
     entt::entity factory = entt::null;
 };
 
-enum class StructureOp : std::uint8_t { Rally, Cancel, Demolish };
+enum class StructureOp : std::uint8_t { Rally, Cancel, Demolish, Research };
 
 struct StructureCommand {
     std::uint8_t player = 0;
@@ -42,6 +42,18 @@ struct StructureCommand {
     StructureOp op = StructureOp::Rally;
     std::uint8_t slot = 0;
     glm::vec2 point{};
+};
+
+enum class CheatOp : std::uint8_t { Energy, Spawn, Kill, Heal, Finish, Research, Xp, God, Win, Lose, Wave, Count };
+
+struct CheatCommand {
+    std::uint8_t player = 0;
+    CheatOp op = CheatOp::Energy;
+    std::uint16_t unit = 0;
+    std::uint8_t team = 0;
+    std::uint8_t count = 1;
+    glm::vec2 point{};
+    std::vector<entt::entity> targets;
 };
 
 struct PromoteCommand {
@@ -110,7 +122,7 @@ struct DeployCommand {
 };
 
 using Command = std::variant<MoveCommand, AttackCommand, StopCommand, RecruitCommand, PromoteCommand, CastCommand, LearnCommand, BuyCommand,
-                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand, UnloadCommand, ModuleCommand, DeployCommand, StructureCommand>;
+                             EquipCommand, UnequipCommand, BuildCommand, RefitCommand, UnloadCommand, ModuleCommand, DeployCommand, StructureCommand, CheatCommand>;
 
 template <class T>
 concept UnitCommand = requires(T t) { t.units; };

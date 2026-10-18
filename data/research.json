@@ -1,0 +1,35 @@
+{
+  "topics": [
+    {"id": "hmg_rounds", "name": "Heavy MG Rounds", "desc": "Reloaded 12.7 mm cartridges from the depot stores.", "cost": 100, "time": 30,
+     "weapon": "kinetic", "mods": {"damageMul": 1.15}},
+    {"id": "sandbags", "name": "Reinforced Positions", "desc": "Sandbags, sleepers and scrap plates around every emplacement.", "cost": 90, "time": 25,
+     "applies": "structures", "mods": {"hpMul": 1.2}},
+    {"id": "engine_tuning", "name": "Engine Tuning", "desc": "Carburettors cleaned, filters for the cold, winter diesel.", "cost": 100, "time": 30,
+     "applies": "vehicles", "mods": {"speedMul": 1.1}},
+    {"id": "field_repair", "name": "Field Repair Kits", "desc": "Every crew carries spare parts and a welder.", "cost": 120, "time": 35,
+     "applies": "vehicles", "mods": {"regen": 1.0}},
+
+    {"id": "belt_feed", "name": "Belt Feed", "desc": "Reworked feed trays let the guns fire longer bursts. Unlocks the ZU-23 emplacement.", "cost": 140, "time": 35,
+     "after": ["hmg_rounds"], "weapon": "kinetic", "mods": {"attackSpeedMul": 1.15}, "unlocks": ["zu23"]},
+    {"id": "ap_rounds", "name": "Armour-Piercing Shells", "desc": "Tungsten cores salvaged from the army warehouse.", "cost": 150, "time": 40,
+     "after": ["hmg_rounds"], "weapon": "piercing", "mods": {"damageMul": 1.15}},
+    {"id": "t26_restoration", "name": "T-26 Restoration", "desc": "The museum T-26 can be brought back to life. Unlocks the T-26 in the Tank Shop.", "cost": 200, "time": 45,
+     "after": ["engine_tuning"], "unlocks": ["tractor_tank"]},
+    {"id": "concrete_mix", "name": "Frost-Proof Concrete", "desc": "Concrete that sets at minus thirty.", "cost": 140, "time": 40,
+     "after": ["sandbags"], "applies": "structures", "mods": {"hpMul": 1.15, "armor": 2}},
+    {"id": "mortar_shells", "name": "Mortar Shells", "desc": "A production line for 82 mm bombs. Unlocks the mortar pit.", "cost": 150, "time": 40,
+     "after": ["sandbags"], "weapon": "explosive", "mods": {"damageMul": 1.15}, "unlocks": ["mortar_pit"]},
+
+    {"id": "composite_armor", "name": "Composite Armour", "desc": "Layers of steel, rubber and concrete bolted on the hull.", "cost": 220, "time": 50,
+     "after": ["field_repair", "ap_rounds"], "applies": "vehicles", "mods": {"hpMul": 1.15, "armor": 1}},
+    {"id": "tank_guns", "name": "Long Barrels", "desc": "Longer barrels from the scrapyard: more range and punch.", "cost": 240, "time": 55,
+     "after": ["ap_rounds", "t26_restoration"], "weapon": "piercing", "mods": {"damageMul": 1.1, "range": 0.5}},
+    {"id": "gun_sights", "name": "Optical Sights", "desc": "Rangefinders taken from the abandoned plant.", "cost": 200, "time": 50,
+     "after": ["belt_feed"], "weapon": "kinetic", "mods": {"range": 0.5}},
+
+    {"id": "reactive_armor", "name": "Reactive Armour", "desc": "Explosive tiles that break incoming shells.", "cost": 320, "time": 70,
+     "after": ["composite_armor"], "applies": "vehicles", "mods": {"hpMul": 1.2}},
+    {"id": "fire_control", "name": "Fire Control", "desc": "A field computer for the mortars and artillery.", "cost": 300, "time": 65,
+     "after": ["mortar_shells", "tank_guns"], "weapon": "explosive", "mods": {"range": 1.0, "damageMul": 1.1}}
+  ]
+}

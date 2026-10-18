@@ -71,12 +71,21 @@ void makeLegMatrix(float* mtx, glm::vec3 pos, float hullYaw, float scale, glm::v
     bx::mtxMul(mtx, local, model);
 }
 
-void makeTurretMatrix(float* mtx, glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale) {
-    const glm::vec3 t = pos + rotateY(pivot * scale, hullYaw);
+bool heavyGun(const UnitDef& def) {
+    return def.weapon && def.weapon->damage >= 30.0f && def.weapon->type != DamageType::Emp && def.weapon->type != DamageType::Energy;
+}
+
+bool smallCalibre(const UnitDef& def) {
+    return def.weapon && def.weapon->type == DamageType::Kinetic && def.weapon->damage < 25.0f;
+}
+
+void makeTurretMatrix(float* mtx, glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale, float recoil) {
+    glm::vec3 t = pos + rotateY(pivot * scale, hullYaw);
     const float cy = std::cos(yaw);
     const float sy = std::sin(yaw);
     const float cp = std::cos(pitch);
     const float sp = std::sin(pitch);
+    t += glm::vec3(-cp * sy, -sp, cp * cy) * (recoil * scale);
     const float m[16] = {cy, 0.0f, sy, 0.0f, -sp * sy, cp, sp * cy, 0.0f, -cp * sy, -sp, cp * cy, 0.0f, t.x, t.y, t.z, 1.0f};
     for (int i = 0; i < 16; ++i)
         mtx[i] = i < 12 ? m[i] * scale : m[i];

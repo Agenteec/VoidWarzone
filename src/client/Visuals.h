@@ -110,7 +110,9 @@ struct MapVisuals {
 
 MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& renderer, ModelLibrary& models);
 void makeModelMatrix(float* mtx, glm::vec3 pos, float yaw, float scale, glm::vec3 offset);
-void makeTurretMatrix(float* mtx, glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale);
+void makeTurretMatrix(float* mtx, glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale, float recoil = 0.0f);
+bool heavyGun(const UnitDef& def);
+bool smallCalibre(const UnitDef& def);
 void makeLegMatrix(float* mtx, glm::vec3 pos, float hullYaw, float scale, glm::vec3 hip, float swing, float lift);
 glm::vec3 modelPoint(glm::vec3 pos, float yaw, float scale, glm::vec3 p);
 glm::vec3 turretPoint(glm::vec3 pos, float hullYaw, glm::vec3 pivot, float yaw, float pitch, float scale, glm::vec3 local);

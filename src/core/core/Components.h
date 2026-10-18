@@ -102,6 +102,11 @@ struct Factory {
     bool hasRally = false;
 };
 
+struct Lab {
+    std::uint16_t topic = 0xffff;
+    float progress = 0.0f;
+};
+
 struct Modules {
     std::array<std::uint16_t, 3> slots{0xffff, 0xffff, 0xffff};
 };

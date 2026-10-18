@@ -670,6 +670,10 @@ void App::drawLobby() {
         if (toggleButton(kDifficultyNames[i], info.difficulty == i, {seg, 0.0f}) && info.difficulty != i)
             send(info.map, info.mode, i, info.maxPlayers);
     }
+    ImGui::Spacing();
+    bool cheats = info.cheats;
+    if (ImGui::Checkbox("Cheats (debug menu F9 in game)", &cheats))
+        net_.sendCheats(cheats);
     if (multiplayer && host_) {
         ImGui::Spacing();
         int maxPlayers = info.maxPlayers;

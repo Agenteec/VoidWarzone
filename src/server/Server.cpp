@@ -25,6 +25,8 @@ Server::Server(const GameData& data, const Map& map, ServerConfig config)
     config_.maxPlayers = std::clamp(config_.maxPlayers, 1, 64);
     if (!config_.lobby)
         world_ = std::make_unique<World>(data_, *map_, config_.difficulty, config_.mode);
+    if (world_)
+        world_->setCheats(config_.cheats);
 }
 
 Server::~Server() {
@@ -180,6 +182,7 @@ void Server::broadcastLobby() {
     info.difficulty = static_cast<std::uint8_t>(config_.difficulty);
     info.maxPlayers = static_cast<std::uint8_t>(config_.maxPlayers);
     info.leader = leader();
+    info.cheats = config_.cheats;
     for (const auto& c : clients_)
         info.players.push_back({c->player, c->name, c->ready, c->color, c->team});
     std::sort(info.players.begin(), info.players.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
@@ -203,6 +206,7 @@ void Server::broadcastChat(const Client& from, const std::string& text) {
 void Server::startMatch(const std::string* save) {
     const auto t0 = std::chrono::steady_clock::now();
     world_ = std::make_unique<World>(data_, *map_, config_.difficulty, config_.mode);
+    world_->setCheats(config_.cheats);
     spdlog::info("world ready in {:.2f}s", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
     if (save)
         world_->loadState(*save);
@@ -213,6 +217,7 @@ void Server::startMatch(const std::string* save) {
         if (c->player == leader() && !config_.roster.empty()) {
             try {
                 world_->spawnRoster(c->player, config_.roster);
+                world_->importResearch(c->player, config_.research);
             } catch (const std::exception& e) {
                 spdlog::warn("roster: {}", e.what());
             }
@@ -366,6 +371,17 @@ void Server::handleMessages(Client& client) {
             if (!world_ && client.player == leader())
                 startMatch();
             break;
+        case MessageType::Cheats: {
+            const bool on = r.u8() != 0;
+            if (r.ok() && client.player == leader() && on != config_.cheats) {
+                config_.cheats = on;
+                if (world_)
+                    world_->setCheats(on);
+                notice(on ? "Cheats enabled by the host" : "Cheats disabled");
+                lobbyDirty_ = true;
+            }
+            break;
+        }
         case MessageType::SaveGame: {
             const std::string name = r.str(64);
             if (r.ok())
@@ -485,6 +501,20 @@ ClientView Server::buildView(const Client& client) const {
         f.rallyY = quantizePos(factory.rally.y);
         v.factories.push_back(std::move(f));
     }
+    for (auto [e, owner, lab] : world_->registry().view<const Owner, const Lab>().each()) {
+        if (owner.player != client.player)
+            continue;
+        OwnLab l;
+        l.id = entt::to_integral(e);
+        l.topic = lab.topic;
+        if (lab.topic < data_.research().size())
+            l.progress = static_cast<std::uint8_t>(std::clamp(lab.progress / std::max(0.1f, data_.research(lab.topic).time), 0.0f, 1.0f) * 255.0f);
+        v.labs.push_back(l);
+    }
+    v.research.resize(data_.research().size());
+    for (std::size_t i = 0; i < v.research.size(); ++i)
+        v.research[i] = world_->researched(client.player, static_cast<ResearchId>(i)) ? 1 : 0;
+    v.flags = static_cast<std::uint8_t>((world_->cheats() ? kViewCheats : 0) | (player.god ? kViewGod : 0));
     for (auto [e, owner, prog] : world_->registry().view<const Owner, const Progression>().each()) {
         if (owner.player != client.player)
             continue;

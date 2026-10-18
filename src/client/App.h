@@ -59,6 +59,9 @@ struct LaunchOptions {
     float zoom = 0.0f;
     int shadows = -1;
     int light = -1;
+    std::string select;
+    bool debug = false;
+    bool researchTree = false;
 };
 
 const char* shadowQualityName(int quality);
@@ -165,7 +168,7 @@ private:
     void clickSelect(glm::vec2 screen, bool add);
     void boxSelect(glm::vec2 a, glm::vec2 b, bool add);
     int selectPriority(const net::InterpolatedEntity& e) const;
-    enum class Arm { None, Move, Attack, Patrol, Unload };
+    enum class Arm { None, Move, Attack, Patrol, Unload, Rally };
     void issueCommand(glm::vec2 screen, bool attackMove, bool patrol = false);
     void issueCommandAt(glm::vec2 ground, bool attackMove, bool patrol = false);
     void issueArmed(glm::vec2 screen);
@@ -243,7 +246,36 @@ private:
     void drawSelection();
     void drawSelectionTiles(float width, int perRow, bool horizontal);
     void drawDock();
-    enum class Dock { None, Orders, Production, Skills, Build, Refit, Modules };
+    enum class Dock { None, Orders, Production, Skills, Build, Refit, Modules, Research };
+    enum class CheatArm { None, Spawn, Kill };
+    CheatArm cheatArm_ = CheatArm::None;
+    int cheatUnit_ = 0;
+    int cheatTeam_ = 1;
+    int cheatCount_ = 1;
+    bool debugOpen_ = false;
+    bool dbgRanges_ = false;
+    bool dbgNav_ = false;
+    bool dbgLabels_ = false;
+    bool dbgBars_ = false;
+    bool researchOpen_ = false;
+    bool researchDot_ = false;
+    bool hadLab_ = false;
+    std::vector<std::uint8_t> knownResearch_;
+    std::unordered_map<std::uint32_t, float> recoil_;
+    bool cheatsOn() const;
+    void sendCheat(CheatOp op, std::vector<entt::entity> targets = {}, glm::vec2 point = {});
+    bool cheatClick(glm::vec2 screen);
+    void drawDebug();
+    void renderDebugOverlay();
+    const net::InterpolatedEntity* selectedLab() const;
+    bool structuresOnly() const;
+    bool researchReady(ResearchId t) const;
+    std::uint32_t idleLab() const;
+    void startResearch(ResearchId t);
+    void researchTooltip(ResearchId t);
+    void trackResearch();
+    void drawResearchTree();
+    float recoilOf(std::uint32_t id) const;
     struct ModuleLook {
         const Model* mount = nullptr;
         const Model* weapon = nullptr;
@@ -366,6 +398,7 @@ private:
     std::vector<CampaignMission> campaign_;
     std::vector<std::string> campaignDone_;
     std::string campaignRoster_;
+    std::string campaignResearch_;
     std::string campaignMission_;
     bool campaignRecorded_ = false;
     int campaignChoice_ = 0;

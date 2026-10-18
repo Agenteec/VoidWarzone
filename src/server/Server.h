@@ -28,6 +28,7 @@ struct ServerConfig {
     std::function<std::string(const std::string&)> loadMap;
     std::string saveDir = "saves";
     std::string roster;
+    std::string research;
 };
 
 class Server {

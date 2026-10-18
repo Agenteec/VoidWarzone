@@ -99,6 +99,15 @@ struct OwnFactory {
     std::uint16_t rallyY = 0;
 };
 
+struct OwnLab {
+    std::uint32_t id = 0;
+    std::uint16_t topic = 0xffff;
+    std::uint8_t progress = 0;
+};
+
+inline constexpr std::uint8_t kViewCheats = 1;
+inline constexpr std::uint8_t kViewGod = 2;
+
 struct ClientView {
     std::uint32_t commandSeq = 0;
     std::uint32_t energy = 0;
@@ -106,9 +115,14 @@ struct ClientView {
     std::vector<std::uint16_t> stash;
     std::vector<OwnUnit> units;
     std::vector<OwnFactory> factories;
+    std::vector<OwnLab> labs;
+    std::vector<std::uint8_t> research;
+    std::uint8_t flags = 0;
 
     const OwnUnit* unit(std::uint32_t id) const;
     const OwnFactory* factory(std::uint32_t id) const;
+    const OwnLab* lab(std::uint32_t id) const;
+    bool researched(std::uint16_t topic) const { return topic < research.size() && research[topic] != 0; }
 };
 
 struct Snapshot {

@@ -36,12 +36,14 @@ void App::loadCampaign() {
     }
     campaignDone_.clear();
     campaignRoster_.clear();
+    campaignResearch_.clear();
     try {
         std::ifstream f(progressPath(), std::ios::binary);
         if (f) {
             const json p = json::parse(f);
             campaignDone_ = p.value("completed", std::vector<std::string>{});
             campaignRoster_ = p.value("roster", std::string{});
+            campaignResearch_ = p.value("research", std::string{});
         }
     } catch (const std::exception& e) {
         spdlog::warn("campaign progress: {}", e.what());
@@ -49,7 +51,7 @@ void App::loadCampaign() {
 }
 
 void App::saveCampaign() {
-    const json p = {{"completed", campaignDone_}, {"roster", campaignRoster_}};
+    const json p = {{"completed", campaignDone_}, {"roster", campaignRoster_}, {"research", campaignResearch_}};
     std::ofstream f(progressPath(), std::ios::binary);
     f << p.dump(1);
 }
@@ -89,6 +91,7 @@ void App::recordMission(bool victory) {
         campaignDone_.push_back(campaignMission_);
     try {
         campaignRoster_ = host_->world()->exportRoster(net_.player(), 12);
+        campaignResearch_ = host_->world()->exportResearch(net_.player());
     } catch (const std::exception& e) {
         spdlog::warn("roster export: {}", e.what());
     }

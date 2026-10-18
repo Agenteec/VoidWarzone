@@ -284,6 +284,13 @@ void NetClient::sendReady(bool ready) {
     sendMessage(w);
 }
 
+void NetClient::sendCheats(bool on) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Cheats));
+    w.u8(on ? 1 : 0);
+    sendMessage(w);
+}
+
 void NetClient::sendKick(std::uint8_t target) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::Kick));

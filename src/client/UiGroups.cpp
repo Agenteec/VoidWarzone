@@ -60,6 +60,14 @@ bool App::ownCompleted(UnitDefId def) const {
     return false;
 }
 
+float App::recoilOf(std::uint32_t id) const {
+    const auto it = recoil_.find(id);
+    if (it == recoil_.end())
+        return 0.0f;
+    const float t = 1.0f - it->second;
+    return t < 0.15f ? t / 0.15f : std::max(0.0f, 1.0f - (t - 0.15f) / 0.85f) * std::max(0.0f, 1.0f - (t - 0.15f) / 0.85f);
+}
+
 const net::InterpolatedEntity* App::selectedFactory() const {
     for (const auto id : selected_)
         if (const auto* e = findEntity(id); e && isOwn(*e) && data_->unit(e->def).factory && !(e->flags & net::kStateBuilding))
@@ -112,6 +120,8 @@ const char* App::missingFor(const UnitDef& def) const {
         return nullptr;
     if (def.needs != kInvalidUnitDef && !ownCompleted(def.needs))
         return data_->unit(def.needs).name.c_str();
+    if (const auto* latest = net_.latest(); def.research != kInvalidId && latest && !latest->view.researched(def.research))
+        return data_->research(def.research).name.c_str();
     if (!def.producedAt.empty()) {
         for (const auto at : def.producedAt)
             if (ownCompleted(at))

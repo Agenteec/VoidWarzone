@@ -12,6 +12,7 @@ namespace vw {
 using UnitDefId = std::uint16_t;
 using SkillId = std::uint16_t;
 using ItemId = std::uint16_t;
+using ResearchId = std::uint16_t;
 inline constexpr UnitDefId kInvalidUnitDef = 0xffff;
 inline constexpr std::uint16_t kInvalidId = 0xffff;
 
@@ -122,6 +123,8 @@ struct UnitDef {
     std::vector<UnitDefId> producedAt;
     UnitDefId needs = kInvalidUnitDef;
     bool factory = false;
+    bool lab = false;
+    ResearchId research = 0xffff;
     float produceTime = 0.0f;
     float produceInterval = 20.0f;
     int produceMax = 4;
@@ -188,9 +191,33 @@ struct ModuleDef {
 
 const char* moduleSlotName(ModuleSlot s);
 
+enum class ResearchScope : std::uint8_t { All, Vehicles, Structures };
+
+struct ResearchDef {
+    std::string id;
+    std::string name;
+    std::string desc;
+    float cost = 100.0f;
+    float time = 30.0f;
+    std::vector<ResearchId> after;
+    std::vector<UnitDefId> unlocks;
+    StatMods mods;
+    ResearchScope scope = ResearchScope::All;
+    int weapon = -1;
+    int tier = 0;
+
+    bool applies(const UnitDef& def) const {
+        if (scope == ResearchScope::Vehicles && def.structure)
+            return false;
+        if (scope == ResearchScope::Structures && !def.structure)
+            return false;
+        return weapon < 0 || (def.weapon && static_cast<int>(def.weapon->type) == weapon);
+    }
+};
+
 class GameData {
 public:
-    static GameData parse(std::string_view units, std::string_view skills = {}, std::string_view items = {});
+    static GameData parse(std::string_view units, std::string_view skills = {}, std::string_view items = {}, std::string_view research = {});
 
     const UnitDef& unit(UnitDefId id) const { return units_[id]; }
     UnitDefId find(std::string_view id) const;
@@ -218,6 +245,9 @@ public:
     const ModuleDef& module(ModuleId id) const { return modules_[id]; }
     const std::vector<ModuleDef>& modules() const { return modules_; }
     ModuleId findModule(std::string_view id) const;
+    const ResearchDef& research(ResearchId id) const { return research_[id]; }
+    const std::vector<ResearchDef>& research() const { return research_; }
+    ResearchId findResearch(std::string_view id) const;
 
     float maxRadius() const { return maxRadius_; }
     const CombatTable& combat() const { return combat_; }
@@ -232,6 +262,7 @@ private:
     std::vector<ItemDef> items_;
     std::vector<ItemId> shop_;
     std::vector<ModuleDef> modules_;
+    std::vector<ResearchDef> research_;
     float maxRadius_ = 0.0f;
     CombatTable combat_;
     std::uint64_t hash_ = 0;

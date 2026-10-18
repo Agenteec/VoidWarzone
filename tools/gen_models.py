@@ -321,7 +321,12 @@ def glb(path, parts, points, images):
             nodes[name_to_node[parent]].setdefault("children", []).append(idx)
         else:
             roots.append(idx)
-    imgs = [{"name": nm, "uri": uri} for nm, uri in images]
+    imgs = []
+    for nm, src in images:
+        if isinstance(src, (bytes, bytearray)):
+            imgs.append({"name": nm, "bufferView": add_view(src), "mimeType": "image/png"})
+        else:
+            imgs.append({"name": nm, "uri": src})
     doc = {
         "asset": {"version": "2.0", "generator": "void-warzone gen_models.py"},
         "scene": 0,
@@ -1425,6 +1430,109 @@ def colony_nest(kind):
     return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
 
 
+def sandbag_ring(m, r, rows=2, n=14, gap=None):
+    for k in range(n):
+        if gap is not None and abs(((2 * math.pi * k / n - gap + math.pi) % (2 * math.pi)) - math.pi) < 0.35:
+            continue
+        a = 2 * math.pi * k / n
+        for row in range(rows):
+            off = 0.5 * (row % 2)
+            b = a + off * 2 * math.pi / n
+            m.box((math.cos(b) * r, 0.13 + row * 0.22, math.sin(b) * r), (0.46, 0.2, 0.28), MAT["sandbag"], top=(0.9, 0.82))
+
+
+def ammo_crates(m, x, z, n=2):
+    for i in range(n):
+        m.box((x, 0.1 + i * 0.17, z + (i % 2) * 0.05), (0.34, 0.16, 0.22), MAT["container_green"], sides={"top": MAT["wood"]})
+
+
+def mg_nest():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    hull.box((0, 0.04, 0), (1.9, 0.08, 1.9), MAT["concrete_dark"])
+    sandbag_ring(hull, 0.92, rows=3, n=14, gap=math.pi / 2)
+    for x in (-0.75, 0.75):
+        hull.strut((x, 0.1, 0.75), (x, 1.15, 0.75), 0.04, MAT["wood"])
+    hull.box((0, 1.18, 0.62), (1.7, 0.05, 0.5), MAT["wood"], top=(1.0, 0.9))
+    ammo_crates(hull, 0.55, 0.45, 2)
+    hull.box((-0.55, 0.12, 0.5), (0.28, 0.2, 0.2), MAT["rust"])
+    pivot = (0.0, 0.66, 0.0)
+    tur.cyl((0, 0.0, 0), 0.06, 0.4, MAT["graphite_dark"], n=6)
+    for a in (0.0, 2.1, 4.2):
+        tur.strut((0, -0.05, 0), (math.cos(a) * 0.32, -0.55, math.sin(a) * 0.32 + 0.1), 0.025, MAT["graphite"])
+    tur.box((0, 0.2, 0.05), (0.2, 0.16, 0.42), MAT["team"])
+    tur.box((0, 0.3, -0.18), (0.6, 0.34, 0.04), MAT["steel"], top=(0.8, 1.0))
+    tur.strut((0.0, 0.18, 0.2), (0.0, 0.1, 0.42), 0.025, MAT["graphite_dark"])
+    bar.cyl((0, 0.22, -0.55), 0.035, 0.75, MAT["graphite_dark"], n=8, axis="z")
+    bar.cyl((0, 0.22, -0.95), 0.055, 0.1, MAT["steel"], n=8, axis="z")
+    bar.box((0, 0.22, -0.18), (0.12, 0.12, 0.2), MAT["graphite"])
+    muzzle = (0.0, 0.22, -1.02)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def pillbox():
+    """Concrete DOT with an old tank turret on top."""
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    hull.cyl((0, 0.32, 0), 1.0, 0.64, MAT["concrete"], n=8, r2=0.86, capmat=MAT["concrete_dark"])
+    hull.cyl((0, 0.06, 0), 1.12, 0.12, MAT["concrete_dark"], n=8)
+    for k in range(4):
+        a = math.pi / 8 + k * math.pi / 2
+        hull.box((math.cos(a) * 0.93, 0.4, math.sin(a) * 0.93), (0.26, 0.09, 0.08), MAT["graphite_dark"])
+    sandbag_ring(hull, 1.18, rows=1, n=16)
+    hull.box((0.0, 0.18, 1.1), (0.5, 0.36, 0.3), MAT["concrete_dark"], sides={"back": MAT["rust"]})
+    pivot = (0.0, 0.66, 0.0)
+    tur.cyl((0, 0.06, 0), 0.62, 0.12, MAT["graphite"], n=12)
+    tur.cyl((0, 0.24, 0.04), 0.58, 0.28, MAT["team"], n=12, r2=0.4, capmat=MAT["team_dark"])
+    tur.box((0.25, 0.42, 0.18), (0.2, 0.1, 0.22), MAT["graphite_dark"])
+    tur.cyl((-0.22, 0.44, 0.22), 0.1, 0.08, MAT["graphite_dark"], n=8)
+    tur.box((0, 0.22, -0.48), (0.34, 0.24, 0.16), MAT["graphite_dark"])
+    bar.cyl((0, 0.22, -1.05), 0.065, 1.1, MAT["steel"], n=8, axis="z")
+    bar.cyl((0, 0.22, -0.95), 0.1, 0.2, MAT["graphite"], n=8, axis="z")
+    bar.cyl((0, 0.22, -1.62), 0.085, 0.14, MAT["graphite_dark"], n=8, axis="z")
+    muzzle = (0.0, 0.22, -1.72)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def zu23():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    hull.box((0, 0.04, 0), (1.9, 0.08, 1.9), MAT["concrete_dark"])
+    sandbag_ring(hull, 0.95, rows=2, n=16, gap=-math.pi / 2)
+    ammo_crates(hull, -0.6, 0.55, 3)
+    for sx in (-1, 1):
+        hull.strut((0, 0.12, 0), (sx * 0.62, 0.08, sx * 0.3), 0.04, MAT["graphite"])
+        hull.strut((0, 0.12, 0), (sx * 0.3, 0.08, -sx * 0.62), 0.04, MAT["graphite"])
+    pivot = (0.0, 0.42, 0.0)
+    tur.cyl((0, -0.18, 0), 0.3, 0.12, MAT["graphite"], n=10)
+    tur.box((0, 0.02, 0.05), (0.62, 0.22, 0.55), MAT["team"])
+    for sx in (-1, 1):
+        tur.box((sx * 0.38, 0.12, 0.25), (0.14, 0.05, 0.2), MAT["graphite_dark"])
+        tur.strut((sx * 0.38, 0.12, 0.25), (sx * 0.38, -0.2, 0.35), 0.025, MAT["graphite_dark"])
+    tur.box((0, 0.32, -0.05), (0.5, 0.36, 0.04), MAT["steel"], top=(0.9, 1.0))
+    for sx in (-1, 1):
+        bar.box((sx * 0.12, 0.22, -0.15), (0.12, 0.14, 0.5), MAT["graphite"])
+        bar.cyl((sx * 0.12, 0.24, -0.9), 0.028, 1.1, MAT["graphite_dark"], n=6, axis="z")
+        bar.cyl((sx * 0.12, 0.24, -1.42), 0.045, 0.12, MAT["steel"], n=6, axis="z")
+        bar.box((sx * 0.2, 0.36, -0.1), (0.08, 0.22, 0.18), MAT["container_green"])
+    muzzle = (0.0, 0.24, -1.5)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def mortar_pit():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    hull.cyl((0, 0.02, 0), 0.95, 0.04, MAT["charred"], n=12)
+    sandbag_ring(hull, 0.92, rows=2, n=14, gap=math.pi / 2)
+    for k in range(4):
+        hull.cyl((0.5 + (k % 2) * 0.16, 0.14, -0.45 + (k // 2) * 0.2), 0.06, 0.26, MAT["container_green"], n=6)
+    ammo_crates(hull, -0.55, 0.4, 2)
+    pivot = (0.0, 0.08, 0.0)
+    tur.cyl((0, 0.02, 0), 0.28, 0.06, MAT["steel"], n=8)
+    tur.strut((0.0, 0.05, 0.0), (0.18, 0.05, -0.3), 0.025, MAT["graphite"])
+    tur.strut((0.0, 0.05, 0.0), (-0.18, 0.05, -0.3), 0.025, MAT["graphite"])
+    bar.strut((0.0, 0.06, 0.12), (0.0, 0.66, -0.4), 0.07, MAT["graphite_dark"])
+    bar.strut((0.0, 0.6, -0.35), (0.0, 0.68, -0.42), 0.09, MAT["steel"])
+    muzzle = (0.0, 0.7, -0.44)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
 def extractor():
     m = Mesh()
     m.cyl((0, 0.2, 0), 1.3, 0.4, MAT["concrete_dark"], n=8, capmat=MAT["concrete"])
@@ -1474,17 +1582,8 @@ MODELS = {
     "prop_fir3": lambda: fir(3),
     "prop_birch1": lambda: birch(1),
     "prop_birch2": lambda: birch(2),
-    "prop_car1": lambda: old_car(1),
-    "prop_car2": lambda: old_car(2),
-    "prop_car3": lambda: old_car(3, "paint_white"),
-    "prop_car4": lambda: old_car(4, "paint_red"),
-    "prop_car5": lambda: old_car(5, "paint_blue"),
-    "prop_car_burnt1": lambda: burnt_car(1),
-    "prop_car_burnt2": lambda: burnt_car(2),
     "prop_tank_wreck1": lambda: tank_wreck(1),
     "prop_tank_wreck2": lambda: tank_wreck(2),
-    "prop_bus": lambda: bus_wreck(False),
-    "prop_bus_burnt": lambda: bus_wreck(True),
     "prop_truck_wreck": truck_wreck,
     "prop_hedgehog": hedgehog,
     "prop_barricade": barricade,
@@ -1516,9 +1615,10 @@ MODELS = {
     "colony_laboratory": laboratory,
     "colony_repair_bay": repair_bay,
     "colony_diesel": diesel_generator,
-    "colony_mg_nest": lambda: colony_nest("mg"),
-    "colony_zu23": lambda: colony_nest("aa"),
-    "colony_mortar_pit": lambda: colony_nest("mortar"),
+    "colony_mg_nest": mg_nest,
+    "colony_zu23": zu23,
+    "colony_mortar_pit": mortar_pit,
+    "colony_pillbox": pillbox,
     "raider_buggy": raider_buggy,
     "raider_technical": lambda: raider_truck("mg"),
     "raider_mortar": lambda: raider_truck("mortar"),

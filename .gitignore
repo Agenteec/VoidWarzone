@@ -11,3 +11,4 @@ compile_commands.json
 /android/app/build/
 /android/build/
 /android/local.properties
+/tools/models_src/

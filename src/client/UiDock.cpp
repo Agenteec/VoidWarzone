@@ -77,9 +77,16 @@ void App::drawDock() {
     const bool hasSelection = !selected_.empty();
     const bool builders = !selectedBuilders().empty();
     const auto* factory = selectedFactory();
+    const auto* lab = selectedLab();
+    const bool buildings = structuresOnly();
     if (factory && !hadFactory_)
         dock_ = Dock::Production;
     hadFactory_ = factory != nullptr;
+    if (lab && !hadLab_)
+        dock_ = Dock::Research;
+    hadLab_ = lab != nullptr;
+    if (buildings && dock_ != Dock::None && dock_ != Dock::Orders && !(dock_ == Dock::Production && factory) && !(dock_ == Dock::Research && lab))
+        dock_ = factory ? Dock::Production : lab ? Dock::Research : Dock::Orders;
     if (builders && !hadBuilders_)
         dock_ = Dock::Build;
     else if (!builders && hadBuilders_ && dock_ == Dock::Build)
@@ -98,7 +105,42 @@ void App::drawDock() {
             ImGui::SameLine();
     };
 
-    if (dock_ == Dock::Orders) {
+    if (dock_ == Dock::Orders && buildings) {
+        const auto* first = findEntity(selected_.front());
+        ImGui::TextDisabled("%s%s", first ? data_->unit(first->def).name.c_str() : "", selected_.size() > 1 ? "  (+ more)" : "");
+        if (factory) {
+            next();
+            if (cardButton("rally", ICON_FA_FLAG, "Rally", "", true, orderArm_ == Arm::Rally, cell))
+                armOrder(Arm::Rally);
+            ImGui::SetItemTooltip("Set where new vehicles drive to (or right click the ground)");
+        }
+        if (const auto deployable = selectedDeployable(); !deployable.empty()) {
+            next();
+            if (cardButton("deploy", ICON_FA_TRUCK, "Pack up", "Y", true, false, cell))
+                pressKey(SDLK_Y, false);
+            ImGui::SetItemTooltip("Pack the HQ back into the KShM to move it [Y]");
+        }
+        if (lab) {
+            next();
+            if (cardButton("tree", ICON_FA_SITEMAP, "Tree", "F2", true, researchOpen_, cell))
+                researchOpen_ = !researchOpen_;
+            ImGui::SetItemTooltip("Open the research tree [F2]");
+        }
+        const bool canDemolish = first && !data_->unit(first->def).deployOnly;
+        const bool confirm = now_ - demolishArmed_ < 3.0;
+        next();
+        if (cardButton("demolish", ICON_FA_TRASH, confirm ? "Confirm" : "Demolish", "", canDemolish, confirm, cell)) {
+            if (confirm) {
+                for (const auto e : selectedOwnStructures())
+                    net_.sendCommand(StructureCommand{0, e, StructureOp::Demolish, 0, {}});
+                demolishArmed_ = -10.0;
+                selected_.clear();
+            } else {
+                demolishArmed_ = now_;
+            }
+        }
+        ImGui::SetItemTooltip("Demolish the selected buildings, refunds half of their cost (click twice)");
+    } else if (dock_ == Dock::Orders) {
         const auto* own = focusedOwn();
         const auto* entity = hasSelection ? findEntity(selected_.front()) : nullptr;
         next();
@@ -266,6 +308,56 @@ void App::drawDock() {
                 ImGui::PopID();
             }
         }
+    } else if (dock_ == Dock::Research) {
+        researchDot_ = false;
+        const net::OwnLab* state = lab ? latest->view.lab(lab->id) : nullptr;
+        int busy = 0;
+        for (const auto& l : latest->view.labs)
+            busy += l.topic != kInvalidId;
+        int done = 0;
+        for (const auto r : latest->view.research)
+            done += r != 0;
+        if (lab)
+            ImGui::TextDisabled("%s  -  %d / %d researched", data_->unit(lab->def).name.c_str(), done, static_cast<int>(data_->research().size()));
+        else
+            ImGui::TextDisabled("%d labs, %d busy  -  %d / %d researched", static_cast<int>(latest->view.labs.size()), busy, done,
+                                static_cast<int>(data_->research().size()));
+        if (state && state->topic < data_->research().size()) {
+            const auto& r = data_->research(state->topic);
+            next();
+            if (cardButton("current", r.name.substr(0, 8).c_str(), "cancel", "", true, true, cell))
+                net_.sendCommand(StructureCommand{0, static_cast<entt::entity>(lab->id), StructureOp::Cancel, 0, {}});
+            const ImVec2 a = ImGui::GetItemRectMin();
+            const ImVec2 b = ImGui::GetItemRectMax();
+            ImGui::GetWindowDrawList()->AddRectFilled({a.x, b.y - 4.0f * s}, {a.x + (b.x - a.x) * static_cast<float>(state->progress) / 255.0f, b.y}, kGood, 2.0f);
+            researchTooltip(state->topic);
+        } else if (lab) {
+            int shown = 0;
+            for (std::size_t i = 0; i < data_->research().size() && shown < 11; ++i) {
+                const auto t = static_cast<ResearchId>(i);
+                if (!researchReady(t))
+                    continue;
+                const auto& r = data_->research(t);
+                next();
+                ++shown;
+                char cost[24];
+                std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", r.cost);
+                if (cardButton(r.id.c_str(), r.name.substr(0, 8).c_str(), cost, "", energy >= r.cost, false, cell))
+                    net_.sendCommand(StructureCommand{0, static_cast<entt::entity>(lab->id), StructureOp::Research, static_cast<std::uint8_t>(t), {}});
+                researchTooltip(t);
+            }
+            if (shown == 0)
+                ImGui::TextDisabled("nothing left to research here");
+        } else {
+            for (const auto& l : latest->view.labs)
+                if (l.topic < data_->research().size())
+                    ImGui::TextDisabled(ICON_FA_FLASK " %s  %d%%", data_->research(l.topic).name.c_str(), l.progress * 100 / 255);
+            if (latest->view.labs.empty())
+                ImGui::TextDisabled("build a Laboratory to research upgrades");
+        }
+        next();
+        if (cardButton("tree", ICON_FA_SITEMAP, "Tree", "F2", true, researchOpen_, cell))
+            researchOpen_ = !researchOpen_;
     } else if (dock_ == Dock::Refit) {
         const auto* own = focusedOwn();
         const auto* entity = !selected_.empty() ? findEntity(selected_.front()) : nullptr;
@@ -366,7 +458,7 @@ void App::drawDock() {
             std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
             const char* key = i < 5 ? kBuildKeyNames[i] : "";
             const bool armed = buildArmed_ == static_cast<int>(list[i]);
-            const char* missing = map_ && map_->mission().enabled && def.needs != kInvalidUnitDef && !ownCompleted(def.needs) ? data_->unit(def.needs).name.c_str() : nullptr;
+            const char* missing = missingFor(def);
             if (cardButton(def.id.c_str(), def.name.substr(0, 8).c_str(), cost, touch ? "" : key, builders && !missing && (energy >= def.cost || armed), armed, cell))
                 armBuild(i);
             unitTooltip(def, "Build", key);
@@ -404,10 +496,22 @@ void App::drawDock() {
     };
     auto toggleDock = [&](Dock d) { dock_ = dock_ == d ? Dock::None : d; };
     ImGui::PushID("tabs");
-    if (tabButton(ICON_FA_CROSSHAIRS "##o", "Orders: move, attack, patrol, hold", dock_ == Dock::Orders))
+    if (tabButton(buildings ? ICON_FA_BUILDING "##o" : ICON_FA_CROSSHAIRS "##o", buildings ? "Building actions" : "Orders: move, attack, patrol, hold",
+                  dock_ == Dock::Orders))
         toggleDock(Dock::Orders);
-    if (tabButton(ICON_FA_INDUSTRY "##p", "Production: recruit units", dock_ == Dock::Production))
+    if ((!buildings || factory) && tabButton(ICON_FA_INDUSTRY "##p", "Production: recruit units", dock_ == Dock::Production))
         toggleDock(Dock::Production);
+    dot = researchDot_;
+    if ((!buildings || lab) && tabButton(ICON_FA_FLASK "##q", "Research: upgrades and new vehicles (select a laboratory)", dock_ == Dock::Research))
+        toggleDock(Dock::Research);
+    if (buildings) {
+        ImGui::NewLine();
+        ImGui::PopID();
+        trackWindow();
+        commandCardLeft_ = ImGui::GetWindowPos().x;
+        ImGui::End();
+        return;
+    }
     dot = refitDot_;
     if (tabButton(ICON_FA_COGS "##r", "Refit: change the class of an Elite vehicle", dock_ == Dock::Refit))
         toggleDock(Dock::Refit);

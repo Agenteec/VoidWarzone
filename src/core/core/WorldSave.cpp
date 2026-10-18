@@ -66,7 +66,11 @@ std::string World::saveState() const {
         json stash = json::array();
         for (const auto item : p.stash)
             stash.push_back(data_->item(item).id);
-        players.push_back({{"active", p.active}, {"energy", p.energy}, {"kills", p.kills}, {"shards", p.shards}, {"stash", stash}});
+        json research = json::array();
+        for (std::size_t i = 0; i < p.researched.size(); ++i)
+            if (p.researched[i])
+                research.push_back(data_->research(static_cast<ResearchId>(i)).id);
+        players.push_back({{"active", p.active}, {"energy", p.energy}, {"kills", p.kills}, {"shards", p.shards}, {"stash", stash}, {"research", research}});
     }
     out["players"] = players;
     json points = json::array();
@@ -99,6 +103,14 @@ std::string World::saveState() const {
             u["construction"] = c->progress;
         if (const auto* p = registry_.try_get<Producer>(e))
             u["produceTimer"] = p->timer;
+        if (const auto* lab = registry_.try_get<Lab>(e); lab && lab->topic < data_->research().size())
+            u["research"] = {data_->research(lab->topic).id, lab->progress};
+        if (const auto* f = registry_.try_get<Factory>(e)) {
+            json queue = json::array();
+            for (const auto q : f->queue)
+                queue.push_back(data_->unit(q).id);
+            u["factory"] = {{"queue", queue}, {"progress", f->progress}, {"rally", {f->rally.x, f->rally.y}}, {"hasRally", f->hasRally}};
+        }
         if (const auto* lane = registry_.try_get<LaneFollower>(e))
             u["lane"] = {lane->lane, lane->waypoint, lane->reverse};
         if (const auto* carried = registry_.try_get<Carried>(e))
@@ -144,6 +156,20 @@ entt::entity World::loadUnit(const json& u) {
         registry_.emplace_or_replace<Construction>(e, Construction{u.at("construction").get<float>()});
     if (auto* p = registry_.try_get<Producer>(e))
         p->timer = u.value("produceTimer", p->timer);
+    if (auto* lab = registry_.try_get<Lab>(e); lab && u.contains("research")) {
+        lab->topic = data_->findResearch(u.at("research").at(0).get<std::string>());
+        lab->progress = u.at("research").at(1).get<float>();
+    }
+    if (auto* f = registry_.try_get<Factory>(e); f && u.contains("factory")) {
+        const auto& fj = u.at("factory");
+        for (const auto& q : fj.value("queue", json::array()))
+            if (const UnitDefId id = data_->find(q.get<std::string>()); id != kInvalidUnitDef)
+                f->queue.push_back(id);
+        f->progress = fj.value("progress", 0.0f);
+        f->hasRally = fj.value("hasRally", false);
+        if (const auto r = fj.find("rally"); r != fj.end())
+            f->rally = {r->at(0).get<float>(), r->at(1).get<float>()};
+    }
     if (u.contains("lane")) {
         const auto& l = u.at("lane");
         registry_.emplace_or_replace<LaneFollower>(e, LaneFollower{l.at(0).get<int>(), l.at(1).get<int>(), l.at(2).get<bool>()});
@@ -236,6 +262,12 @@ void World::loadState(std::string_view text) {
             if (const ItemId id = data_->findItem(item.get<std::string>()); id != kInvalidId)
                 p.stash.push_back(id);
         saved_[i] = players[i].value("active", false);
+        p.researched.clear();
+        for (const auto& t : players[i].value("research", json::array()))
+            if (const ResearchId id = data_->findResearch(t.get<std::string>()); id != kInvalidId)
+                grantResearch(static_cast<std::uint8_t>(i), id);
+        if (!p.researched.empty())
+            refreshOwned(static_cast<std::uint8_t>(i));
     }
     if (const auto it = in.find("mission"); it != in.end()) {
         objectiveState_ = it->value("objectives", std::vector<std::uint8_t>{});

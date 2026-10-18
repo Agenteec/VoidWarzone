@@ -373,7 +373,7 @@ double App::frameBudget() const {
 
 void App::loadContent() {
     const std::string unitsText = loadText("data/units.json");
-    data_ = std::make_unique<GameData>(GameData::parse(unitsText, loadText("data/skills.json"), loadText("data/items.json")));
+    data_ = std::make_unique<GameData>(GameData::parse(unitsText, loadText("data/skills.json"), loadText("data/items.json"), loadText("data/research.json")));
 
     models_ = std::make_unique<ModelLibrary>(renderer_, loadText);
     visuals_ = loadUnitVisuals(unitsText, *data_, *models_);
@@ -483,8 +483,10 @@ void App::startHost(bool multiplayer) {
     config.maxPlayers = multiplayer ? 8 : 1;
     config.loadMap = [](const std::string& name) { return readMap(name); };
     config.saveDir = savesDir();
-    if (!campaignMission_.empty())
+    if (!campaignMission_.empty()) {
         config.roster = campaignRoster_;
+        config.research = campaignResearch_;
+    }
     host_ = std::make_unique<server::Server>(*data_, *hostMap_, config);
     if (!host_->start(now_)) {
         host_.reset();
@@ -882,7 +884,8 @@ void App::handleGameEvent(const SDL_Event& e) {
         const glm::vec2 p = glm::vec2(e.button.x, e.button.y) * pixelDensity_;
         mouse_ = p;
         if (e.button.button == SDL_BUTTON_LEFT) {
-            if (buildArmed_ >= 0 && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0) {
+            if (cheatClick(p)) {
+            } else if (buildArmed_ >= 0 && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0) {
                 if (const auto ground = camera_.screenToGround(p.x, p.y)) {
                     lineBuild_ = true;
                     lineStart_ = *ground;
@@ -900,7 +903,9 @@ void App::handleGameEvent(const SDL_Event& e) {
             }
         } else if (e.button.button == SDL_BUTTON_RIGHT) {
             orderArm_ = Arm::None;
-            if (buildArmed_ >= 0 || armedSkill_ >= 0) {
+            if (cheatArm_ != CheatArm::None) {
+                cheatArm_ = CheatArm::None;
+            } else if (buildArmed_ >= 0 || armedSkill_ >= 0) {
                 buildArmed_ = -1;
                 armedSkill_ = -1;
             } else {
@@ -945,10 +950,13 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
             guideOpen_ = false;
         } else if (pauseOpen_) {
             pauseOpen_ = false;
-        } else if ((orderArm_ != Arm::None) || armedSkill_ >= 0 || buildArmed_ >= 0) {
+        } else if ((orderArm_ != Arm::None) || armedSkill_ >= 0 || buildArmed_ >= 0 || cheatArm_ != CheatArm::None) {
             orderArm_ = Arm::None;
             armedSkill_ = -1;
             buildArmed_ = -1;
+            cheatArm_ = CheatArm::None;
+        } else if (researchOpen_) {
+            researchOpen_ = false;
         } else if (panel_ != Panel::None) {
             panel_ = Panel::None;
         } else if (!selected_.empty()) {
@@ -970,6 +978,10 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
     } else if (key == SDLK_F3) {
         showStats_ = !showStats_;
         saveSettings();
+    } else if (key == SDLK_F9 || key == SDLK_GRAVE) {
+        debugOpen_ = !debugOpen_;
+    } else if (key == SDLK_F2) {
+        researchOpen_ = !researchOpen_;
     } else if (key == SDLK_F5) {
         cycleShadows();
     } else if (key == SDLK_F6) {
@@ -1235,6 +1247,21 @@ void App::updateGame(float dt) {
         }
     }
 
+    if (cameraPlaced_ && !options_.select.empty())
+        for (const auto& e : entities_)
+            if (e.kind == net::EntityKind::Unit && isOwn(e) && data_->unit(e.def).id == options_.select && !(e.flags & net::kStateBuilding)) {
+                selected_ = {e.id};
+                options_.select.clear();
+                debugOpen_ = options_.debug;
+                researchOpen_ = options_.researchTree;
+                options_.debug = false;
+                break;
+            }
+    if (cameraPlaced_ && options_.select.empty() && options_.debug && !debugOpen_) {
+        debugOpen_ = true;
+        options_.debug = false;
+    }
+
     for (const auto& ev : net_.takeEvents())
         handleNetEvent(ev);
     for (const auto& d : net_.takeDeaths())
@@ -1255,6 +1282,10 @@ void App::updateGame(float dt) {
     std::erase_if(beams_, [](const BeamFx& b) { return b.t >= b.life; });
     std::erase_if(floaters_, [](const Floater& f) { return f.t >= f.life; });
     trackLevelUps();
+    trackResearch();
+    for (auto& [id, r] : recoil_)
+        r -= dt * 3.5f;
+    std::erase_if(recoil_, [](const auto& kv) { return kv.second <= 0.0f; });
 
     pruneSelection();
     updateCamera(dt);
@@ -1394,8 +1425,22 @@ void App::renderWorld() {
                                        glm::vec3(0.5f - 0.1f * static_cast<float>(k)), {0.4f, 0.08f, 0.55f, 1.0f});
                 continue;
             }
-            const glm::vec4 c = glm::mix(kTeamColors[e.team & 1], glm::vec4(1.0f, 0.9f, 0.6f, 1.0f), 0.6f);
-            renderer_.draw(Mesh::Sphere, p, glm::vec3(0.28f), 0.0f, c, Unlit);
+            const auto& shooter = data_->unit(e.def);
+            const glm::vec2 dir2 = glm::length(e.target - e.pos) > 1e-3f ? glm::normalize(e.target - e.pos) : glm::vec2(1.0f, 0.0f);
+            const glm::vec3 dir{dir2.x, 0.0f, dir2.y};
+            if (smallCalibre(shooter)) {
+                const glm::vec4 tracer = e.team == 0 ? glm::vec4{1.0f, 0.82f, 0.35f, 1.0f} : glm::vec4{1.0f, 0.45f, 0.3f, 1.0f};
+                renderer_.drawBeam(p - dir * 1.1f, p, 0.05f, tracer, true);
+                renderer_.drawGlow(Mesh::Sphere, p, glm::vec3(0.14f), {1.0f, 0.95f, 0.8f, 1.0f});
+            } else if (heavyGun(shooter) && (shooter.weapon->splash <= 0.0f || shooter.weapon->type == DamageType::Piercing)) {
+                renderer_.drawBeam(p - dir * 0.7f, p, 0.09f, {1.0f, 0.6f, 0.25f, 0.8f}, true);
+                renderer_.draw(Mesh::Sphere, p, glm::vec3(0.22f), 0.0f, {1.0f, 0.92f, 0.7f, 1.0f}, Unlit);
+            } else {
+                const glm::vec4 c = glm::mix(kTeamColors[e.team & 1], glm::vec4(1.0f, 0.9f, 0.6f, 1.0f), 0.6f);
+                renderer_.draw(Mesh::Sphere, p, glm::vec3(0.28f), 0.0f, c, Unlit);
+                if (fxRandom(0.0f, 1.0f) < frameDt_ * 30.0f)
+                    addParticle({p, glm::vec3(0.0f, 0.3f, 0.0f), {0.5f, 0.5f, 0.5f, 0.5f}, 0.15f, 0.5f, 0.6f, 0.0f, 0.0f, 1.0f, 0.0f, ParticleKind::Smoke});
+            }
             continue;
         }
         const auto& def = data_->unit(e.def);
@@ -1431,11 +1476,19 @@ void App::renderWorld() {
             const glm::vec3 base{e.pos.x, vis.legs.empty() ? 0.0f : walkBob(e), e.pos.y};
             const float hullYaw = e.facing + vis.yaw;
             renderLegs(e, vis, base, hullYaw, vis.scale * grow, color);
+            const float kick = recoilOf(e.id);
+            const bool heavy = heavyGun(def);
+            glm::vec3 hullBase = base;
+            if (heavy && !def.structure)
+                hullBase -= glm::vec3(std::cos(e.aim), 0.0f, std::sin(e.aim)) * (kick * def.radius * 0.12f);
             for (const auto& part : vis.parts) {
-                if (part.turret)
-                    makeTurretMatrix(mtx, base, hullYaw, vis.pivot, e.aim + kModelYaw, part.pitch ? e.pitch : 0.0f, vis.scale * grow);
-                else
-                    makeModelMatrix(mtx, base, hullYaw, vis.scale * grow, part.offset);
+                if (part.turret) {
+                    const float length = part.model->max.z - part.model->min.z;
+                    const float back = part.pitch ? kick * length * (heavy ? 0.28f : 0.12f) : kick * length * (heavy ? 0.05f : 0.0f);
+                    makeTurretMatrix(mtx, hullBase, hullYaw, vis.pivot, e.aim + kModelYaw, part.pitch ? e.pitch : 0.0f, vis.scale * grow, back);
+                } else {
+                    makeModelMatrix(mtx, hullBase, hullYaw, vis.scale * grow, part.offset);
+                }
                 renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, part.model->glow ? Tint | Glow : Tint);
             }
             renderModules(e, vis, base, grow, color);
@@ -1467,7 +1520,7 @@ void App::renderWorld() {
             renderer_.draw(Mesh::Cylinder, {e.pos.x, 0.03f, e.pos.y}, {d + 0.6f, 0.04f, d + 0.6f}, 0.0f, kSelectColor, Unlit | Alpha);
 
         const float maxHp = static_cast<float>(e.maxHp);
-        if (selected || static_cast<float>(e.hp) < maxHp) {
+        if (selected || dbgBars_ || static_cast<float>(e.hp) < maxHp) {
             const float frac = std::clamp(static_cast<float>(e.hp) / maxHp, 0.0f, 1.0f);
             const float barW = std::max(1.0f, d);
             const float y = height + 0.5f;
@@ -1516,6 +1569,7 @@ void App::renderWorld() {
     }
 
     renderVoidFx();
+    renderDebugOverlay();
     renderRallyPoints();
     renderBuildGhost();
     renderWaypoints();
@@ -1606,8 +1660,29 @@ void App::handleNetEvent(const net::NetEvent& ev) {
                 addParticle({m, fxDirection(-0.3f) * fxRandom(1.0f, 2.5f), {0.35f, 0.7f, 1.0f, 1.0f}, 0.08f, 0.02f, 0.3f, 0.0f, 2.0f, 1.0f, 0.0f,
                              ParticleKind::Shard});
         }
-        else if (shooter)
-            addEffect(Mesh::Sphere, muzzleOf(*shooter), {1.0f, 0.85f, 0.4f, 0.9f}, 0.25f, 0.7f, 0.09f);
+        else if (shooter) {
+            const auto& def = data_->unit(shooter->def);
+            const glm::vec3 m = muzzleOf(*shooter);
+            const glm::vec3 fwd{std::cos(shooter->aim), 0.0f, std::sin(shooter->aim)};
+            if (heavyGun(def)) {
+                addEffect(Mesh::Sphere, m + fwd * 0.2f, {1.0f, 0.8f, 0.35f, 1.0f}, 0.4f, 1.3f, 0.12f);
+                addParticle({m, fwd * 2.0f, {1.0f, 0.75f, 0.35f, 1.0f}, 0.5f, 0.1f, 0.12f, 0.0f, 0.0f, 3.0f, 0.0f, ParticleKind::Glow});
+                for (int i = 0; i < fxCount(6.0f); ++i)
+                    addParticle({m + fwd * 0.3f, (fwd * fxRandom(0.8f, 2.4f) + fxDirection(0.2f) * 0.8f), {0.55f, 0.53f, 0.5f, 0.55f}, 0.25f,
+                                 fxRandom(0.7f, 1.2f), fxRandom(0.8f, 1.4f), 0.0f, -0.2f, 1.6f, 0.0f, ParticleKind::Smoke});
+                if (!def.structure || def.radius < 1.2f)
+                    addEffect(Mesh::Cylinder, {shooter->pos.x, 0.05f, shooter->pos.y}, {0.75f, 0.7f, 0.62f, 0.35f}, def.radius, def.radius * 3.0f, 0.35f);
+            } else if (smallCalibre(def)) {
+                addEffect(Mesh::Sphere, m, {1.0f, 0.88f, 0.45f, 0.95f}, 0.15f, 0.45f, 0.05f);
+                addParticle({m, fwd * 4.0f, {1.0f, 0.85f, 0.4f, 1.0f}, 0.12f, 0.02f, 0.06f, 0.0f, 0.0f, 0.0f, 0.0f, ParticleKind::Glow});
+                const glm::vec3 side{-fwd.z, 0.0f, fwd.x};
+                addParticle({m - fwd * 0.2f, side * fxRandom(1.0f, 2.0f) + glm::vec3(0.0f, fxRandom(1.0f, 2.0f), 0.0f), {0.9f, 0.7f, 0.3f, 1.0f}, 0.05f,
+                             0.04f, 0.5f, 0.0f, 9.0f, 0.5f, 6.0f, ParticleKind::Debris});
+            } else {
+                addEffect(Mesh::Sphere, m, {1.0f, 0.85f, 0.4f, 0.9f}, 0.25f, 0.7f, 0.09f);
+            }
+            recoil_[shooter->id] = 1.0f;
+        }
         break;
     }
     case net::NetEventType::Hit:

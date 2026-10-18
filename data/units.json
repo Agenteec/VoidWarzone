@@ -81,7 +81,7 @@
         "damage": 15,
         "range": 8.5,
         "cooldown": 0.45,
-        "projectileSpeed": 30,
+        "projectileSpeed": 44,
         "type": "kinetic",
         "targets": "both",
         "slow": {
@@ -237,7 +237,7 @@
         "damage": 11,
         "range": 5,
         "cooldown": 1.2,
-        "projectileSpeed": 14,
+        "projectileSpeed": 24,
         "type": "piercing"
       },
       "visual": {
@@ -468,7 +468,7 @@
         "damage": 35,
         "range": 6,
         "cooldown": 0.9,
-        "projectileSpeed": 22,
+        "projectileSpeed": 29,
         "type": "piercing"
       },
       "visual": {
@@ -503,7 +503,7 @@
         "damage": 9,
         "range": 4,
         "cooldown": 0.3,
-        "projectileSpeed": 26,
+        "projectileSpeed": 52,
         "type": "kinetic",
         "targets": "both"
       },
@@ -539,7 +539,7 @@
         "damage": 58,
         "range": 6,
         "cooldown": 1.15,
-        "projectileSpeed": 20
+        "projectileSpeed": 26
       },
       "visual": {
         "shape": "cube",
@@ -737,7 +737,7 @@
         "damage": 14,
         "range": 7,
         "cooldown": 0.4,
-        "projectileSpeed": 28,
+        "projectileSpeed": 56,
         "targets": "both"
       },
       "visual": {
@@ -779,7 +779,7 @@
         "damage": 14,
         "range": 7,
         "cooldown": 0.4,
-        "projectileSpeed": 28,
+        "projectileSpeed": 56,
         "targets": "both"
       },
       "visual": {
@@ -822,7 +822,7 @@
         "damage": 30,
         "range": 6,
         "cooldown": 0.9,
-        "projectileSpeed": 22
+        "projectileSpeed": 29
       },
       "visual": {
         "shape": "cube",
@@ -863,7 +863,7 @@
         "damage": 30,
         "range": 6,
         "cooldown": 0.9,
-        "projectileSpeed": 22
+        "projectileSpeed": 29
       },
       "visual": {
         "shape": "cube",
@@ -905,7 +905,7 @@
         "damage": 10,
         "range": 5,
         "cooldown": 0.4,
-        "projectileSpeed": 26
+        "projectileSpeed": 52
       },
       "visual": {
         "shape": "cube",
@@ -945,7 +945,7 @@
         "damage": 10,
         "range": 5,
         "cooldown": 0.4,
-        "projectileSpeed": 26
+        "projectileSpeed": 52
       },
       "visual": {
         "shape": "cube",
@@ -988,7 +988,7 @@
         "damage": 8,
         "range": 4,
         "cooldown": 0.2,
-        "projectileSpeed": 28,
+        "projectileSpeed": 56,
         "targets": "both"
       },
       "visual": {
@@ -1027,7 +1027,7 @@
         "damage": 11,
         "range": 4.5,
         "cooldown": 0.18,
-        "projectileSpeed": 30,
+        "projectileSpeed": 60,
         "targets": "both"
       },
       "visual": {
@@ -1160,7 +1160,7 @@
         "damage": 14,
         "range": 5,
         "cooldown": 0.25,
-        "projectileSpeed": 30,
+        "projectileSpeed": 60,
         "targets": "both"
       },
       "visual": {
@@ -1221,7 +1221,7 @@
         "damage": 12,
         "range": 6,
         "cooldown": 0.15,
-        "projectileSpeed": 32,
+        "projectileSpeed": 64,
         "targets": "air"
       },
       "visual": {
@@ -1271,7 +1271,7 @@
         "damage": 14,
         "range": 4,
         "cooldown": 0.6,
-        "projectileSpeed": 24,
+        "projectileSpeed": 48,
         "type": "kinetic"
       },
       "visual": {
@@ -1294,7 +1294,7 @@
         "damage": 62,
         "range": 10,
         "cooldown": 1.5,
-        "projectileSpeed": 22,
+        "projectileSpeed": 29,
         "turnRate": 2.5,
         "type": "piercing"
       },
@@ -1338,7 +1338,7 @@
       }
     },
     {
-      "id": "lab",
+      "id": "lab", "lab": true,
       "name": "Research Facility",
       "structure": true,
       "maxHp": 4500,
@@ -1481,7 +1481,7 @@
         "damage": 13,
         "range": 8,
         "cooldown": 0.45,
-        "projectileSpeed": 30,
+        "projectileSpeed": 44,
         "type": "kinetic",
         "targets": "both",
         "slow": {
@@ -1521,7 +1521,7 @@
         "shape": "cube",
         "height": 3.0,
         "model": {
-          "glb": "colony_bunker"
+          "glb": "colony_pillbox"
         }
       },
       "buildTime": 14
@@ -1540,7 +1540,7 @@
         "damage": 14,
         "range": 9,
         "cooldown": 0.25,
-        "projectileSpeed": 34,
+        "projectileSpeed": 64,
         "type": "kinetic",
         "targets": "air"
       },
@@ -1617,7 +1617,7 @@
       }
     },
     {
-      "id": "laboratory",
+      "id": "laboratory", "lab": true,
       "name": "Laboratory",
       "structure": true,
       "buildable": true,
@@ -1712,7 +1712,7 @@
         "damage": 7,
         "range": 5.5,
         "cooldown": 0.3,
-        "projectileSpeed": 26,
+        "projectileSpeed": 52,
         "type": "kinetic",
         "targets": "both"
       },
@@ -1725,7 +1725,7 @@
           0.16
         ],
         "model": {
-          "glb": "raider_buggy"
+          "glb": "real_vaz2106", "turret": "raider_buggy"
         }
       }
     },
@@ -1745,7 +1745,7 @@
         "damage": 13,
         "range": 7,
         "cooldown": 0.4,
-        "projectileSpeed": 28,
+        "projectileSpeed": 56,
         "type": "kinetic",
         "targets": "both"
       },
@@ -1758,7 +1758,7 @@
           0.16
         ],
         "model": {
-          "glb": "raider_technical"
+          "glb": "real_jeep_gun"
         }
       }
     },
@@ -1808,7 +1808,7 @@
         "damage": 11,
         "range": 8,
         "cooldown": 0.4,
-        "projectileSpeed": 28,
+        "projectileSpeed": 56,
         "type": "kinetic",
         "targets": "both"
       },
@@ -1914,7 +1914,7 @@
         "shape": "cube",
         "height": 1.4,
         "model": {
-          "glb": "colony_builder_truck"
+          "glb": "real_uaz452"
         }
       },
       "repair": 15,
@@ -1947,7 +1947,7 @@
         "damage": 8,
         "range": 5.5,
         "cooldown": 0.3,
-        "projectileSpeed": 26,
+        "projectileSpeed": 52,
         "type": "kinetic",
         "targets": "both"
       },
@@ -1955,7 +1955,7 @@
         "shape": "sphere",
         "height": 1.0,
         "model": {
-          "glb": "colony_uaz"
+          "glb": "real_uaz469", "turret": "colony_uaz"
         }
       }
     },
@@ -1987,7 +1987,7 @@
         "damage": 13,
         "range": 6.5,
         "cooldown": 0.32,
-        "projectileSpeed": 30,
+        "projectileSpeed": 51,
         "type": "piercing",
         "targets": "both"
       },
@@ -2001,7 +2001,7 @@
     },
     {
       "id": "tractor_tank",
-      "name": "Tractor Tank",
+      "name": "T-26 Restored",
       "cost": 170,
       "maxHp": 620,
       "armor": 4,
@@ -2022,12 +2022,11 @@
       "producedAt": [
         "tank_shop"
       ],
-      "requires": "laboratory",
       "weapon": {
         "damage": 42,
         "range": 7,
         "cooldown": 1.7,
-        "projectileSpeed": 24,
+        "projectileSpeed": 31,
         "type": "piercing",
         "targets": "ground"
       },
@@ -2035,7 +2034,7 @@
         "shape": "cube",
         "height": 1.4,
         "model": {
-          "glb": "colony_tractor_tank"
+          "glb": "real_t26"
         }
       }
     }

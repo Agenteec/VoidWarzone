@@ -412,3 +412,74 @@ TEST_CASE("mobile hq deploys, packs up and gates production") {
     CHECK_FALSE(exists("hq"));
     CHECK(exists("kshm"));
 }
+
+TEST_CASE("labs research upgrades and unlock units") {
+    const auto data = GameData::parse(R"({"units":[
+        {"id":"lab","structure":true,"lab":true,"maxHp":1000,"radius":1.5},
+        {"id":"tank","cost":50,"maxHp":200,"radius":0.5,"speed":3,"weapon":{"type":"piercing","damage":20,"range":4,"cooldown":1}},
+        {"id":"jeep","cost":30,"maxHp":100,"radius":0.5,"speed":5,"weapon":{"damage":10,"range":4,"cooldown":1}}
+    ]})", {}, {}, R"({"topics":[
+        {"id":"guns","cost":100,"time":2,"weapon":"piercing","mods":{"damageMul":1.5}},
+        {"id":"armor","cost":100,"time":2,"applies":"vehicles","after":["guns"],"mods":{"hpMul":2},"unlocks":["tank"]}
+    ]})");
+    REQUIRE(data.research().size() == 2);
+    CHECK(data.research(1).tier == 1);
+    CHECK(data.unit(data.find("tank")).research == 1);
+    const auto map = Map::parse(R"({"width":40,"height":40,"playerStart":{"pos":[10,10],"units":["jeep"]},
+        "defense":{"startEnergy":1000,"baseIncome":0,"waves":[]},
+        "mission":{"objectives":[{"id":"x","type":"survive","time":9999}]},
+        "units":[{"unit":"lab","team":0,"owner":0,"pos":[20,20]}]})");
+    World world(data, map);
+    world.spawnPlayer(0);
+    entt::entity lab = entt::null, jeep = entt::null;
+    for (auto [e, unit] : world.registry().view<const Unit>().each())
+        (unit.def == data.find("lab") ? lab : jeep) = e;
+    REQUIRE(world.registry().all_of<Lab>(lab));
+    world.registry().emplace_or_replace<Owner>(lab, std::uint8_t{0});
+
+    world.apply(RecruitCommand{0, data.find("tank")});
+    CHECK(countDef(world, data, "tank") == 0);
+    world.apply(StructureCommand{0, lab, StructureOp::Research, 1, {}});
+    CHECK(world.registry().get<Lab>(lab).topic == kInvalidId);
+    world.apply(StructureCommand{0, lab, StructureOp::Research, 0, {}});
+    CHECK(world.registry().get<Lab>(lab).topic == 0);
+    CHECK(world.player(0).energy == doctest::Approx(900.0f));
+    world.apply(StructureCommand{0, lab, StructureOp::Cancel, 0, {}});
+    CHECK(world.player(0).energy == doctest::Approx(1000.0f));
+    world.apply(StructureCommand{0, lab, StructureOp::Research, 0, {}});
+    run(world, 2.2f);
+    CHECK(world.researched(0, 0));
+    world.apply(StructureCommand{0, lab, StructureOp::Research, 1, {}});
+    run(world, 2.2f);
+    CHECK(world.researched(0, 1));
+    CHECK(world.registry().get<Health>(jeep).max == doctest::Approx(200.0f));
+    world.apply(RecruitCommand{0, data.find("tank")});
+    REQUIRE(countDef(world, data, "tank") == 1);
+    for (auto [e, unit, w] : world.registry().view<const Unit, const Weapon>().each())
+        if (unit.def == data.find("tank"))
+            CHECK(w.def.damage == doctest::Approx(30.0f));
+    CHECK(world.exportResearch(0) == R"(["guns","armor"])");
+
+    World loaded(data, map);
+    loaded.loadState(world.saveState());
+    CHECK(loaded.researched(0, 1));
+}
+
+TEST_CASE("cheats work only when enabled") {
+    const auto data = GameData::parse(kUnits);
+    const auto map = Map::parse(kMap);
+    World world(data, map);
+    world.spawnPlayer(0);
+    const float start = world.player(0).energy;
+    world.apply(CheatCommand{0, CheatOp::Energy});
+    CHECK(world.player(0).energy == doctest::Approx(start));
+    world.setCheats(true);
+    world.apply(CheatCommand{0, CheatOp::Energy});
+    CHECK(world.player(0).energy == doctest::Approx(start + 1000.0f));
+    world.apply(CheatCommand{0, CheatOp::Spawn, data.find("grunt"), 1, 3, {20.0f, 20.0f}});
+    CHECK(countDef(world, data, "grunt") == 3);
+    world.apply(CheatCommand{0, CheatOp::God});
+    CHECK(world.player(0).god);
+    world.apply(CheatCommand{0, CheatOp::Win});
+    CHECK(world.defense().state == MatchState::Victory);
+}
