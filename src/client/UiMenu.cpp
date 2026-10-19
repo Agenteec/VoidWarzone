@@ -570,11 +570,18 @@ void App::drawLobby() {
             }
             ImGui::EndDisabled();
             ImGui::SameLine();
-            if (p.id != info.leader)
+            if (p.bot) {
+                ImGui::BeginDisabled(!leader);
+                if (ImGui::SmallButton(ICON_FA_TIMES "##rm"))
+                    net_.sendBot(false, p.id);
+                ImGui::EndDisabled();
+                ImGui::SetItemTooltip("Remove this AI player");
+            } else if (p.id != info.leader) {
                 ImGui::TextColored(toVec(p.ready ? kGood : kDim), p.ready ? ICON_FA_CHECK : ICON_FA_TIMES);
-            else
+            } else {
                 ImGui::TextUnformatted("");
-            if (p.id != info.leader)
+            }
+            if (p.id != info.leader && !p.bot)
                 ImGui::SetItemTooltip(p.ready ? "ready" : "not ready");
         } else {
             ImGui::TextDisabled(ICON_FA_USERS "  open slot");
@@ -582,6 +589,14 @@ void App::drawLobby() {
         ImGui::PopID();
         if (slot > 10)
             break;
+    }
+    if (leader && info.mode == static_cast<std::uint8_t>(GameMode::Skirmish)) {
+        ImGui::BeginDisabled(static_cast<int>(info.players.size()) >= info.maxPlayers);
+        if (ImGui::Button(ICON_FA_PLUS "  Add AI opponent"))
+            net_.sendBot(true);
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::TextDisabled("same team for everyone = free-for-all");
     }
     std::erase_if(lobbySelected_, [&](std::uint8_t id) {
         return std::none_of(info.players.begin(), info.players.end(), [&](const auto& p) { return p.id == id; });

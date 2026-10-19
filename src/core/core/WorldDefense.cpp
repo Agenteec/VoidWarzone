@@ -56,11 +56,11 @@ bool parseDifficulty(std::string_view text, Difficulty& out) {
 }
 
 const char* gameModeName(GameMode m) {
-    return m == GameMode::Endless ? "endless" : m == GameMode::Arena ? "arena" : "defense";
+    return m == GameMode::Endless ? "endless" : m == GameMode::Arena ? "arena" : m == GameMode::Skirmish ? "skirmish" : "defense";
 }
 
 bool parseGameMode(std::string_view text, GameMode& out) {
-    for (const auto m : {GameMode::Defense, GameMode::Endless, GameMode::Arena})
+    for (const auto m : {GameMode::Defense, GameMode::Endless, GameMode::Arena, GameMode::Skirmish})
         if (text == gameModeName(m)) {
             out = m;
             return true;
@@ -282,7 +282,7 @@ void World::handle(const RecruitCommand& cmd) {
     const glm::vec2 offset = ring > 0.0f ? glm::vec2(std::cos(static_cast<float>(slot) * 0.7f), std::sin(static_cast<float>(slot) * 0.7f)) * (ring + 1.5f)
                                          : glm::vec2(static_cast<float>(slot % 3 - 1) * 1.5f, static_cast<float>(slot / 3 - 1) * 1.5f);
     const glm::vec2 pos = Map::center(nearestFree(navMap(), Map::cellOf(origin + offset)));
-    spawn(cmd.unit, 0, pos, cmd.player);
+    spawn(cmd.unit, player.team, pos, cmd.player);
 }
 
 SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team, bool phantoms) const {
@@ -538,6 +538,37 @@ void World::updateResourcePoints() {
     if (!map_)
         return;
     const auto& defs = map_->resourcePoints();
+    if (mode_ == GameMode::Skirmish) {
+        for (std::size_t i = 0; i < defs.size(); ++i) {
+            const auto& def = defs[i];
+            auto& st = points_[i];
+            std::array<int, 16> counts{};
+            spatial_.query(def.pos, def.radius, [&](const SpatialHash::Item& item) {
+                if (glm::distance(item.pos, def.pos) <= def.radius && alive(item.entity) && item.team < counts.size())
+                    ++counts[item.team];
+            });
+            int present = -1;
+            int teams = 0;
+            for (std::size_t t = 0; t < counts.size(); ++t)
+                if (counts[t] > 0) {
+                    ++teams;
+                    present = static_cast<int>(t);
+                }
+            if (teams == 1 && present != st.owner) {
+                st.control += kCaptureRate * static_cast<float>(std::min(counts[static_cast<std::size_t>(present)], kCaptureCap)) * kTickDt;
+                if (st.control >= 1.0f) {
+                    st.owner = present;
+                    st.control = 0.0f;
+                    events_.push_back({EventType::PointCaptured, entt::null, entt::null, def.pos, def.pos, static_cast<float>(std::min(present, 2))});
+                }
+            } else if (teams == 0 || present == st.owner) {
+                st.control = std::max(0.0f, st.control - kCaptureRate * kTickDt);
+            }
+            if (st.owner >= kFirstSkirmishTeam)
+                grantEnergyTo(static_cast<std::uint8_t>(st.owner), def.income * kTickDt);
+        }
+        return;
+    }
     for (std::size_t i = 0; i < defs.size(); ++i) {
         const auto& def = defs[i];
         auto& st = points_[i];
@@ -617,7 +648,57 @@ void World::spawnWave(const WaveDef& wave) {
     }
 }
 
+void World::grantEnergyTo(std::uint8_t team, float amount) {
+    int n = 0;
+    for (const auto& p : players_)
+        n += p.active && p.team == team;
+    if (n == 0)
+        return;
+    for (auto& p : players_)
+        if (p.active && p.team == team)
+            p.energy += amount / static_cast<float>(n);
+}
+
+void World::updateSkirmish() {
+    const auto& def = map_->defense();
+    std::array<float, kMaxPlayers> income{};
+    for (std::size_t i = 0; i < players_.size(); ++i)
+        if (players_[i].active)
+            income[i] = def.baseIncome * (players_[i].ai && difficulty_ >= Difficulty::Hard ? 1.25f : 1.0f);
+    std::array<bool, 16> alive_{};
+    for (auto [e, unit, owner, team] : registry_.view<const Unit, const Owner, const Team>().each()) {
+        if (!alive(e) || owner.player >= kMaxPlayers)
+            continue;
+        if (team.id < alive_.size())
+            alive_[team.id] = true;
+        if (registry_.all_of<Structure>(e) && !registry_.all_of<Construction>(e))
+            income[owner.player] += data_->unit(unit.def).income;
+    }
+    for (std::size_t i = 0; i < players_.size(); ++i)
+        if (players_[i].active)
+            players_[i].energy += income[i] * kTickDt;
+    if (defense_.state != MatchState::Playing)
+        return;
+    int teams = 0;
+    int last = -1;
+    for (std::size_t t = kFirstSkirmishTeam; t < alive_.size(); ++t)
+        if (alive_[t]) {
+            ++teams;
+            last = static_cast<int>(t);
+        }
+    skirmishTeams_ = std::max(skirmishTeams_, teams);
+    if (skirmishTeams_ >= 2 && teams <= 1 && tick_ > kTickRate * 5) {
+        defense_.state = MatchState::Victory;
+        defense_.winner = last;
+        events_.push_back({EventType::MatchEnd, entt::null, entt::null, {}, {}, 1.0f});
+    }
+}
+
 void World::updateDefense() {
+    if (map_ && mode_ == GameMode::Skirmish) {
+        updateSkirmish();
+        return;
+    }
     if (!map_ || !map_->defense().enabled)
         return;
     const auto& def = map_->defense();

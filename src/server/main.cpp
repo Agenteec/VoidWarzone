@@ -1,3 +1,4 @@
+#include <map>
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -33,13 +34,31 @@ std::string readFile(const std::filesystem::path& path) {
 
 int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty difficulty, vw::GameMode mode, int players) {
     vw::World world(data, map, difficulty, mode);
-    for (int p = 0; p < players; ++p)
-        world.spawnPlayer(static_cast<std::uint8_t>(p));
-    spdlog::info("simulating {} | {} | {} idle players", map.name(), vw::difficultyName(difficulty), players);
+    const bool skirmish = mode == vw::GameMode::Skirmish;
+    for (int p = 0; p < players; ++p) {
+        world.spawnPlayer(static_cast<std::uint8_t>(p), skirmish ? static_cast<std::uint8_t>(vw::kFirstSkirmishTeam + p) : std::uint8_t{0});
+        if (skirmish)
+            world.setAi(static_cast<std::uint8_t>(p), true);
+    }
+    spdlog::info("simulating {} | {} | {} {} players", map.name(), vw::difficultyName(difficulty), players, skirmish ? "AI" : "idle");
 
     const std::uint64_t limit = static_cast<std::uint64_t>(vw::kTickRate) * 60 * 20;
     while (world.defense().state == vw::MatchState::Playing && world.tick() < limit) {
         world.step();
+        if (skirmish && world.tick() % (vw::kTickRate * 120) == 0) {
+            std::string line;
+            for (int p = 0; p < players; ++p) {
+                int units = 0, structures = 0, building = 0;
+                for (auto [e, owner, unit] : world.registry().view<const vw::Owner, const vw::Unit>().each())
+                    if (owner.player == p) {
+                        (world.registry().all_of<vw::Structure>(e) ? structures : units)++;
+                        if (const auto* o = world.registry().try_get<vw::Order>(e); o && o->type == vw::OrderType::Build)
+                            ++building;
+                    }
+                line += fmt::format(" p{} {:.0f}e {}s {}u {}b |", p, world.player(static_cast<std::uint8_t>(p)).energy, structures, units, building);
+            }
+            spdlog::info("{:6.0f}s{}", static_cast<double>(world.tick()) / vw::kTickRate, line);
+        }
         for (const auto& ev : world.events()) {
             if (ev.type != vw::EventType::WaveStart && ev.type != vw::EventType::PointCaptured && ev.type != vw::EventType::Enrage)
                 continue;
@@ -71,6 +90,20 @@ int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty diffic
         ++structures[team.id & 1];
     spdlog::info("{} at {:.1f}s, wave {}/{} | structures {}/{}", result, static_cast<double>(world.tick()) / vw::kTickRate, d.wave, d.totalWaves,
                  structures[0], structures[1]);
+    if (skirmish) {
+        std::map<int, std::pair<int, int>> perPlayer;
+        std::map<int, std::string> kinds;
+        for (auto [e, unit, owner] : world.registry().view<const vw::Unit, const vw::Owner, const vw::Structure>().each())
+            kinds[owner.player] += data.unit(unit.def).id + " ";
+        for (auto [e, unit, owner] : world.registry().view<const vw::Unit, const vw::Owner>().each())
+            (world.registry().all_of<vw::Structure>(e) ? perPlayer[owner.player].first : perPlayer[owner.player].second)++;
+        for (const auto& [p, c] : perPlayer)
+            spdlog::info("  player {} (team {}): {} structures, {} units, energy {:.0f}", p, world.player(static_cast<std::uint8_t>(p)).team, c.first, c.second,
+                         world.player(static_cast<std::uint8_t>(p)).energy);
+        for (const auto& [p, k] : kinds)
+            spdlog::info("  player {}: {}", p, k);
+        spdlog::info("  winner team {}", d.winner);
+    }
     return d.state == vw::MatchState::Defeat ? 2 : 0;
 }
 

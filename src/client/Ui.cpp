@@ -79,7 +79,7 @@ void App::drawHud() {
         ImGui::SetNextWindowPos({display.x * 0.5f, 8.0f * s}, ImGuiCond_Always, {0.5f, 0.0f});
         ImGui::SetNextWindowBgAlpha(0.75f);
         ImGui::Begin("##ended", nullptr, kHudFlags);
-        const bool victory = state == MatchState::Victory;
+        const bool victory = wonMatch();
         ImGui::TextColored(toVec(victory ? kGood : kBad), "%s", victory ? "VICTORY" : "DEFEAT");
         ImGui::SameLine();
         ImGui::TextDisabled("free play");
@@ -190,7 +190,8 @@ void App::drawTopBar() {
         if (i > 0)
             ImGui::SameLine(0.0f, 6.0f * s);
         const auto& info = game.points[i];
-        const ImU32 color = info.owner == 0 ? kAccent : info.owner == 1 ? kVoid : IM_COL32(120, 125, 140, 255);
+        const ImU32 color = info.owner == 0xff ? IM_COL32(120, 125, 140, 255) : info.owner == myTeam() ? kAccent : info.owner == 1 ? kVoid
+                                                                                                        : ImGui::ColorConvertFloat4ToU32(ImVec4{teamColor(info.owner).r, teamColor(info.owner).g, teamColor(info.owner).b, 1.0f});
         const ImVec2 size{30.0f * s, 34.0f * s};
         const ImVec2 p = ImGui::GetCursorScreenPos();
         ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -207,7 +208,7 @@ void App::drawTopBar() {
         ImGui::Dummy(size);
         if (ImGui::BeginItemTooltip()) {
             ImGui::Text("Point %s  +%.0f energy/s", points[i].name.c_str(), points[i].income);
-            ImGui::TextDisabled("%s", info.owner == 0 ? "held by your team" : info.owner == 1 ? "held by the Void" : "neutral - stand on it to capture");
+            ImGui::TextDisabled("%s", info.owner == myTeam() ? "held by your team" : info.owner == 1 ? "held by the enemy" : info.owner == 0xff ? "neutral - stand on it to capture" : "held by another team");
             ImGui::EndTooltip();
         }
     }
@@ -215,10 +216,10 @@ void App::drawTopBar() {
 
     float income = defense.baseIncome;
     for (std::size_t i = 0; i < points.size() && i < game.points.size(); ++i)
-        if (game.points[i].owner == 0)
+        if (game.points[i].owner == myTeam())
             income += points[i].income;
     for (const auto& e : entities_)
-        if (e.kind == net::EntityKind::Unit && e.team == 0 && e.hp > 0)
+        if (e.kind == net::EntityKind::Unit && (game.mode == static_cast<std::uint8_t>(GameMode::Skirmish) ? isOwn(e) : e.team == 0) && e.hp > 0)
             income += data_->unit(e.def).income;
 
     char energy[48];
@@ -676,7 +677,7 @@ void App::drawPauseMenu() {
 
 void App::drawEndScreen() {
     const auto& game = net_.latest()->game;
-    const bool victory = static_cast<MatchState>(game.state) == MatchState::Victory;
+    const bool victory = wonMatch();
     const float s = uiScale();
     const bool campaign = !campaignMission_.empty();
     if (campaign)

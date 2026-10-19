@@ -98,6 +98,8 @@ int main(int argc, char** argv) {
             options.select = argv[++i];
         else if (arg == "--debug")
             options.debug = true;
+        else if (arg == "--bots" && hasValue)
+            options.bots = std::stoi(argv[++i]);
         else if (arg == "--research-tree")
             options.researchTree = true;
         else if (arg == "--difficulty" && hasValue)

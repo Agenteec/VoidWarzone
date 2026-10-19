@@ -138,7 +138,7 @@ Map Map::parse(std::string_view text) {
             const int kind = std::stoi(rle.substr(pos, colon - pos));
             const std::size_t count = std::stoul(rle.substr(colon + 1, comma - colon - 1));
             for (std::size_t k = 0; k < count && at < m.cells_.size(); ++k)
-                m.cells_[at++] = static_cast<std::uint8_t>(std::clamp(kind, 0, 3));
+                m.cells_[at++] = static_cast<std::uint8_t>(std::clamp(kind, 0, 4));
             pos = comma + 1;
         }
     }
@@ -156,6 +156,8 @@ Map Map::parse(std::string_view text) {
         AreaDef area{a.at("kind").get<std::string>(), toPoints(a.at("poly"))};
         if (area.kind == "forest")
             m.fill(area.poly, CellKind::Forest);
+        else if (area.kind == "lake")
+            m.fill(area.poly, CellKind::Water);
         m.areas_.push_back(std::move(area));
     }
     for (const auto& b : j.value("buildings", json::array())) {
@@ -216,6 +218,8 @@ Map Map::parse(std::string_view text) {
 
     if (const auto ps = j.find("playerStart"); ps != j.end()) {
         m.playerStart_.pos = toVec2(ps->at("pos"));
+        for (const auto& s : ps->value("slots", json::array()))
+            m.playerStart_.slots.push_back(toVec2(s));
         for (const auto& u : ps->at("units"))
             m.playerStart_.units.push_back(u.get<std::string>());
     }

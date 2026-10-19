@@ -127,7 +127,7 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     registry_.emplace<Facing>(e, team == 0 ? 0.0f : std::numbers::pi_v<float>);
     registry_.emplace<Unit>(e, Unit{defId, def.radius, def.speed, def.sight});
     registry_.emplace<Team>(e, team);
-    const bool enemy = team != 0;
+    const bool enemy = team == kVoidTeam;
     const float maxHp = def.maxHp * (enemy ? enemyHpScale() : 1.0f);
     registry_.emplace<Health>(e, maxHp, maxHp, def.armor, -1, def.shield, def.shield, 0.0f);
     registry_.emplace<Target>(e);
@@ -182,7 +182,18 @@ entt::entity World::spawn(UnitDefId defId, std::uint8_t team, glm::vec2 pos, int
     return e;
 }
 
+glm::vec2 World::startOf(std::uint8_t player) const {
+    return playerBase(player);
+}
+
+void World::setAi(std::uint8_t player, bool on) {
+    if (player < kMaxPlayers)
+        players_[player].ai = on;
+}
+
 glm::vec2 World::playerBase(std::uint8_t player) const {
+    if (mode_ == GameMode::Skirmish && player < kMaxPlayers && !map_->playerStart().slots.empty())
+        return map_->playerStart().slots[players_[player].slot % map_->playerStart().slots.size()];
     const float angle = static_cast<float>(player) * 2.39996f;
     const float radius = player == 0 ? 0.0f : 3.0f + 1.5f * std::sqrt(static_cast<float>(player));
     return map_->playerStart().pos + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
@@ -193,7 +204,10 @@ std::vector<entt::entity> World::spawnPlayer(std::uint8_t player, std::uint8_t t
     if (!map_ || player >= kMaxPlayers)
         return spawned;
     players_[player] = {true, map_->defense().startEnergy, 0};
+    players_[player].team = team;
     const auto& start = map_->playerStart();
+    if (mode_ == GameMode::Skirmish && !start.slots.empty())
+        players_[player].slot = static_cast<std::uint8_t>(skirmishSlots_++ % static_cast<int>(start.slots.size()));
     const glm::vec2 base = playerBase(player);
     for (std::size_t i = 0; i < start.units.size(); ++i) {
         const UnitDefId id = data_->find(start.units[i]);
@@ -394,6 +408,7 @@ void World::step() {
         updateProducers();
         updateFactories();
         updateResearch();
+        updateAi();
         updateConstruction();
     });
     run([&] { updateHeroes(); });
@@ -1146,7 +1161,8 @@ void World::removeDead() {
         if (team.id != 0) {
             if (h.lastHitBy != -2)
                 kills.push_back({unit.def, pos.value, h.lastHitBy});
-            continue;
+            if (team.id == kVoidTeam)
+                continue;
         }
         const auto* prog = registry_.try_get<Progression>(e);
         const auto* owner = registry_.try_get<Owner>(e);

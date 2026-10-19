@@ -580,7 +580,7 @@ void World::updateHeroes() {
         }
         if (players_[it->player].active && map_) {
             const glm::vec2 pos = Map::center(nearestFree(*map_, Map::cellOf(playerBase(it->player))));
-            const auto e = spawn(it->def, 0, pos, it->player);
+            const auto e = spawn(it->def, players_[it->player].team, pos, it->player);
             registry_.get<Progression>(e) = it->progression;
             refreshStats(e);
             auto& h = registry_.get<Health>(e);

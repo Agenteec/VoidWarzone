@@ -42,7 +42,7 @@ int itemSlots(Rank rank);
 float xpForNextLevel(int level);
 
 enum class Difficulty : std::uint8_t { Easy, Normal, Hard, Nightmare };
-enum class GameMode : std::uint8_t { Defense, Endless, Arena };
+enum class GameMode : std::uint8_t { Defense, Endless, Arena, Skirmish };
 enum class MatchState : std::uint8_t { Playing, Victory, Defeat };
 
 struct PlayerState {
@@ -53,7 +53,13 @@ struct PlayerState {
     std::vector<ItemId> stash;
     std::vector<std::uint8_t> researched;
     bool god = false;
+    std::uint8_t team = 0;
+    std::uint8_t slot = 0;
+    bool ai = false;
 };
+
+inline constexpr std::uint8_t kVoidTeam = 1;
+inline constexpr std::uint8_t kFirstSkirmishTeam = 2;
 
 struct ResourcePointState {
     float control = 0.0f;
@@ -66,6 +72,7 @@ struct DefenseStatus {
     float nextWaveIn = 0.0f;
     MatchState state = MatchState::Playing;
     entt::entity boss = entt::null;
+    int winner = -1;
 };
 
 struct SystemTimes {
@@ -126,7 +133,9 @@ public:
     std::string exportResearch(std::uint8_t player) const;
     void importResearch(std::uint8_t player, std::string_view list);
     static constexpr std::size_t kQueueSize = 5;
-    bool campaignRules() const { return map_ && map_->mission().enabled; }
+    bool campaignRules() const { return map_ && (map_->mission().enabled || mode_ == GameMode::Skirmish); }
+    void setAi(std::uint8_t player, bool on);
+    glm::vec2 startOf(std::uint8_t player) const;
     const std::vector<std::uint8_t>& objectives() const { return objectiveState_; }
     std::vector<std::string> takeMessages() { return std::exchange(messages_, {}); }
     float missionTime() const { return static_cast<float>(tick_) * kTickDt; }
@@ -282,6 +291,18 @@ private:
     void updateMission();
     void updateFactories();
     void updateResearch();
+    void updateAi();
+    void thinkAi(std::uint8_t player);
+    void updateSkirmish();
+    void grantEnergyTo(std::uint8_t team, float amount);
+    struct AiState {
+        int attackSize = 6;
+        float nextAttack = 0.0f;
+        int buildTry = 0;
+    };
+    std::array<AiState, kMaxPlayers> ai_{};
+    int skirmishSlots_ = 0;
+    int skirmishTeams_ = 0;
     void refreshOwned(std::uint8_t player);
     bool cheats_ = false;
     void runAction(const MissionAction& action);

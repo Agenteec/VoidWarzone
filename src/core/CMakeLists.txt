@@ -10,6 +10,7 @@ add_library(vw_core STATIC
     core/WorldSave.cpp
     core/WorldMission.cpp
     core/WorldResearch.cpp
+    core/WorldAi.cpp
 )
 target_include_directories(vw_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(vw_core PUBLIC VW_VERSION="${PROJECT_VERSION}")

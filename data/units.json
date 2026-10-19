@@ -1896,7 +1896,7 @@
     },
     {
       "id": "builder_truck",
-      "name": "Builder Truck",
+      "name": "Crane Truck",
       "cost": 70,
       "maxHp": 300,
       "armor": 2,
@@ -1914,7 +1914,7 @@
         "shape": "cube",
         "height": 1.4,
         "model": {
-          "glb": "real_uaz452"
+          "glb": "colony_crane_truck"
         }
       },
       "repair": 15,

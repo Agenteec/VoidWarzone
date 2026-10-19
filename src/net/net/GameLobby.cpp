@@ -19,6 +19,7 @@ void writeLobby(Writer& w, const LobbyInfo& info) {
         w.u8(p.ready ? 1 : 0);
         w.u8(p.color);
         w.u8(p.team);
+        w.u8(p.bot ? 1 : 0);
     }
 }
 
@@ -39,6 +40,7 @@ bool readLobby(Reader& r, LobbyInfo& info) {
         p.ready = r.u8() != 0;
         p.color = static_cast<std::uint8_t>(r.u8() % kPlayerColors.size());
         p.team = static_cast<std::uint8_t>(r.u8() % kLobbyTeams);
+        p.bot = r.u8() != 0;
     }
     return r.ok();
 }

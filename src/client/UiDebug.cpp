@@ -10,6 +10,40 @@ namespace vw::client {
 
 using namespace ui;
 
+namespace {
+
+constexpr glm::vec4 kSideColors[] = {{0.25f, 0.75f, 1.0f, 1.0f}, {1.0f, 0.25f, 0.55f, 1.0f}};
+
+}
+
+std::uint8_t App::myTeam() const {
+    const auto* latest = net_.latest();
+    if (!latest || net_.player() >= latest->game.teams.size() || latest->game.teams[net_.player()] == 0xff)
+        return 0;
+    return latest->game.teams[net_.player()];
+}
+
+glm::vec4 App::teamColor(std::uint8_t team) const {
+    if (team == 0xff)
+        return {0.55f, 0.55f, 0.6f, 1.0f};
+    if (team == myTeam())
+        return team < 2 ? kSideColors[0] : playerColor(net_.player());
+    if (team < 2)
+        return kSideColors[team];
+    if (const auto* latest = net_.latest())
+        for (std::size_t p = 0; p < latest->game.teams.size(); ++p)
+            if (latest->game.teams[p] == team)
+                return playerColor(static_cast<std::uint8_t>(p));
+    return {0.55f, 0.55f, 0.6f, 1.0f};
+}
+
+bool App::wonMatch() const {
+    const auto* latest = net_.latest();
+    if (!latest || static_cast<MatchState>(latest->game.state) != MatchState::Victory)
+        return false;
+    return latest->game.mode != static_cast<std::uint8_t>(GameMode::Skirmish) || latest->game.winner == myTeam();
+}
+
 bool App::cheatsOn() const {
     const auto* latest = net_.latest();
     return latest && (latest->view.flags & net::kViewCheats) != 0;

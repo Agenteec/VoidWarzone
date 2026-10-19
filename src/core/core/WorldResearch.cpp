@@ -96,7 +96,7 @@ void World::handle(const CheatCommand& cmd) {
                 const glm::vec2 offset{static_cast<float>(i % 5) * 1.4f, static_cast<float>(i / 5) * 1.4f};
                 const glm::vec2 pos = data_->unit(cmd.unit).structure ? snapBuild(cmd.point)
                                                                       : Map::center(nearestFree(navMap(), Map::cellOf(cmd.point + offset)));
-                spawn(cmd.unit, cmd.team, pos, cmd.team == 0 ? static_cast<int>(cmd.player) : -1);
+                spawn(cmd.unit, cmd.team == 0 ? player.team : kVoidTeam, pos, cmd.team == 0 ? static_cast<int>(cmd.player) : -1);
                 if (data_->unit(cmd.unit).structure)
                     break;
             }

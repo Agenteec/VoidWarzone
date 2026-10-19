@@ -22,6 +22,7 @@ TEXTURES = [
     "burned_ground_01", "dry_mud_field_001", "rock_ground", "road_damaged",
     "concrete_panels", "precast_concrete_wall", "brick_wall_02", "rusty_corrugated_iron", "distressed_painted_planks",
     "rusty_metal_shutter", "concrete_debris", "damaged_plaster", "concrete_wall_008",
+    "winter_leaves", "brown_mud_leaves_01", "asphalt_02", "dry_decay_leaves",
 ]
 
 MODELS = [

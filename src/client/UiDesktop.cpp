@@ -80,10 +80,10 @@ void App::drawResourceBar() {
     const auto& points = map_->resourcePoints();
     float income = map_->defense().baseIncome;
     for (std::size_t i = 0; i < points.size() && i < game.points.size(); ++i)
-        if (game.points[i].owner == 0)
+        if (game.points[i].owner == myTeam())
             income += points[i].income;
     for (const auto& e : entities_)
-        if (e.kind == net::EntityKind::Unit && e.team == 0 && e.hp > 0)
+        if (e.kind == net::EntityKind::Unit && (game.mode == static_cast<std::uint8_t>(GameMode::Skirmish) ? isOwn(e) : e.team == 0) && e.hp > 0)
             income += data_->unit(e.def).income;
 
     ImGui::SetNextWindowPos({display.x - pad, pad}, ImGuiCond_Always, {1.0f, 0.0f});
@@ -158,7 +158,8 @@ void App::drawMinimap(float size) {
     const auto& defs = map_->resourcePoints();
     for (std::size_t i = 0; i < defs.size(); ++i) {
         const auto owner = latest && i < latest->game.points.size() ? latest->game.points[i].owner : 0xff;
-        const ImU32 c = owner == 0 ? kAccent : owner == 1 ? kVoid : IM_COL32(170, 170, 180, 255);
+        const ImU32 c = owner == 0xff ? IM_COL32(170, 170, 180, 255) : owner == myTeam() ? kAccent : owner == 1 ? kVoid
+                                                                                          : ImGui::ColorConvertFloat4ToU32(ImVec4{teamColor(owner).r, teamColor(owner).g, teamColor(owner).b, 1.0f});
         const ImVec2 p = toMini(defs[i].pos);
         dl->AddCircleFilled(p, 4.0f * s, scaleColor(c, 0.5f, 0.9f));
         dl->AddCircle(p, 4.0f * s, c, 0, 1.5f);

@@ -422,12 +422,13 @@ void App::onUnitDeath(const net::UnitDeath& d) {
 }
 
 void App::updateSnow(float dt) {
-    if (!map_ || map_->theme() != "winter") {
+    if (!map_ || (map_->theme() != "winter" && map_->theme() != "autumn")) {
         snow_.clear();
         return;
     }
     const float r = std::clamp(camera_.distance * 0.9f, 20.0f, 70.0f);
-    const auto target = static_cast<std::size_t>(static_cast<float>(kFxDensity * 900.0f) * (r / 45.0f));
+    const float density = map_->theme() == "autumn" ? 300.0f : 900.0f;
+    const auto target = static_cast<std::size_t>(static_cast<float>(kFxDensity * density) * (r / 45.0f));
     const glm::vec2 c = camera_.target;
     while (snow_.size() < target)
         snow_.push_back({c.x + fxRandom(-r, r), fxRandom(0.0f, 20.0f), c.y + fxRandom(-r, r), fxRandom(1.2f, 2.4f)});

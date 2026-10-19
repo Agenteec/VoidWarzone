@@ -17,6 +17,7 @@ struct LobbyPlayer {
     bool ready = false;
     std::uint8_t color = 0;
     std::uint8_t team = 0;
+    bool bot = false;
 };
 
 inline constexpr std::array<std::uint32_t, 8> kPlayerColors{0x4ce06a, 0x3f8cff, 0xf2d53c, 0xff8a2a,

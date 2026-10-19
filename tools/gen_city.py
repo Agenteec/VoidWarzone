@@ -266,6 +266,44 @@ def rubble():
     return to_img(rgb), Image.new("RGB", (T, T), (0, 0, 255))
 
 
+def autumn_ground():
+    leaves = level(photo("winter_leaves", repeat=2, sat=0.55), 92)
+    decay = level(photo("dry_decay_leaves", repeat=2, sat=0.35), 88)
+    rgb = blend(leaves, decay, np.clip((fbm(401, 4, 4) - 0.45) * 2.0, 0, 1) * 0.5)
+    snow = np.clip((fbm(402, 8, 5) - 0.58) * 2.2, 0.0, 1.0) * np.clip(speckle(404, 0.35).astype(float) * 0.5 + fbm(405, 32, 3), 0, 1)
+    return blend(rgb, level(photo("snow_02", repeat=2, sat=0.4), 214), snow * 0.7)
+
+
+def autumn_soil():
+    rgb = level(photo("brown_mud_leaves_01", repeat=2, sat=0.3), 74)
+    puddles = np.clip((fbm(411, 6, 4) - 0.62) * 4.0, 0, 1)
+    return blend(rgb, (52, 56, 60), puddles * 0.6)
+
+
+def autumn_cliff():
+    rgb = level(photo("rock_ground_02", repeat=2, sat=0.3), 88)
+    snow = np.clip((fbm(421, 5, 4) - 0.56) * 3.0, 0.0, 1.0)
+    return blend(rgb, (214, 218, 224), snow * 0.6)
+
+
+def autumn_road():
+    rgb = level(photo("asphalt_02", repeat=2, sat=0.3), 70)
+    wet = np.clip((warp(fbm(431, 6, 4), 432, 0.2) - 0.55) * 3.0, 0.0, 1.0)
+    rgb = shade(rgb, 1.0 - wet * 0.25)
+    slush = np.clip((fbm(433, 8, 4) - 0.7) * 4.0, 0.0, 1.0)
+    return blend(rgb, (176, 180, 186), slush * 0.5)
+
+
+def water():
+    swell = warp(fbm(441, 4, 5), 442, 0.3)
+    ripple = fbm(443, 32, 3)
+    rgb = colorize(swell * 0.6 + ripple * 0.4, [(0.0, (38, 46, 52)), (0.5, (52, 62, 68)), (1.0, (74, 84, 90))])
+    glint = np.clip((ripple - 0.72) * 6.0, 0, 1) * np.clip((swell - 0.5) * 3.0, 0, 1)
+    rgb = blend(rgb, (150, 158, 164), glint * 0.5)
+    ice = np.clip((1.0 - worley(444, 10) - 0.88) * 9.0, 0, 1) * (fbm(445, 3, 3) > 0.62)
+    return blend(rgb, (200, 206, 212), ice * 0.8)
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "data"
     terrain = os.path.join(out, "terrain", "winter")
@@ -274,6 +312,11 @@ def main():
     os.makedirs(city, exist_ok=True)
     for name, fn in (("ground", winter_ground), ("soil", winter_soil), ("cliff", winter_cliff), ("road", winter_road)):
         save(os.path.join(terrain, name + ".png"), fn())
+    autumn = os.path.join(out, "terrain", "autumn")
+    os.makedirs(autumn, exist_ok=True)
+    for name, fn in (("ground", autumn_ground), ("soil", autumn_soil), ("cliff", autumn_cliff), ("road", autumn_road)):
+        save(os.path.join(autumn, name + ".png"), fn())
+    save(os.path.join(out, "terrain", "water.png"), water())
     for name, fn in (("panel", panel), ("panel_burnt", panel_burnt), ("brick_burnt", brick_burnt), ("ruin", ruin), ("brick", brick), ("industrial", industrial), ("house", house), ("garage", garage),
                      ("roof", roof), ("slate", slate), ("rubble", rubble)):
         img, mask = fn()

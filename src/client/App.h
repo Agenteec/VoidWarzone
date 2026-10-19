@@ -60,6 +60,7 @@ struct LaunchOptions {
     int shadows = -1;
     int light = -1;
     std::string select;
+    int bots = 0;
     bool debug = false;
     bool researchTree = false;
 };
@@ -268,6 +269,9 @@ private:
     };
     std::unordered_map<std::uint32_t, Spin> spin_;
     bool cheatsOn() const;
+    std::uint8_t myTeam() const;
+    glm::vec4 teamColor(std::uint8_t team) const;
+    bool wonMatch() const;
     void sendCheat(CheatOp op, std::vector<entt::entity> targets = {}, glm::vec2 point = {});
     bool cheatClick(glm::vec2 screen);
     void drawDebug();

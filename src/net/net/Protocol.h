@@ -45,6 +45,7 @@ enum class MessageType : std::uint8_t {
     SaveGame,
     LoadGame,
     Cheats,
+    Bot,
 };
 
 enum class NetEventType : std::uint8_t {

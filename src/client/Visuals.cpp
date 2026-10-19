@@ -423,6 +423,14 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             level[idx] = l;
             const float ground = map.elevation({static_cast<float>(i), static_cast<float>(j)}) * kMetre;
             out.heights[idx] = ground;
+            int wet = 0;
+            for (const auto& [ox, oy] : {std::pair{-1, -1}, std::pair{0, -1}, std::pair{-1, 0}, std::pair{0, 0}})
+                wet += map.inside(i + ox, j + oy) && map.cellKind(i + ox, j + oy) == CellKind::Water;
+            if (wet > 0) {
+                out.heights[idx] = ground - (wet == 4 ? 1.3f : 0.36f * static_cast<float>(wet));
+                level[idx] = 0;
+                continue;
+            }
             if (l == 0)
                 continue;
             const float n = fbm(static_cast<float>(i) * 0.15f, static_cast<float>(j) * 0.15f, seed);
@@ -440,7 +448,8 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
         pads.push_back(data.unit(id).radius + 1.6f);
     }
 
-    const bool winter = map.theme() == "winter";
+    const bool autumn = map.theme() == "autumn";
+    const bool winter = map.theme() == "winter" || autumn;
     const bool city = !map.paths().empty();
     std::vector<float> roadPaint(out.heights.size(), 0.0f);
     std::vector<float> dirtPaint(out.heights.size(), 0.0f);
@@ -531,6 +540,11 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                 dirt = std::max(dirt, 0.55f + 0.45f * smooth(0.3f, 0.7f, patch));
                 road = 0.0f;
             }
+            if (y < -0.05f) {
+                dirt = 1.0f;
+                road = 0.0f;
+                cliff = 0.0f;
+            }
             road *= 1.0f - cliff;
             dirt *= 1.0f - cliff;
             const float ground = std::max(0.0f, 1.0f - road - dirt - cliff);
@@ -575,7 +589,7 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             chunk.max = {static_cast<float>(x1), static_cast<float>(y1)};
             chunk.terrain = renderer.createTerrain(local, indices);
         }
-    const std::string terrainDir = winter ? "data/terrain/winter/" : "data/terrain/";
+    const std::string terrainDir = autumn ? "data/terrain/autumn/" : winter ? "data/terrain/winter/" : "data/terrain/";
     out.terrainTextures = {models.texture(terrainDir + "ground.png"), models.texture(terrainDir + "soil.png"), models.texture(terrainDir + "cliff.png"),
                            models.texture(terrainDir + "road.png")};
 
@@ -676,6 +690,33 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
         }
     }
 
+    {
+        const TextureId water = models.texture("data/terrain/water.png");
+        const TextureId flat = models.texture("data/city/flat_mask.png");
+        for (int y = 0; y < h; ++y)
+            for (int x = 0; x < w; ++x) {
+                bool near = false;
+                for (int dy = -1; dy <= 1 && !near; ++dy)
+                    for (int dx = -1; dx <= 1 && !near; ++dx)
+                        near = map.inside(x + dx, y + dy) && map.cellKind(x + dx, y + dy) == CellKind::Water;
+                if (!near)
+                    continue;
+                const int cx = std::clamp(x / kChunk, 0, chunksX - 1);
+                const int cy = std::clamp(y / kChunk, 0, chunksY - 1);
+                auto& g = merged[{static_cast<std::size_t>(cy * chunksX + cx), water, flat}];
+                g.texture = water;
+                g.mask = flat;
+                const auto base = static_cast<std::uint32_t>(g.vertices.size());
+                const float level = map.elevation({static_cast<float>(x), static_cast<float>(y)}) * kMetre - 0.42f;
+                for (const auto& [px, py] : {std::pair{0, 0}, std::pair{1, 0}, std::pair{1, 1}, std::pair{0, 1}}) {
+                    const float vx = static_cast<float>(x + px);
+                    const float vz = static_cast<float>(y + py);
+                    g.vertices.push_back({vx, level, vz, 0.0f, 1.0f, 0.0f, vx / 6.0f, vz / 6.0f});
+                }
+                for (const std::uint32_t i : {0u, 1u, 2u, 0u, 2u, 3u})
+                    g.indices.push_back(base + i);
+            }
+    }
     auto freeCell = [&](glm::vec2 p) { return map.cellKind(static_cast<int>(p.x), static_cast<int>(p.y)) == CellKind::Open; };
     struct PropLook {
         const char* name;
@@ -774,7 +815,7 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             const float len = glm::distance(a, c);
             const int panels = std::max(1, static_cast<int>(std::round(len / 1.03f)));
             const glm::vec2 d = (c - a) / len;
-            const float yaw = std::fmod(-std::atan2(d.y, d.x) + 1.5708f + 6.2832f, 6.2832f);
+            const float yaw = std::atan2(d.y, d.x);
             for (int i = 0; i < panels; ++i) {
                 if (side == gateSide && std::abs(static_cast<float>(i) - static_cast<float>(panels - 1) * 0.5f) < 1.1f)
                     continue;

@@ -284,6 +284,14 @@ void NetClient::sendReady(bool ready) {
     sendMessage(w);
 }
 
+void NetClient::sendBot(bool add, std::uint8_t target) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Bot));
+    w.u8(add ? 1 : 0);
+    w.u8(target);
+    sendMessage(w);
+}
+
 void NetClient::sendCheats(bool on) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::Cheats));

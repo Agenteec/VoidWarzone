@@ -1,6 +1,7 @@
 #include "server/Server.h"
 
 #include <algorithm>
+#include <optional>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -108,7 +109,7 @@ void Server::handleConnect(const Address& from, Reader& r, double now) {
         return sendDeny(from, salt, static_cast<std::uint8_t>(DenyReason::Full));
 
     std::uint8_t player = 0;
-    while (std::any_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c->player == player; }))
+    while (idTaken(player))
         ++player;
 
     auto client = std::make_unique<Client>();
@@ -120,7 +121,7 @@ void Server::handleConnect(const Address& from, Reader& r, double now) {
            client->color + 1u < kPlayerColors.size())
         ++client->color;
     if (world_ && !world_->resumePlayer(player)) {
-        world_->spawnPlayer(player);
+        world_->spawnPlayer(player, matchTeam(player, 0));
         if (config_.cheats)
             world_->devBoost(player);
     }
@@ -164,6 +165,28 @@ void Server::drop(std::size_t index, bool notify) {
         endMatch();
 }
 
+bool Server::idTaken(std::uint8_t player) const {
+    return std::any_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c->player == player; }) ||
+           std::any_of(bots_.begin(), bots_.end(), [&](const Bot& b) { return b.player == player; });
+}
+
+std::uint8_t Server::matchTeam(std::uint8_t player, std::uint8_t lobbyTeam) const {
+    if (config_.mode != GameMode::Skirmish)
+        return 0;
+    bool same = true;
+    std::optional<std::uint8_t> first;
+    auto check = [&](std::uint8_t t) {
+        if (!first)
+            first = t;
+        same = same && *first == t;
+    };
+    for (const auto& c : clients_)
+        check(c->team);
+    for (const auto& b : bots_)
+        check(b.team);
+    return static_cast<std::uint8_t>(kFirstSkirmishTeam + (same ? player : lobbyTeam));
+}
+
 std::uint8_t Server::leader() const {
     std::uint8_t best = 0xff;
     for (const auto& c : clients_)
@@ -185,6 +208,8 @@ void Server::broadcastLobby() {
     info.cheats = config_.cheats;
     for (const auto& c : clients_)
         info.players.push_back({c->player, c->name, c->ready, c->color, c->team});
+    for (const auto& b : bots_)
+        info.players.push_back({b.player, "AI " + std::to_string(b.player + 1), true, b.color, b.team, true});
     std::sort(info.players.begin(), info.players.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::Lobby));
@@ -210,10 +235,15 @@ void Server::startMatch(const std::string* save) {
     spdlog::info("world ready in {:.2f}s", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
     if (save)
         world_->loadState(*save);
+    if (config_.mode == GameMode::Skirmish)
+        for (const auto& b : bots_) {
+            world_->spawnPlayer(b.player, matchTeam(b.player, b.team));
+            world_->setAi(b.player, true);
+        }
     for (auto& c : clients_) {
         if (save && world_->resumePlayer(c->player))
             continue;
-        world_->spawnPlayer(c->player);
+        world_->spawnPlayer(c->player, matchTeam(c->player, c->team));
         if (c->player == leader() && !config_.roster.empty()) {
             try {
                 world_->spawnRoster(c->player, config_.roster);
@@ -316,7 +346,7 @@ void Server::handleSettings(Client& client, Reader& r) {
             spdlog::warn("map '{}': {}", mapName, e.what());
         }
     }
-    config_.mode = static_cast<GameMode>(std::min<int>(mode, 2));
+    config_.mode = static_cast<GameMode>(std::min<int>(mode, 3));
     config_.difficulty = static_cast<Difficulty>(std::min<int>(difficulty, 3));
     config_.maxPlayers = std::clamp(static_cast<int>(maxPlayers), std::max(1, playerCount()), 64);
     lobbyDirty_ = true;
@@ -331,8 +361,16 @@ void Server::handlePlayerSetup(Client& client, Reader& r) {
     if (target != client.player && client.player != leader())
         return;
     const auto it = std::find_if(clients_.begin(), clients_.end(), [&](const auto& c) { return c->player == target; });
-    if (it == clients_.end())
+    if (it == clients_.end()) {
+        for (auto& b : bots_)
+            if (b.player == target && client.player == leader() && !world_) {
+                b.team = team;
+                if (std::none_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c->color == color; }))
+                    b.color = color;
+                lobbyDirty_ = true;
+            }
         return;
+    }
     Client& who = **it;
     if (std::none_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c.get() != &who && c->color == color; }))
         who.color = color;
@@ -359,6 +397,27 @@ void Server::handleMessages(Client& client) {
         case MessageType::PlayerSetup:
             handlePlayerSetup(client, r);
             break;
+        case MessageType::Bot: {
+            const bool add = r.u8() != 0;
+            const std::uint8_t target = r.u8();
+            if (!r.ok() || world_ || client.player != leader())
+                break;
+            if (add && playerCount() < config_.maxPlayers) {
+                Bot b;
+                while (idTaken(b.player))
+                    ++b.player;
+                while ((std::any_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c->color == b.color; }) ||
+                        std::any_of(bots_.begin(), bots_.end(), [&](const Bot& o) { return o.color == b.color; })) &&
+                       b.color + 1u < kPlayerColors.size())
+                    ++b.color;
+                b.team = static_cast<std::uint8_t>(bots_.size() % kLobbyTeams);
+                bots_.push_back(b);
+            } else if (!add) {
+                std::erase_if(bots_, [&](const Bot& b) { return b.player == target; });
+            }
+            lobbyDirty_ = true;
+            break;
+        }
         case MessageType::Kick: {
             const std::uint8_t target = r.u8();
             if (r.ok() && client.player == leader() && target != client.player)
@@ -622,6 +681,12 @@ Snapshot Server::buildSnapshot() const {
     s.game.nextWaveIn = static_cast<std::uint16_t>(std::clamp(defense.nextWaveIn * 10.0f, 0.0f, 65535.0f));
     s.game.boss = defense.boss == entt::null ? kNoEntity : entt::to_integral(defense.boss);
     s.game.objectives = world_->objectives();
+    s.game.mode = static_cast<std::uint8_t>(world_->mode());
+    s.game.winner = defense.winner < 0 ? std::uint8_t{0xff} : static_cast<std::uint8_t>(defense.winner);
+    s.game.teams.assign(16, 0xff);
+    for (std::size_t i = 0; i < s.game.teams.size(); ++i)
+        if (world_->player(static_cast<std::uint8_t>(i)).active)
+            s.game.teams[i] = world_->player(static_cast<std::uint8_t>(i)).team;
     for (const auto& p : world_->resourcePoints())
         s.game.points.push_back({static_cast<std::int8_t>(std::lround(p.control * 127.0f)),
                                  p.owner < 0 ? std::uint8_t{0xff} : static_cast<std::uint8_t>(p.owner)});

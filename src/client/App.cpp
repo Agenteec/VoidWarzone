@@ -231,16 +231,21 @@ void App::applyGraphics() {
     default:
         break;
     }
-    if (map_ && map_->theme() == "winter") {
+    if (map_ && (map_->theme() == "winter" || map_->theme() == "autumn")) {
+        const bool autumn = map_->theme() == "autumn";
         static constexpr glm::vec3 kFog[] = {{0.6f, 0.63f, 0.68f}, {0.34f, 0.32f, 0.38f}, {0.08f, 0.09f, 0.13f}};
+        static constexpr glm::vec3 kAutumnFog[] = {{0.5f, 0.52f, 0.54f}, {0.36f, 0.33f, 0.34f}, {0.07f, 0.08f, 0.1f}};
         const int p = std::clamp(lightPreset_, 0, 2);
-        l.sun *= p == 2 ? 0.8f : 0.5f;
-        l.sky = glm::mix(l.sky, kFog[p] * 1.05f, 0.6f);
+        const glm::vec3* fog = autumn ? kAutumnFog : kFog;
+        l.sun *= p == 2 ? 0.8f : autumn ? 0.55f : 0.5f;
+        if (autumn)
+            l.sun *= glm::vec3(1.0f, 0.96f, 0.9f);
+        l.sky = glm::mix(l.sky, fog[p] * 1.05f, 0.6f);
         l.sunDir = glm::vec3(l.sunDir.x, std::max(l.sunDir.y, 0.6f), l.sunDir.z);
-        l.fog = glm::vec4(kFog[p], 0.011f);
-        l.snow = 1.0f;
+        l.fog = glm::vec4(fog[p], autumn ? 0.009f : 0.011f);
+        l.snow = autumn ? 0.35f : 1.0f;
         const auto byte = [](float v) { return static_cast<std::uint32_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f); };
-        l.clear = byte(kFog[p].x) << 24 | byte(kFog[p].y) << 16 | byte(kFog[p].z) << 8 | 0xffu;
+        l.clear = byte(fog[p].x) << 24 | byte(fog[p].y) << 16 | byte(fog[p].z) << 8 | 0xffu;
     }
     renderer_.setLighting(l);
     renderer_.setShadowSize(kShadowSizes[std::clamp(shadowQuality_, 0, 3)]);
@@ -481,7 +486,7 @@ void App::startHost(bool multiplayer) {
     config.mode = options_.mode;
     config.cheats = options_.cheats;
     config.lobby = true;
-    config.maxPlayers = multiplayer ? 8 : 1;
+    config.maxPlayers = 8;
     config.loadMap = [](const std::string& name) { return readMap(name); };
     config.saveDir = savesDir();
     if (!campaignMission_.empty()) {
@@ -596,12 +601,14 @@ void App::buildMinimap() {
         for (int x = 0; x < w; ++x) {
             const glm::vec2 p = Map::center({x, y});
             const bool winter = map_->theme() == "winter";
-            std::uint32_t c = winter ? 0xffcec6c0u : 0xff50606cu;
+            std::uint32_t c = winter ? 0xffcec6c0u : map_->theme() == "autumn" ? 0xff8c9298u : 0xff50606cu;
             const auto kind = map_->cellKind(x, y);
             if (kind == CellKind::Building)
                 c = 0xff4c4642u;
             else if (kind == CellKind::Forest)
                 c = 0xff3e5040u;
+            else if (kind == CellKind::Water)
+                c = 0xff5c4c3eu;
             else if (map_->blocked(x, y))
                 c = ((x * 7 + y * 13) % 5 == 0) ? 0xff282c3au : 0xff242632u;
             else if (nearLane(p))
@@ -1308,8 +1315,11 @@ void App::frame(double dt) {
     net_.update(now_);
     if (autoStart_ && screen_ == Screen::Lobby && !net_.lobby().players.empty()) {
         autoStart_ = false;
-        if (net_.lobby().leader == net_.player())
+        if (net_.lobby().leader == net_.player()) {
+            for (int b = 0; b < options_.bots; ++b)
+                net_.sendBot(true);
             net_.sendStart();
+        }
     }
     updateLobby();
     if (screen_ == Screen::Lan)
@@ -1776,7 +1786,7 @@ void App::renderResourcePoints() {
         const net::PointInfo info = latest && i < latest->game.points.size() ? latest->game.points[i] : net::PointInfo{};
         const float control = static_cast<float>(info.control) / 127.0f;
         const glm::vec4 neutral{0.55f, 0.55f, 0.6f, 1.0f};
-        const glm::vec4 ownerColor = info.owner == 0 ? kTeamColors[0] : info.owner == 1 ? kTeamColors[1] : neutral;
+        const glm::vec4 ownerColor = info.owner == 0xff ? neutral : teamColor(info.owner);
         const float d = def.radius * 2.0f;
         renderer_.draw(Mesh::Cylinder, {def.pos.x, 0.02f, def.pos.y}, {d, 0.03f, d}, 0.0f, glm::vec4(glm::vec3(ownerColor) * 0.35f, 1.0f));
         const glm::vec4 progressColor = control >= 0.0f ? kTeamColors[0] : kTeamColors[1];

@@ -42,7 +42,7 @@ public:
 
     double nextTickTime() const { return nextTick_; }
     std::uint16_t port() const { return socket_.port(); }
-    int playerCount() const { return static_cast<int>(clients_.size()); }
+    int playerCount() const { return static_cast<int>(clients_.size() + bots_.size()); }
     const World* world() const { return world_.get(); }
     bool playing() const { return world_ != nullptr; }
     const ServerConfig& config() const { return config_; }
@@ -96,6 +96,14 @@ private:
     net::UdpSocket socket_;
     net::IceHub ice_;
     std::vector<std::unique_ptr<Client>> clients_;
+    struct Bot {
+        std::uint8_t player = 0;
+        std::uint8_t color = 0;
+        std::uint8_t team = 0;
+    };
+    std::vector<Bot> bots_;
+    bool idTaken(std::uint8_t player) const;
+    std::uint8_t matchTeam(std::uint8_t player, std::uint8_t lobbyTeam) const;
     std::array<net::Snapshot, 64> history_{};
     double nextTick_ = 0.0;
     double now_ = 0.0;

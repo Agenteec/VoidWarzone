@@ -25,7 +25,7 @@ SaveHeader readSaveHeader(std::string_view text) {
     const json in = json::parse(text);
     SaveHeader h;
     h.map = in.at("map").get<std::string>();
-    h.mode = static_cast<GameMode>(std::clamp(in.value("mode", 0), 0, 2));
+    h.mode = static_cast<GameMode>(std::clamp(in.value("mode", 0), 0, 3));
     h.difficulty = static_cast<Difficulty>(std::clamp(in.value("difficulty", 1), 0, 3));
     h.tick = in.value("tick", std::uint64_t{0});
     return h;

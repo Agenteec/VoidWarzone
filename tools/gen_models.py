@@ -1741,20 +1741,26 @@ def gvozdika():
 
 
 def tochka():
+    """9K79 Tochka TEL: cab at the front (-z), the missile lies on the erector above the chassis."""
     hull, tur, bar = Mesh(), Mesh(), Mesh()
-    six_wheels(hull, 1.5, 0.72, 0.38)
-    hull.box((0, 0.74, 0.0), (1.4, 0.36, 3.6), MAT["team_dark"], top=(0.92, 0.96))
-    hull.box((0, 1.1, 1.35), (1.3, 0.5, 0.8), MAT["team"], top=(0.9, 0.85), sides={"front": MAT["glass_dark"]})
-    hull.box((0, 1.0, 0.6), (1.2, 0.3, 0.5), MAT["graphite"])
-    pivot = (0.0, 0.95, -1.4)
-    tur.box((0, 0.08, 0), (0.7, 0.16, 0.5), MAT["graphite"])
-    bar.box((0, 0.24, -1.4), (0.18, 0.08, 2.8), MAT["graphite_dark"])
-    bar.cyl((0, 0.45, -1.3), 0.2, 2.7, MAT["paint_white"], n=10, axis="z")
-    bar.cyl((0, 0.45, -2.85), 0.2, 0.4, MAT["team"], n=10, axis="z", r2=0.02)
+    for sx in (-1, 1):
+        for z in (-1.15, 0.05, 1.15):
+            hull.cyl((sx * 0.72, 0.38, z), 0.38, 0.26, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+    hull.box((0, 0.74, 0.0), (1.4, 0.36, 3.5), MAT["team_dark"], top=(0.94, 0.96))
+    hull.box((0, 1.1, -1.35), (1.3, 0.5, 0.8), MAT["team"], top=(0.85, 0.8), sides={"back": MAT["glass_dark"]})
+    hull.box((0, 1.38, -1.35), (1.1, 0.05, 0.6), MAT["snow"])
+    hull.box((0, 1.0, -0.45), (1.2, 0.3, 0.5), MAT["graphite"])
+    hull.box((0, 1.0, 1.4), (1.2, 0.3, 0.55), MAT["graphite"])
+    pivot = (0.0, 1.0, 1.25)
+    tur.box((0, 0.06, 0), (0.7, 0.14, 0.4), MAT["graphite"])
+    bar.box((0, 0.16, -1.15), (0.2, 0.08, 2.3), MAT["graphite_dark"])
+    bar.cyl((0, 0.42, -1.05), 0.2, 2.1, MAT["paint_white"], n=10, axis="z")
+    bar.cyl((0, 0.42, -2.28), 0.2, 0.36, MAT["team"], n=10, axis="z", r2=0.02)
+    bar.cyl((0, 0.42, -1.4), 0.21, 0.06, MAT["paint_red"], n=10, axis="z")
     for k in range(4):
         a = k * math.pi / 2 + math.pi / 4
-        bar.box((math.cos(a) * 0.28, 0.45 + math.sin(a) * 0.28, 0.0), (0.04, 0.04, 0.4) if False else (0.05 + 0.12 * abs(math.cos(a)), 0.05 + 0.12 * abs(math.sin(a)), 0.4), MAT["steel"])
-    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.45, -3.1), "barrel")}
+        bar.box((math.cos(a) * 0.26, 0.42 + math.sin(a) * 0.26, -0.05), (0.06 + 0.1 * abs(math.cos(a)), 0.06 + 0.1 * abs(math.sin(a)), 0.32), MAT["steel"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.42, -2.48), "barrel")}
 
 
 def tos1():
@@ -1809,6 +1815,31 @@ def gatling_mount():
     tur.box((0, 0.42, 0.12), (0.5, 0.3, 0.04), MAT["steel"])
     muzzle = gatling(bar, 0.025, 0.6, 0.36, 6, 0.045)
     return {"turret": (tur, (0, 0, 0)), "barrel": (bar, (0, 0, 0))}, {"muzzle": (muzzle, "barrel")}
+
+
+def crane_truck():
+    """Ivanovets-style truck crane: orange cab at the front, turntable and folded boom over the chassis."""
+    m = Mesh()
+    for sx in (-1, 1):
+        for z in (-1.0, 0.45, 1.05):
+            m.cyl((sx * 0.62, 0.34, z), 0.34, 0.24, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+        m.box((sx * 0.85, 0.28, 0.75), (0.12, 0.12, 0.12), MAT["hazard"])
+        m.strut((sx * 0.68, 0.5, 0.75), (sx * 0.9, 0.12, 0.75), 0.04, MAT["graphite_dark"])
+    m.box((0, 0.66, 0.1), (1.2, 0.26, 3.0), MAT["graphite_dark"])
+    m.box((0, 1.05, -1.05), (1.15, 0.62, 0.75), MAT["hazard"], top=(0.92, 0.8), sides={"back": MAT["glass"]})
+    m.box((0, 1.39, -1.05), (1.0, 0.05, 0.6), MAT["snow"])
+    m.box((0, 0.6, -1.5), (1.15, 0.24, 0.1), MAT["steel"])
+    m.cyl((0, 0.9, 0.6), 0.45, 0.18, MAT["graphite"], n=12)
+    m.box((0, 1.15, 0.75), (0.8, 0.4, 0.8), MAT["team"], sides={"left": MAT["hazard"], "right": MAT["hazard"]})
+    m.box((0.28, 1.25, 0.38), (0.3, 0.32, 0.12), MAT["glass"])
+    m.box((0, 1.38, -0.2), (0.32, 0.26, 2.1), MAT["hazard"], top=(0.85, 0.85))
+    m.box((0, 1.38, -1.3), (0.24, 0.2, 0.25), MAT["graphite_dark"])
+    m.strut((0, 1.25, 0.2), (0, 1.0, -0.3), 0.06, MAT["steel"])
+    m.strut((0, 1.25, -1.35), (0, 0.9, -1.45), 0.015, MAT["graphite_dark"])
+    m.box((0, 0.86, -1.45), (0.14, 0.1, 0.1), MAT["warn"])
+    m.box((0, 1.0, 1.35), (1.0, 0.4, 0.3), MAT["concrete_dark"])
+    m.cyl((-0.4, 1.5, -0.95), 0.07, 0.1, MAT["warn"], n=6)
+    return {"hull": (m, (0, 0, 0))}, {}
 
 
 def extractor():
@@ -1904,6 +1935,7 @@ MODELS = {
     "colony_shilka": shilka,
     "colony_gvozdika": gvozdika,
     "colony_tochka": tochka,
+    "colony_crane_truck": crane_truck,
     "colony_tos1": tos1,
     "colony_howitzer": howitzer,
     "colony_rotary_tower": rotary_tower,

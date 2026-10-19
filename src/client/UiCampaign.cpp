@@ -1,5 +1,7 @@
 #include "App.h"
 
+#include <set>
+
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -202,6 +204,17 @@ void App::drawCampaign() {
 }
 
 bool App::drawObjectives() {
+    if (const auto* latest = net_.latest(); latest && latest->game.mode == static_cast<std::uint8_t>(GameMode::Skirmish)) {
+        std::set<std::uint8_t> alive;
+        for (const auto& e : entities_)
+            if (e.kind == net::EntityKind::Unit && e.owner != net::kNoOwner && e.hp > 0 && e.owner < latest->game.teams.size())
+                alive.insert(latest->game.teams[e.owner]);
+        ImGui::PushFont(ui_.bold(), 0.0f);
+        ImGui::TextColored(toVec(kAccent), ICON_FA_FLAG "  SKIRMISH");
+        ImGui::PopFont();
+        ImGui::TextDisabled("%d sides left  -  destroy every enemy base", static_cast<int>(alive.size()));
+        return true;
+    }
     if (!map_ || !map_->mission().enabled)
         return false;
     const auto* latest = net_.latest();

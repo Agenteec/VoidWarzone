@@ -63,6 +63,9 @@ struct GameInfo {
     std::uint32_t boss = kNoEntity;
     std::vector<PointInfo> points;
     std::vector<std::uint8_t> objectives;
+    std::uint8_t mode = 0;
+    std::uint8_t winner = 0xff;
+    std::vector<std::uint8_t> teams;
 };
 
 struct OwnSkill {

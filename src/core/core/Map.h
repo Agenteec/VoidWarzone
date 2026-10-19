@@ -44,7 +44,7 @@ struct SpawnerDef {
     std::string building;
 };
 
-enum class CellKind : std::uint8_t { Open, Rock, Building, Forest };
+enum class CellKind : std::uint8_t { Open, Rock, Building, Forest, Water };
 
 struct BuildingDef {
     std::vector<glm::vec2> poly;
@@ -124,6 +124,7 @@ struct MissionDef {
 struct PlayerStart {
     glm::vec2 pos{};
     std::vector<std::string> units;
+    std::vector<glm::vec2> slots;
 };
 
 struct ResourcePointDef {
