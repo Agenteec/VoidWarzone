@@ -7,6 +7,8 @@
 #include <SDL3/SDL.h>
 #include <bx/math.h>
 #include <glm/geometric.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include "core/World.h"
 #include "ui/Widgets.h"
@@ -691,6 +693,30 @@ float App::walkBob(const net::InterpolatedEntity& e) const {
     const float amp = std::clamp(glm::length(e.vel) / speed, 0.0f, 1.0f);
     const float t = static_cast<float>(now_) * 9.0f + static_cast<float>(e.id % 13u);
     return std::abs(std::sin(t)) * 0.08f * amp * data_->unit(e.def).radius;
+}
+
+void App::renderSpinners(const net::InterpolatedEntity& e, const UnitVisual& vis, glm::vec3 base, float hullYaw, float scale, const glm::vec4& color) {
+    float model[16];
+    makeModelMatrix(model, base, hullYaw, scale, {});
+    for (std::size_t i = 0; i < vis.spinners.size(); ++i) {
+        const Model* spin = vis.spinners[i];
+        const glm::vec3 hub = spin->connectors[0];
+        const glm::vec3 axis = glm::normalize(spin->connectors[1] - hub);
+        const float radius = std::max({-spin->min.x, spin->max.x, -spin->min.y, spin->max.y, -spin->min.z, spin->max.z});
+        const float speed = radius > 0.5f ? 19.0f : 47.0f;
+        const float angle = static_cast<float>(std::fmod(now_ * speed, 6.283185307)) + static_cast<float>((e.id * 7u + i * 3u) % 11u);
+        glm::mat4 local = glm::rotate(glm::mat4(1.0f), angle, axis);
+        local[3] = glm::vec4(hub, 1.0f);
+        float mtx[16];
+        bx::mtxMul(mtx, glm::value_ptr(local), model);
+        renderer_.drawMesh(spin->mesh, spin->texture, spin->mask, mtx, color, spin->glow ? Tint | Glow : Tint);
+        if (std::abs(axis.y) > 0.9f && radius > 0.15f) {
+            const glm::vec3 at = modelPoint(base, hullYaw, scale, hub);
+            const float r = radius * scale * 2.0f;
+            renderer_.draw(Mesh::Cylinder, at, {r, 0.01f, r}, 0.0f, glm::vec4{0.12f, 0.12f, 0.14f, 0.2f}, Unlit | Alpha);
+            renderer_.draw(Mesh::Cylinder, at, {r * 0.55f, 0.012f, r * 0.55f}, 0.0f, glm::vec4{0.12f, 0.12f, 0.14f, 0.12f}, Unlit | Alpha);
+        }
+    }
 }
 
 void App::renderLegs(const net::InterpolatedEntity& e, const UnitVisual& vis, glm::vec3 base, float hullYaw, float scale, const glm::vec4& color) {

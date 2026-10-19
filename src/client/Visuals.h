@@ -54,6 +54,7 @@ struct UnitVisual {
     glm::vec3 hi{0.0f};
     std::vector<const Model*> legs;
     std::vector<glm::vec3> hips;
+    std::vector<const Model*> spinners;
     std::vector<glm::vec3> tips;
     glm::vec4 gate{0.0f};
     bool crystalShot = false;

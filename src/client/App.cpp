@@ -1513,6 +1513,7 @@ void App::renderWorld() {
                 renderer_.draw(vis.shape, {e.pos.x, lift + bob + vis.height * 0.5f, e.pos.y}, {d, vis.height, d}, e.facing, color);
             else
                 renderModules(e, vis, base, grow, color);
+            renderSpinners(e, vis, base, hullYaw, vis.scale * grow, color);
         } else if (vis.parts.empty()) {
             renderer_.draw(vis.shape, {e.pos.x, height * 0.5f, e.pos.y}, {d, height, d}, e.facing, color);
         } else {

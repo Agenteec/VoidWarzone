@@ -151,9 +151,14 @@ void ModelLibrary::loadGlb(const std::string& file) {
         std::string pointName = part == "hull" ? "pivot" : part == "barrel" ? "muzzle" : "";
         if (part.rfind("leg", 0) == 0)
             pointName = "hip" + part.substr(3);
+        if (part.rfind("spin", 0) == 0)
+            pointName = "spinhub" + part.substr(4);
         const auto point = glb.points.find(pointName);
         if (point != glb.points.end())
             m->connectors.push_back(point->second);
+        if (part.rfind("spin", 0) == 0)
+            if (const auto axis = glb.points.find("spinaxis" + part.substr(4)); axis != glb.points.end() && point != glb.points.end())
+                m->connectors.push_back(axis->second);
         if (part == "hull") {
             for (int t = 0;; ++t) {
                 const auto tip = glb.points.find("tip" + std::to_string(t));
@@ -270,6 +275,14 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
                 v.hips.push_back(hip);
                 lo = glm::min(lo, leg->min + hip);
                 hi = glm::max(hi, leg->max + hip);
+            }
+            for (int k = 0;; ++k) {
+                const Model* spin = models.model(file + ":spin" + std::to_string(k));
+                if (!spin)
+                    break;
+                if (spin->connectors.size() < 2)
+                    continue;
+                v.spinners.push_back(spin);
             }
             v.yaw = kModelYaw;
             v.pivot = hull && !hull->connectors.empty() ? hull->connectors[0] : glm::vec3(0.0f, hi.y, 0.0f);

@@ -123,6 +123,7 @@ private:
         float t = 0.0f;
     };
     std::vector<BeamFx> beams_;
+    void renderSpinners(const net::InterpolatedEntity& e, const UnitVisual& vis, glm::vec3 base, float hullYaw, float scale, const glm::vec4& color);
     void renderLegs(const net::InterpolatedEntity& e, const UnitVisual& vis, glm::vec3 base, float hullYaw, float scale, const glm::vec4& color);
     void renderVoidFx();
     void crystalFire(const net::InterpolatedEntity& shooter);

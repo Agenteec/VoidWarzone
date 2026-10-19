@@ -66,7 +66,12 @@ MATERIALS = [
     ("concrete_light", (168, 164, 156), 0, 0),
     ("sign", (255, 214, 120), 0, 255),
     ("glass_dark", (40, 50, 62), 0, 0),
+    ("track", (62, 60, 56), 0, 0),
+    ("team_camo", (205, 205, 205), 255, 0),
+    ("tire", (30, 30, 32), 0, 0),
 ]
+CAMO = {"active": False}
+SPIN = []
 MAT = {m[0]: i for i, m in enumerate(MATERIALS)}
 
 
@@ -85,7 +90,7 @@ def material_detail(name, size, seed):
         pores = np.random.default_rng(seed).random((size, size)) < 0.01
         k = np.where(pores, k * 0.75, k)
         k = k * (1.0 - 0.18 * np.clip(fbm(seed + 3, 2, 3, size=size) * yy * 1.6 - 0.5, 0, 1))
-    elif name in ("steel", "graphite", "graphite_dark", "team", "team_dark", "paint_old", "paint_red", "paint_white", "paint_blue"):
+    elif name in ("steel", "graphite", "graphite_dark", "team", "team_dark", "team_camo", "paint_old", "paint_red", "paint_white", "paint_blue"):
         k = 0.95 + 0.08 * fine
         rnd = np.random.default_rng(seed)
         for _ in range(int(size * 0.12)):
@@ -99,8 +104,8 @@ def material_detail(name, size, seed):
         if name.startswith("paint"):
             rust = np.clip((fbm(seed + 4, 6, 4, size=size) - 0.62) * 4.0, 0, 1)
             over = ((118, 64, 36), rust * 0.6)
-        if name.startswith("team"):
-            k = np.where((np.arange(size)[None, :] % (size // 4)) < 2, k * 0.85, k)
+        if name.startswith("team") or name in ("graphite", "graphite_dark"):
+            k = vehicle_paint(k, size, seed, camo=name == "team_camo", heavy=name.startswith("team"))
     elif name.startswith("container"):
         ribs = 0.88 + 0.12 * np.sin(xx * np.pi * 2 * 14)
         k = k * ribs
@@ -126,6 +131,20 @@ def material_detail(name, size, seed):
         shift = ((np.arange(size)[:, None] // (size // 8)) % 2) * (size // 8)
         cols = ((np.arange(size)[None, :] + shift) % (size // 4)) < 2
         k = np.where(rows | cols, 1.25, 0.85 + 0.25 * cell_ids(seed + 9, 12, size=size))
+    elif name == "track":
+        row = np.arange(size)[:, None] % 16
+        col = np.arange(size)[None, :] / size
+        link = np.where(row < 3, 0.42, np.where(row < 5, 1.25, 1.0))
+        horn = (np.abs(col - 0.5) < 0.07) & (row >= 5) & (row < 12)
+        grip = (np.abs(col - 0.2) < 0.04) | (np.abs(col - 0.8) < 0.04)
+        k = link * np.where(horn, 1.45, 1.0) * np.where(grip & (row >= 5), 0.8, 1.0) * (0.85 + 0.25 * fine)
+        mud = np.clip((fbm(seed + 14, 5, 4, size=size) - 0.45) * 3.0, 0, 1)
+        over = ((74, 60, 44), mud * 0.55)
+    elif name == "tire":
+        row = np.arange(size)[:, None] / size
+        col = np.arange(size)[None, :] / size
+        tread = ((row * 10 + np.abs(col - 0.5) * 3.0) % 1.0) < 0.35
+        k = np.where(tread & (np.abs(col - 0.5) < 0.42), 0.55, 1.15) * (0.9 + 0.15 * fine)
     elif name in ("rubber", "trash", "charred"):
         k = 0.75 + 0.5 * fbm(seed + 10, 12, 3, size=size)
         if name == "charred":
@@ -146,6 +165,34 @@ def material_detail(name, size, seed):
         marks = (fbm(seed + 13, 8, 3, size=size) > 0.66) & ((np.arange(size)[:, None] % 9) < 3)
         k = np.where(marks, 0.35, 0.95 + 0.08 * fine)
     return k, over
+
+
+def vehicle_paint(k, size, seed, camo=False, heavy=True):
+    """Panel lines, rivets, weld seams, chipped paint, grime and (optionally) a 3-tone camo on a grayscale multiplier."""
+    import numpy as np
+    from texlib import fbm, warp, worley
+    i = np.arange(size)
+    step = size // 4
+    rows = (i[:, None] + seed) % step
+    cols = (i[None, :] + seed * 3) % (step * 2 if heavy else step)
+    seam = (rows == 0) | (cols == 0)
+    k = np.where(seam, k * 0.68, np.where((rows == 1) | (cols == 1), k * 1.12, k))
+    rivet = ((rows == 4) | (cols == 4)) & (((i[:, None] + i[None, :]) % 8) == 0)
+    k = np.where(rivet, k * 1.3, k)
+    if camo:
+        field = warp(fbm(seed + 20, 2, 3, size=size), seed + 21, 0.12, res=2)
+        field2 = warp(fbm(seed + 22, 3, 3, size=size), seed + 23, 0.12, res=2)
+        field = (field - field.min()) / max(field.max() - field.min(), 1e-6)
+        field2 = (field2 - field2.min()) / max(field2.max() - field2.min(), 1e-6)
+        tone = np.where(field > 0.62, 0.5, np.where(field2 > 0.5, 0.76, 1.05))
+        k = k * tone
+    chips = worley(seed + 24, 14, size=size) < 0.07
+    chips &= fbm(seed + 25, 4, 3, size=size) > 0.6
+    k = np.where(chips, k * 0.7, k)
+    grime = np.clip((fbm(seed + 26, 3, 4, size=size) - 0.5) * 2.5, 0, 1)
+    k = k * (1.0 - 0.22 * grime)
+    streaks = np.clip((fbm(seed + 27, 24, 2, size=size) - 0.62) * 4.0, 0, 1) * (i[:, None] / size)
+    return k * (1.0 - 0.18 * streaks)
 
 
 def palette():
@@ -179,6 +226,9 @@ def palette():
     return png(Image.fromarray(color, "RGBA")), png(mask)
 
 
+UV_SPAN = 1.8
+
+
 class Mesh:
     def __init__(self):
         self.pos, self.nrm, self.uv, self.idx = [], [], [], []
@@ -196,11 +246,17 @@ class Mesh:
         us = [p[pa] for p in pts]
         vs = [p[pb] for p in pts]
         u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+        if CAMO["active"] and mat == MAT["team"]:
+            mat = MAT["team_camo"]
         cx, cy = (mat % GRID) * CELL, (mat // GRID) * CELL
         base = len(self.pos)
+        su, sv = max(u1 - u0, UV_SPAN), max(v1 - v0, UV_SPAN)
+        h = abs(hash((round(u0, 2), round(v0, 2), round(sum(p[ax] for p in pts), 2)))) % 9973 / 9973.0
+        ou = h * (1.0 - (u1 - u0) / su)
+        ov = (h * 7.31 % 1.0) * (1.0 - (v1 - v0) / sv)
         for p in pts:
-            fu = (p[pa] - u0) / (u1 - u0) if u1 > u0 else 0.5
-            fv = (p[pb] - v0) / (v1 - v0) if v1 > v0 else 0.5
+            fu = ou + (p[pa] - u0) / su if u1 > u0 else 0.5
+            fv = ov + (p[pb] - v0) / sv if v1 > v0 else 0.5
             self.pos.append(tuple(p))
             self.nrm.append(tuple(n))
             self.uv.append(((cx + 1 + fu * (CELL - 2)) / (CELL * GRID), (cy + 1 + fv * (CELL - 2)) / (CELL * ROWS)))
@@ -357,7 +413,7 @@ def glb(path, parts, points, images):
 def tracked_hull(m, wide=1.0, heavy=False):
     w = 0.9 * wide
     for sx in (-1, 1):
-        m.box((sx * w, 0.32, 0.0), (0.46, 0.56, 2.5), MAT["rubber"], top=(1.0, 0.9))
+        m.box((sx * w, 0.32, 0.0), (0.46, 0.56, 2.5), MAT["track"], top=(1.0, 0.9))
         for z in (-0.85, -0.3, 0.25, 0.8):
             m.cyl((sx * (w + 0.235), 0.3, z), 0.2, 0.03, MAT["graphite"], n=8, axis="x")
         m.box((sx * w, 0.66, 0.0), (0.56, 0.12, 2.6), MAT["graphite_dark"])
@@ -460,7 +516,7 @@ def tank(variant):
 def wheeled_hull(m, long=1.0):
     for sx in (-1, 1):
         for z in (-0.6 * long, 0.65 * long):
-            m.cyl((sx * 0.62, 0.3, z), 0.3, 0.26, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+            m.cyl((sx * 0.62, 0.3, z), 0.3, 0.26, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
     m.box((0.0, 0.52, 0.05), (1.0, 0.3, 1.9 * long), MAT["graphite"], top=(0.95, 0.85), sides={"front": MAT["hazard"]})
     m.box((0.0, 0.78, -0.25), (0.7, 0.26, 0.6), MAT["glass"], top=(0.8, 0.5), shift=(0.0, 0.1))
     for sx in (-1, 1):
@@ -489,7 +545,7 @@ def engineer():
     hull = Mesh()
     for sx in (-1, 1):
         for z in (-0.7, 0.1, 0.75):
-            hull.cyl((sx * 0.6, 0.27, z), 0.27, 0.24, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+            hull.cyl((sx * 0.6, 0.27, z), 0.27, 0.24, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
     hull.box((0.0, 0.5, 0.1), (1.0, 0.22, 2.0), MAT["graphite"])
     hull.box((0.0, 0.85, -0.6), (0.95, 0.5, 0.65), MAT["hazard"], top=(0.9, 0.7), shift=(0.0, 0.08), sides={"front": MAT["glass"]})
     hull.box((0.0, 0.66, 0.5), (0.9, 0.1, 1.0), MAT["steel"])
@@ -501,12 +557,26 @@ def engineer():
     return {"hull": (hull, (0, 0, 0))}, {"pivot": ((0.0, 1.0, 0.0), None)}
 
 
-def rotor(m, c, r, angle):
-    for k in range(2):
-        a = angle + k * math.pi / 2
-        dx, dz = math.cos(a) * r, math.sin(a) * r
-        m.strut((c[0] - dx, c[1], c[2] - dz), (c[0] + dx, c[1], c[2] + dz), 0.035, MAT["steel"])
-    m.cyl(c, 0.08, 0.08, MAT["graphite_dark"], n=6)
+def spinner(c, r, axis=(0.0, 1.0, 0.0), blades=4, width=0.035, angle=0.0, mat="steel", hub=0.08):
+    """A rotor/propeller as its own part `spinN` (local to the hub) with points `spinhubN` and `spinaxisN`."""
+    m = Mesh()
+    if abs(axis[1]) > 0.9:
+        e1, e2, name = (1.0, 0.0, 0.0), (0.0, 0.0, 1.0), "y"
+    elif abs(axis[0]) > 0.9:
+        e1, e2, name = (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), "x"
+    else:
+        e1, e2, name = (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), "z"
+    for b in range(blades):
+        a = angle + 2 * math.pi * b / blades
+        tip = tuple((e1[i] * math.cos(a) + e2[i] * math.sin(a)) * r for i in range(3))
+        m.strut((0.0, 0.0, 0.0), tip, width, MAT[mat])
+    m.cyl((0.0, 0.0, 0.0), hub, hub, MAT["graphite_dark"], n=6, axis=name)
+    SPIN.append((m, tuple(c), tuple(axis)))
+
+
+def rotor(m, c, r, angle, blades=2):
+    m.cyl((c[0], c[1] - 0.08, c[2]), 0.05, 0.16, MAT["graphite_dark"], n=6)
+    spinner(c, r, blades=blades, angle=angle)
 
 
 def gunship(variant):
@@ -1146,7 +1216,7 @@ def concrete_blocks():
 def raider_wheels(m, length=1.0, width=0.6, r=0.3):
     for sx in (-1, 1):
         for z in (-0.6 * length, 0.62 * length):
-            m.cyl((sx * width, r, z), r, 0.24, MAT["rubber"], n=10, axis="x", capmat=MAT["rust"])
+            m.cyl((sx * width, r, z), r, 0.24, MAT["tire"], n=10, axis="x", capmat=MAT["rust"])
 
 
 def raider_buggy():
@@ -1230,7 +1300,7 @@ def raider_camp():
 def six_wheels(m, length=1.3, width=0.66, r=0.34):
     for sx in (-1, 1):
         for z in (-0.75 * length, -0.2 * length, 0.62 * length):
-            m.cyl((sx * width, r, z), r, 0.24, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+            m.cyl((sx * width, r, z), r, 0.24, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
 
 
 def kshm():
@@ -1269,7 +1339,7 @@ def uaz():
     hull, tur, bar = Mesh(), Mesh(), Mesh()
     for sx in (-1, 1):
         for z in (-0.6, 0.62):
-            hull.cyl((sx * 0.55, 0.3, z), 0.3, 0.22, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+            hull.cyl((sx * 0.55, 0.3, z), 0.3, 0.22, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
     hull.box((0, 0.6, 0.0), (1.0, 0.38, 2.0), MAT["team"], top=(0.98, 0.95))
     hull.box((0, 0.95, -0.15), (0.95, 0.36, 1.1), MAT["paint_old"], top=(0.9, 0.9), sides={"front": MAT["glass"]})
     hull.box((0, 1.14, -0.15), (0.85, 0.05, 1.0), MAT["snow"])
@@ -1284,7 +1354,7 @@ def uaz():
 def mtlb():
     hull, tur, bar = Mesh(), Mesh(), Mesh()
     for sx in (-1, 1):
-        hull.box((sx * 0.62, 0.25, 0.0), (0.36, 0.42, 2.3), MAT["rubber"], top=(1.0, 0.9))
+        hull.box((sx * 0.62, 0.25, 0.0), (0.36, 0.42, 2.3), MAT["track"], top=(1.0, 0.9))
         for z in (-0.8, -0.25, 0.3, 0.85):
             hull.cyl((sx * 0.82, 0.25, z), 0.17, 0.03, MAT["graphite"], n=8, axis="x")
     hull.box((0, 0.6, 0.05), (1.3, 0.36, 2.2), MAT["team"], top=(0.95, 0.85), shift=(0, -0.05), sides={"front": MAT["graphite"]})
@@ -1300,8 +1370,8 @@ def mtlb():
 def tractor_tank():
     hull, tur, bar = Mesh(), Mesh(), Mesh()
     for sx in (-1, 1):
-        hull.cyl((sx * 0.68, 0.48, -0.6), 0.48, 0.34, MAT["rubber"], n=12, axis="x", capmat=MAT["rust"])
-        hull.cyl((sx * 0.6, 0.3, 0.8), 0.3, 0.26, MAT["rubber"], n=10, axis="x", capmat=MAT["rust"])
+        hull.cyl((sx * 0.68, 0.48, -0.6), 0.48, 0.34, MAT["tire"], n=12, axis="x", capmat=MAT["rust"])
+        hull.cyl((sx * 0.6, 0.3, 0.8), 0.3, 0.26, MAT["tire"], n=10, axis="x", capmat=MAT["rust"])
     hull.box((0, 0.7, 0.1), (1.0, 0.5, 2.3), MAT["rust_light"], top=(0.95, 0.9))
     for sx in (-1, 1):
         hull.box((sx * 0.56, 0.8, 0.0), (0.06, 0.6, 1.8), MAT["steel"], top=(1, 1))
@@ -1595,7 +1665,7 @@ def fpv_drone():
         a = math.pi / 4 + k * math.pi / 2
         c = (math.cos(a) * 0.55, 0.36, math.sin(a) * 0.55)
         m.cyl(c, 0.05, 0.08, MAT["graphite"], n=6)
-        m.cyl((c[0], 0.41, c[2]), 0.24, 0.01, MAT["glass_dark"], n=10)
+        spinner((c[0], 0.42, c[2]), 0.24, blades=2, width=0.025, angle=a, mat="graphite_dark", hub=0.03)
     return {"hull": (m, (0, 0, 0))}, {}
 
 
@@ -1633,7 +1703,7 @@ def rocket_shell(big):
 
 def soviet_tracks(m, length=2.6, w=0.72, wheels=6, h=0.5):
     for sx in (-1, 1):
-        m.box((sx * w, h * 0.55, 0.0), (0.36, h, length), MAT["rubber"], top=(1.0, 0.92))
+        m.box((sx * w, h * 0.55, 0.0), (0.36, h, length), MAT["track"], top=(1.0, 0.92))
         for k in range(wheels):
             z = -length * 0.42 + length * 0.84 * k / max(wheels - 1, 1)
             m.cyl((sx * (w + 0.19), h * 0.5, z), h * 0.4, 0.03, MAT["graphite"], n=10, axis="x", capmat=MAT["rubber"])
@@ -1698,7 +1768,7 @@ def btr80(rotary=True):
     hull, tur, bar = Mesh(), Mesh(), Mesh()
     for sx in (-1, 1):
         for z in (-0.95, -0.35, 0.35, 0.95):
-            hull.cyl((sx * 0.68, 0.32, z), 0.32, 0.24, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+            hull.cyl((sx * 0.68, 0.32, z), 0.32, 0.24, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
     hull.box((0, 0.72, 0.0), (1.3, 0.5, 2.7), MAT["team_dark"], top=(0.78, 0.92))
     hull.box((0, 0.6, 1.35), (1.1, 0.3, 0.3), MAT["team"], top=(1.0, 0.3), shift=(0, -0.1))
     hull.box((0.35, 1.0, 0.6), (0.4, 0.04, 0.5), MAT["graphite_dark"])
@@ -1745,7 +1815,7 @@ def tochka():
     hull, tur, bar = Mesh(), Mesh(), Mesh()
     for sx in (-1, 1):
         for z in (-1.15, 0.05, 1.15):
-            hull.cyl((sx * 0.72, 0.38, z), 0.38, 0.26, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+            hull.cyl((sx * 0.72, 0.38, z), 0.38, 0.26, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
     hull.box((0, 0.74, 0.0), (1.4, 0.36, 3.5), MAT["team_dark"], top=(0.94, 0.96))
     hull.box((0, 1.1, -1.35), (1.3, 0.5, 0.8), MAT["team"], top=(0.85, 0.8), sides={"back": MAT["glass_dark"]})
     hull.box((0, 1.38, -1.35), (1.1, 0.05, 0.6), MAT["snow"])
@@ -1822,7 +1892,7 @@ def crane_truck():
     m = Mesh()
     for sx in (-1, 1):
         for z in (-1.0, 0.45, 1.05):
-            m.cyl((sx * 0.62, 0.34, z), 0.34, 0.24, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+            m.cyl((sx * 0.62, 0.34, z), 0.34, 0.24, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
         m.box((sx * 0.85, 0.28, 0.75), (0.12, 0.12, 0.12), MAT["hazard"])
         m.strut((sx * 0.68, 0.5, 0.75), (sx * 0.9, 0.12, 0.75), 0.04, MAT["graphite_dark"])
     m.box((0, 0.66, 0.1), (1.2, 0.26, 3.0), MAT["graphite_dark"])
@@ -1846,7 +1916,7 @@ def brdm2():
     hull, tur, bar = Mesh(), Mesh(), Mesh()
     for sx in (-1, 1):
         for z in (-0.65, 0.65):
-            hull.cyl((sx * 0.6, 0.3, z), 0.3, 0.22, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+            hull.cyl((sx * 0.6, 0.3, z), 0.3, 0.22, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
     hull.box((0, 0.66, 0.0), (1.15, 0.44, 2.3), MAT["team_dark"], top=(0.8, 0.86))
     hull.box((0, 0.62, -1.1), (1.0, 0.3, 0.3), MAT["team"], top=(1.0, 0.3), shift=(0, 0.1))
     hull.box((0, 0.88, -0.75), (0.9, 0.04, 0.3), MAT["glass_dark"])
@@ -1864,7 +1934,7 @@ def orlan():
     m.box((0, 0.34, -0.05), (1.9, 0.03, 0.22), MAT["team"])
     m.box((0, 0.36, 0.45), (0.6, 0.03, 0.14), MAT["team_dark"])
     m.box((0, 0.46, 0.46), (0.03, 0.2, 0.12), MAT["team_dark"])
-    m.cyl((0, 0.3, 0.55), 0.18, 0.02, MAT["glass_dark"], n=8, axis="z")
+    spinner((0, 0.3, 0.57), 0.2, axis=(0.0, 0.0, 1.0), blades=2, width=0.025, mat="graphite_dark", hub=0.04)
     return {"hull": (m, (0, 0, 0))}, {}
 
 
@@ -1935,8 +2005,8 @@ def helicopter(attack):
     hull.box((0, 0.6, ln * 0.62), (0.18, 0.18, ln * 0.7), MAT["team_dark"])
     hull.box((0, 0.85, ln * 0.95), (0.05, 0.45, 0.25), MAT["team_dark"])
     hull.cyl((0, 0.98, -0.1), 0.1, 0.18, MAT["graphite_dark"], n=6)
-    rotor(hull, (0, 1.08, -0.1), 1.6, 0.4)
-    rotor(hull, (0.07, 0.85, ln * 0.95), 0.32, 0.0)
+    rotor(hull, (0, 1.08, -0.1), 1.6, 0.4, blades=5)
+    spinner((0.1, 0.85, ln * 0.95), 0.32, axis=(1.0, 0.0, 0.0), blades=3, width=0.025, hub=0.05)
     for sx in (-1, 1):
         hull.strut((sx * 0.3, 0.2, -0.6), (sx * 0.4, 0.05, -0.6), 0.03, MAT["graphite_dark"])
         hull.strut((sx * 0.3, 0.2, 0.4), (sx * 0.4, 0.05, 0.4), 0.03, MAT["graphite_dark"])
@@ -2192,8 +2262,17 @@ def main():
         f.write(color)
     with open(os.path.join(out, "palette_mask.png"), "wb") as f:
         f.write(mask)
+    military = {"colony_t72", "colony_t90", "colony_bmp1", "colony_btr80", "colony_shilka", "colony_gvozdika", "colony_tos1", "colony_msta",
+                "colony_tunguska", "colony_buk", "colony_sprut", "colony_brem", "colony_brdm2", "colony_mtlb", "colony_tochka", "colony_grad",
+                "colony_mi24", "colony_mi8", "colony_kshm"}
     for name, build in MODELS.items():
+        CAMO["active"] = name in military
+        SPIN.clear()
         parts, points = build()
+        for k, (mesh, hub, axis) in enumerate(SPIN):
+            parts["spin%d" % k] = (mesh, hub)
+            points["spinhub%d" % k] = (hub, None)
+            points["spinaxis%d" % k] = (tuple(hub[i] + axis[i] for i in range(3)), None)
         glb(os.path.join(out, name + ".glb"), parts, points, [("color", "palette.png"), ("mask", "palette_mask.png")])
     print(len(MODELS), "models written to", out)
 
