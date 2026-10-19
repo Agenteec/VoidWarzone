@@ -1631,6 +1631,186 @@ def rocket_shell(big):
     return {"hull": (m, (0, 0, 0))}, {}
 
 
+def soviet_tracks(m, length=2.6, w=0.72, wheels=6, h=0.5):
+    for sx in (-1, 1):
+        m.box((sx * w, h * 0.55, 0.0), (0.36, h, length), MAT["rubber"], top=(1.0, 0.92))
+        for k in range(wheels):
+            z = -length * 0.42 + length * 0.84 * k / max(wheels - 1, 1)
+            m.cyl((sx * (w + 0.19), h * 0.5, z), h * 0.4, 0.03, MAT["graphite"], n=10, axis="x", capmat=MAT["rubber"])
+
+
+def era_blocks(m, y, z0, z1, width):
+    z = z0
+    while z < z1:
+        for sx in (-1, 1):
+            m.box((sx * width, y, z), (0.08, 0.14, 0.2), MAT["container_green"])
+        z += 0.24
+
+
+def gatling(bar, r=0.035, length=0.8, y=0.2, n=6, ring=0.06):
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        bar.cyl((math.cos(a) * ring, y + math.sin(a) * ring, -0.25 - length / 2), r, length, MAT["graphite_dark"], n=6, axis="z")
+    bar.cyl((0, y, -0.2), ring + r * 1.6, 0.12, MAT["steel"], n=8, axis="z")
+    bar.cyl((0, y, -0.25 - length * 0.8), ring + r * 1.3, 0.05, MAT["steel"], n=8, axis="z")
+    bar.box((0, y, 0.02), (0.26, 0.22, 0.4), MAT["graphite"])
+    return (0.0, y, -0.25 - length - 0.05)
+
+
+def t72():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    soviet_tracks(hull, 2.8, 0.74, 6, 0.48)
+    hull.box((0, 0.62, 0.1), (1.42, 0.3, 2.7), MAT["team_dark"], top=(0.94, 0.9), sides={"front": MAT["graphite"]})
+    hull.box((0, 0.62, 1.38), (1.3, 0.24, 0.22), MAT["graphite"], top=(1.0, 0.4), shift=(0, -0.08))
+    for sx in (-1, 1):
+        hull.box((sx * 0.74, 0.78, 0.0), (0.4, 0.04, 2.7), MAT["graphite_dark"])
+        hull.cyl((sx * 0.5, 0.86, -1.15), 0.14, 0.5, MAT["rust"], n=8, axis="x")
+    hull.box((0, 0.8, -0.95), (1.1, 0.06, 0.5), MAT["graphite_dark"])
+    pivot = (0.0, 0.78, 0.1)
+    tur.cyl((0, 0.18, 0.05), 0.62, 0.36, MAT["team"], n=12, r2=0.48, capmat=MAT["team_dark"])
+    tur.cyl((0.22, 0.42, 0.18), 0.12, 0.12, MAT["graphite_dark"], n=8)
+    tur.box((-0.25, 0.4, 0.2), (0.2, 0.08, 0.22), MAT["graphite_dark"])
+    era_blocks(tur, 0.3, -0.45, 0.1, 0.5)
+    tur.box((0, 0.22, 0.62), (0.7, 0.2, 0.2), MAT["container_green"])
+    bar.cyl((0, 0.2, -1.25), 0.07, 2.0, MAT["graphite"], n=8, axis="z")
+    bar.cyl((0, 0.2, -0.95), 0.1, 0.35, MAT["graphite_dark"], n=8, axis="z")
+    bar.box((0, 0.2, -0.32), (0.36, 0.28, 0.26), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.2, -2.3), "barrel")}
+
+
+def bmp1():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    soviet_tracks(hull, 2.6, 0.66, 6, 0.42)
+    hull.box((0, 0.6, -0.1), (1.3, 0.34, 2.2), MAT["team_dark"], top=(0.9, 0.92), shift=(0, -0.05))
+    hull.box((0, 0.56, 1.15), (1.2, 0.26, 0.8), MAT["team"], top=(0.9, 0.2), shift=(0, -0.25))
+    for k in range(4):
+        hull.cyl(((k % 2 * 2 - 1) * 0.3, 0.8, -0.3 - (k // 2) * 0.5), 0.13, 0.05, MAT["graphite"], n=8)
+    pivot = (0.0, 0.78, 0.3)
+    tur.cyl((0, 0.12, 0), 0.38, 0.26, MAT["team"], n=10, r2=0.3, capmat=MAT["team_dark"])
+    tur.box((0, 0.36, 0.0), (0.06, 0.05, 0.45), MAT["graphite_dark"])
+    tur.box((0, 0.42, -0.05), (0.08, 0.06, 0.5), MAT["container_green"])
+    bar.cyl((0, 0.16, -0.65), 0.05, 0.85, MAT["graphite"], n=8, axis="z")
+    bar.box((0, 0.16, -0.25), (0.16, 0.14, 0.18), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.16, -1.1), "barrel")}
+
+
+def btr80(rotary=True):
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    for sx in (-1, 1):
+        for z in (-0.95, -0.35, 0.35, 0.95):
+            hull.cyl((sx * 0.68, 0.32, z), 0.32, 0.24, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+    hull.box((0, 0.72, 0.0), (1.3, 0.5, 2.7), MAT["team_dark"], top=(0.78, 0.92))
+    hull.box((0, 0.6, 1.35), (1.1, 0.3, 0.3), MAT["team"], top=(1.0, 0.3), shift=(0, -0.1))
+    hull.box((0.35, 1.0, 0.6), (0.4, 0.04, 0.5), MAT["graphite_dark"])
+    hull.box((0, 0.98, -0.95), (0.9, 0.05, 0.6), MAT["graphite"])
+    pivot = (0.0, 0.98, 0.25)
+    tur.cyl((0, 0.12, 0), 0.32, 0.24, MAT["team"], n=10, r2=0.26, capmat=MAT["team_dark"])
+    muzzle = gatling(bar, 0.03, 0.75, 0.16, 6, 0.055) if rotary else cannon(bar, r=0.045, length=0.9, y=0.16, brake=False)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def shilka():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    soviet_tracks(hull, 2.6, 0.68, 6, 0.44)
+    hull.box((0, 0.6, 0.05), (1.36, 0.3, 2.5), MAT["team_dark"], top=(0.95, 0.9), sides={"front": MAT["graphite"]})
+    pivot = (0.0, 0.76, -0.05)
+    tur.box((0, 0.3, 0.1), (1.2, 0.56, 1.3), MAT["team"], top=(0.92, 0.85), sides={"front": MAT["graphite"]})
+    dish(tur, (0.0, 0.58, 0.55), 0.38)
+    tur.box((0.45, 0.65, -0.1), (0.2, 0.12, 0.3), MAT["glass"])
+    for x in (-0.24, 0.24):
+        for y in (0.22, 0.42):
+            bar.cyl((x, y, -0.95), 0.035, 1.2, MAT["graphite_dark"], n=6, axis="z")
+            bar.cyl((x, y, -1.52), 0.055, 0.08, MAT["steel"], n=6, axis="z")
+    bar.box((0, 0.32, -0.38), (0.7, 0.34, 0.22), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.32, -1.58), "barrel")}
+
+
+def gvozdika():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    soviet_tracks(hull, 2.7, 0.7, 7, 0.4)
+    hull.box((0, 0.58, 0.15), (1.38, 0.3, 2.6), MAT["team_dark"], top=(0.95, 0.9), sides={"front": MAT["graphite"]})
+    hull.box((0, 0.82, 1.0), (1.0, 0.2, 0.6), MAT["team"], top=(0.85, 0.6))
+    pivot = (0.0, 0.73, -0.45)
+    tur.box((0, 0.3, 0.1), (1.0, 0.52, 1.2), MAT["team"], top=(0.85, 0.8), shift=(0, 0.06), sides={"front": MAT["graphite"]})
+    tur.cyl((0.3, 0.6, 0.35), 0.12, 0.1, MAT["graphite_dark"], n=8)
+    tur.box((0, 0.3, 0.75), (0.8, 0.3, 0.2), MAT["container_green"])
+    bar.cyl((0, 0.3, -1.35), 0.07, 2.2, MAT["graphite"], n=8, axis="z")
+    bar.box((0, 0.3, -2.48), (0.22, 0.16, 0.22), MAT["graphite_dark"])
+    bar.box((0, 0.3, -0.35), (0.34, 0.3, 0.3), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.3, -2.62), "barrel")}
+
+
+def tochka():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    six_wheels(hull, 1.5, 0.72, 0.38)
+    hull.box((0, 0.74, 0.0), (1.4, 0.36, 3.6), MAT["team_dark"], top=(0.92, 0.96))
+    hull.box((0, 1.1, 1.35), (1.3, 0.5, 0.8), MAT["team"], top=(0.9, 0.85), sides={"front": MAT["glass_dark"]})
+    hull.box((0, 1.0, 0.6), (1.2, 0.3, 0.5), MAT["graphite"])
+    pivot = (0.0, 0.95, -1.4)
+    tur.box((0, 0.08, 0), (0.7, 0.16, 0.5), MAT["graphite"])
+    bar.box((0, 0.24, -1.4), (0.18, 0.08, 2.8), MAT["graphite_dark"])
+    bar.cyl((0, 0.45, -1.3), 0.2, 2.7, MAT["paint_white"], n=10, axis="z")
+    bar.cyl((0, 0.45, -2.85), 0.2, 0.4, MAT["team"], n=10, axis="z", r2=0.02)
+    for k in range(4):
+        a = k * math.pi / 2 + math.pi / 4
+        bar.box((math.cos(a) * 0.28, 0.45 + math.sin(a) * 0.28, 0.0), (0.04, 0.04, 0.4) if False else (0.05 + 0.12 * abs(math.cos(a)), 0.05 + 0.12 * abs(math.sin(a)), 0.4), MAT["steel"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.45, -3.1), "barrel")}
+
+
+def tos1():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    soviet_tracks(hull, 2.8, 0.74, 6, 0.48)
+    hull.box((0, 0.62, 0.1), (1.42, 0.3, 2.7), MAT["team_dark"], top=(0.94, 0.9), sides={"front": MAT["graphite"]})
+    hull.box((0, 0.62, 1.38), (1.3, 0.24, 0.22), MAT["graphite"], top=(1.0, 0.4), shift=(0, -0.08))
+    pivot = (0.0, 0.78, -0.2)
+    tur.cyl((0, 0.1, 0), 0.6, 0.2, MAT["graphite"], n=12)
+    tur.box((0, 0.25, 0.3), (0.9, 0.2, 0.6), MAT["team"])
+    muzzle = tube_pack(bar, 4, 6, 0.17, 2.0, 0.65, 0.95)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def howitzer():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    hull.box((0, 0.04, 0), (2.2, 0.08, 2.2), MAT["concrete_dark"])
+    sandbag_ring(hull, 1.1, rows=2, n=16, gap=math.pi / 2)
+    ammo_crates(hull, 0.75, 0.6, 3)
+    for k in range(3):
+        hull.cyl((-0.7 + k * 0.14, 0.12, 0.7), 0.06, 0.24, MAT["rust_light"], n=6)
+    pivot = (0.0, 0.35, 0.0)
+    for a in (0.0, 2.1, 4.2):
+        tur.strut((0, 0.0, 0), (math.cos(a) * 0.95, -0.28, math.sin(a) * 0.95), 0.05, MAT["team_dark"])
+    tur.box((0, 0.15, 0.1), (0.7, 0.4, 0.12), MAT["team"], top=(0.8, 1.0))
+    tur.cyl((0, 0.06, 0), 0.18, 0.2, MAT["graphite"], n=8)
+    bar.cyl((0, 0.25, -0.9), 0.07, 1.9, MAT["graphite"], n=8, axis="z")
+    bar.box((0, 0.25, -1.9), (0.24, 0.16, 0.22), MAT["graphite_dark"])
+    bar.box((0, 0.25, -0.05), (0.3, 0.3, 0.45), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.25, -2.05), "barrel")}
+
+
+def rotary_tower():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    hull.cyl((0, 0.35, 0), 0.95, 0.7, MAT["concrete"], n=8, r2=0.82, capmat=MAT["concrete_dark"])
+    hull.cyl((0, 0.05, 0), 1.05, 0.1, MAT["concrete_dark"], n=8)
+    for k in range(8):
+        a = math.pi / 8 + k * math.pi / 4
+        hull.box((math.cos(a) * 0.85, 0.45, math.sin(a) * 0.85), (0.08, 0.5, 0.08), MAT["hazard"] if k % 2 else MAT["graphite_dark"])
+    pivot = (0.0, 0.72, 0.0)
+    tur.cyl((0, 0.08, 0), 0.5, 0.16, MAT["graphite"], n=10)
+    tur.box((0, 0.3, 0.15), (0.62, 0.36, 0.7), MAT["team"], top=(0.85, 0.85))
+    tur.box((0.38, 0.32, 0.25), (0.18, 0.28, 0.4), MAT["container_green"])
+    muzzle = gatling(bar, 0.035, 0.95, 0.32, 6, 0.08)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def gatling_mount():
+    tur, bar = Mesh(), Mesh()
+    tur.box((0, 0.06, 0), (0.4, 0.12, 0.4), MAT["rust"])
+    tur.strut((0, 0.1, 0.05), (0, 0.32, 0.0), 0.04, MAT["graphite_dark"])
+    tur.box((0, 0.42, 0.12), (0.5, 0.3, 0.04), MAT["steel"])
+    muzzle = gatling(bar, 0.025, 0.6, 0.36, 6, 0.045)
+    return {"turret": (tur, (0, 0, 0)), "barrel": (bar, (0, 0, 0))}, {"muzzle": (muzzle, "barrel")}
+
+
 def extractor():
     m = Mesh()
     m.cyl((0, 0.2, 0), 1.3, 0.4, MAT["concrete_dark"], n=8, capmat=MAT["concrete"])
@@ -1718,6 +1898,16 @@ MODELS = {
     "colony_mortar_pit": mortar_pit,
     "colony_pillbox": pillbox,
     "colony_grad": grad,
+    "colony_t72": t72,
+    "colony_bmp1": bmp1,
+    "colony_btr80": btr80,
+    "colony_shilka": shilka,
+    "colony_gvozdika": gvozdika,
+    "colony_tochka": tochka,
+    "colony_tos1": tos1,
+    "colony_howitzer": howitzer,
+    "colony_rotary_tower": rotary_tower,
+    "raider_gatling_mount": gatling_mount,
     "colony_atgm": atgm_launcher,
     "raider_rocket_rack": rocket_rack,
     "colony_fpv_drone": fpv_drone,

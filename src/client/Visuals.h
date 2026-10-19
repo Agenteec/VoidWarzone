@@ -39,7 +39,7 @@ struct ModelPart {
     bool pitch = false;
 };
 
-enum class ShotKind : std::uint8_t { Auto, Bullet, Shell, Rocket, Missile, Mortar, Ballistic };
+enum class ShotKind : std::uint8_t { Auto, Bullet, Shell, Rocket, Missile, Mortar, Ballistic, Artillery };
 
 struct UnitVisual {
     Mesh shape = Mesh::Cube;
@@ -59,6 +59,7 @@ struct UnitVisual {
     bool crystalShot = false;
     bool frostShot = false;
     ShotKind shot = ShotKind::Auto;
+    bool spin = false;
     std::optional<glm::vec3> tint;
 };
 

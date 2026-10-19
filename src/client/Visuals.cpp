@@ -229,7 +229,9 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
         {
             const std::string shot = it->value("shot", "");
             v.shot = shot == "bullet" ? ShotKind::Bullet : shot == "shell" ? ShotKind::Shell : shot == "rocket" ? ShotKind::Rocket
-                   : shot == "missile" ? ShotKind::Missile : shot == "mortar" ? ShotKind::Mortar : shot == "ballistic" ? ShotKind::Ballistic : ShotKind::Auto;
+                   : shot == "missile" ? ShotKind::Missile : shot == "mortar" ? ShotKind::Mortar : shot == "ballistic" ? ShotKind::Ballistic
+                   : shot == "artillery" ? ShotKind::Artillery : ShotKind::Auto;
+            v.spin = it->value("spin", false);
         }
         if (const auto t = it->find("tint"); t != it->end() && t->is_array() && t->size() == 3)
             v.tint = glm::vec3((*t)[0].get<float>(), (*t)[1].get<float>(), (*t)[2].get<float>());

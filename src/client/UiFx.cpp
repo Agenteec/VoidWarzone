@@ -177,6 +177,15 @@ void App::renderShell(const net::InterpolatedEntity& e, Shell& shell, glm::vec3 
         renderer_.drawStreak(Sprite::Trace1, p - dir * 0.9f, p, 0.22f, {1.0f, 0.65f, 0.3f, 1.0f}, SpriteBlend::Add);
         renderer_.drawSprite(Sprite::Flare, p, 0.6f, 0.0f, {1.0f, 0.9f, 0.7f, 1.0f}, SpriteBlend::Add);
         break;
+    case ShotKind::Artillery:
+        renderer_.draw(Mesh::Sphere, p, glm::vec3(0.2f), 0.0f, {0.2f, 0.2f, 0.18f, 1.0f}, Lit);
+        renderer_.drawStreak(Sprite::Trace1, p - dir * 1.2f, p, 0.25f, {1.0f, 0.6f, 0.3f, 0.7f}, SpriteBlend::Add);
+        shell.trail += frameDt_;
+        if (shell.trail > 0.04f) {
+            shell.trail = 0.0f;
+            smokePuff(p, {0.0f, 0.1f, 0.0f}, 0.15f, 0.6f, 0.9f, {0.75f, 0.75f, 0.74f, 0.25f});
+        }
+        break;
     case ShotKind::Mortar:
         renderer_.draw(Mesh::Sphere, p, glm::vec3(0.16f), 0.0f, {0.15f, 0.15f, 0.14f, 1.0f}, Lit);
         shell.trail += frameDt_;
@@ -232,9 +241,14 @@ void App::muzzleFx(const net::InterpolatedEntity& shooter) {
                      0.0f, 9.0f, 0.5f, 6.0f, ParticleKind::Debris});
         break;
     }
-    case ShotKind::Shell: {
+    case ShotKind::Shell:
+    case ShotKind::Artillery: {
+        const bool artillery = kind == ShotKind::Artillery;
         flash.sprite = Sprite::Muzzle2;
-        flash.size0 = flash.size1 = 1.6f;
+        flash.size0 = flash.size1 = artillery ? 2.4f : 1.6f;
+        if (artillery)
+            for (int i = 0; i < fxCount(6.0f); ++i)
+                smokePuff(m, fwd * fxRandom(2.0f, 4.0f) + fxDirection(0.3f) * 0.8f, 0.5f, fxRandom(1.6f, 2.6f), fxRandom(2.0f, 3.0f), {0.7f, 0.68f, 0.65f, 0.5f});
         flash.life = 0.08f;
         addParticle(flash);
         Particle glow{m + fwd * 0.3f, {}, {1.0f, 0.8f, 0.4f, 1.0f}, 1.6f, 0.6f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, ParticleKind::Glow};
@@ -277,6 +291,8 @@ void App::muzzleFx(const net::InterpolatedEntity& shooter) {
     }
     }
     recoil_[shooter.id] = 1.0f;
+    if (shooter.def < visuals_.size() && visuals_[shooter.def].spin)
+        spin_[shooter.id].speed = 35.0f;
 }
 
 void App::spawnFrostBurst(glm::vec3 at, float scale) {

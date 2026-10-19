@@ -39,6 +39,21 @@
     {"id": "rocketry", "name": "Rocket Artillery", "desc": "A Grad launcher and a crate of 122 mm rockets. Unlocks the BM-21 Grad in the Tank Shop.", "cost": 220, "time": 50,
      "after": ["mortar_shells"], "unlocks": ["grad"]},
     {"id": "missile_silo", "name": "Missile Silo", "desc": "An old tactical missile, a concrete pit and a lot of patience. Unlocks the Missile Silo.", "cost": 400, "time": 80,
-     "after": ["rocketry", "fire_control"], "unlocks": ["missile_silo"]}
+     "after": ["rocketry", "fire_control"], "unlocks": ["missile_silo"]},
+
+    {"id": "air_defense", "name": "Air Defence", "desc": "A Shilka from the regiment's park, radar and all. Unlocks the ZSU-23-4 Shilka.", "cost": 200, "time": 45,
+     "after": ["belt_feed"], "unlocks": ["shilka"]},
+    {"id": "rotary_guns", "name": "Rotary Guns", "desc": "Six-barrel guns salvaged from a wrecked gunship. Unlocks the Rotary MG Tower and the BTR-80 Gatling.", "cost": 240, "time": 55,
+     "after": ["gun_sights"], "unlocks": ["rotary_tower", "btr80"]},
+    {"id": "ifv", "name": "Infantry Fighting Vehicles", "desc": "BMP-1s from the depot, patched up. Unlocks the BMP-1.", "cost": 220, "time": 50,
+     "after": ["composite_armor"], "unlocks": ["bmp1"]},
+    {"id": "mbt", "name": "Main Battle Tanks", "desc": "A T-72B with a working engine and a stock of 125 mm rounds. Unlocks the T-72B.", "cost": 320, "time": 70,
+     "after": ["tank_guns", "composite_armor"], "unlocks": ["t72"]},
+    {"id": "heavy_artillery", "name": "Heavy Artillery", "desc": "122 mm guns and their shells. Unlocks the 2S1 Gvozdika and the D-30 Howitzer.", "cost": 300, "time": 65,
+     "after": ["fire_control"], "unlocks": ["gvozdika", "howitzer"]},
+    {"id": "thermobaric", "name": "Thermobaric Rockets", "desc": "A TOS-1 launcher and a few dozen fuel-air rockets. Unlocks the TOS-1 Buratino.", "cost": 360, "time": 75,
+     "after": ["rocketry", "fire_control"], "unlocks": ["tos1"]},
+    {"id": "ballistic_missiles", "name": "Ballistic Missiles", "desc": "A Tochka launcher with a working guidance unit. Unlocks the 9K79 Tochka.", "cost": 450, "time": 90,
+     "after": ["missile_silo"], "unlocks": ["tochka"]}
   ]
 }

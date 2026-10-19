@@ -451,7 +451,7 @@ void App::drawDock() {
         }
     } else if (dock_ == Dock::Build) {
         const auto& list = data_->buildable();
-        for (std::size_t i = 0; i < list.size() && i < 12; ++i) {
+        for (std::size_t i = 0; i < list.size() && i < 16; ++i) {
             next();
             const auto& def = data_->unit(list[i]);
             char cost[16];

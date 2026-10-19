@@ -262,6 +262,11 @@ private:
     bool hadLab_ = false;
     std::vector<std::uint8_t> knownResearch_;
     std::unordered_map<std::uint32_t, float> recoil_;
+    struct Spin {
+        float angle = 0.0f;
+        float speed = 0.0f;
+    };
+    std::unordered_map<std::uint32_t, Spin> spin_;
     bool cheatsOn() const;
     void sendCheat(CheatOp op, std::vector<entt::entity> targets = {}, glm::vec2 point = {});
     bool cheatClick(glm::vec2 screen);

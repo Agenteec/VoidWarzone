@@ -1284,6 +1284,11 @@ void App::updateGame(float dt) {
     std::erase_if(floaters_, [](const Floater& f) { return f.t >= f.life; });
     trackLevelUps();
     trackResearch();
+    for (auto& [id, sp] : spin_) {
+        sp.angle += sp.speed * dt;
+        sp.speed *= std::exp(-2.5f * dt);
+    }
+    std::erase_if(spin_, [](const auto& kv) { return kv.second.speed < 0.05f; });
     for (auto& [id, r] : recoil_)
         r -= dt * 3.5f;
     std::erase_if(recoil_, [](const auto& kv) { return kv.second <= 0.0f; });
@@ -1479,6 +1484,17 @@ void App::renderWorld() {
                     const float length = part.model->max.z - part.model->min.z;
                     const float back = part.pitch ? kick * length * (heavy ? 0.28f : 0.12f) : kick * length * (heavy ? 0.05f : 0.0f);
                     makeTurretMatrix(mtx, hullBase, hullYaw, vis.pivot, e.aim + kModelYaw, part.pitch ? e.pitch : 0.0f, vis.scale * grow, back);
+                    if (const auto sp = spin_.find(e.id); part.pitch && vis.spin && sp != spin_.end()) {
+                        const float cx = (part.model->min.x + part.model->max.x) * 0.5f;
+                        const float cy = (part.model->min.y + part.model->max.y) * 0.5f;
+                        const float c = std::cos(sp->second.angle);
+                        const float s = std::sin(sp->second.angle);
+                        const float roll[16] = {c, s, 0.0f, 0.0f, -s, c, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+                                                cx - (cx * c - cy * s), cy - (cx * s + cy * c), 0.0f, 1.0f};
+                        float rolled[16];
+                        bx::mtxMul(rolled, roll, mtx);
+                        std::memcpy(mtx, rolled, sizeof(rolled));
+                    }
                 } else {
                     makeModelMatrix(mtx, hullBase, hullYaw, vis.scale * grow, part.offset);
                 }
@@ -1616,6 +1632,8 @@ glm::vec3 App::projectilePos(const net::InterpolatedEntity& e) {
         }
         if (shotKind(e.def) == ShotKind::Ballistic)
             s.lob = 1.6f;
+        else if (shotKind(e.def) == ShotKind::Artillery)
+            s.lob = std::max(s.lob, 0.9f);
         else if (shotKind(e.def) == ShotKind::Rocket && e.def < data_->units().size() && data_->unit(e.def).weapon && data_->unit(e.def).weapon->spread > 0.0f)
             s.lob = std::max(s.lob, 0.45f);
     }

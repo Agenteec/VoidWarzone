@@ -52,7 +52,7 @@ M1 = {
         unit("raider_bunker", [140, 150], tag="outpost"), unit("raider_bunker", [151, 160], tag="outpost"),
         unit("raider_technical", [147, 148], tag="outpost"), unit("raider_buggy", [138, 160], tag="outpost"),
         unit("raider_camp", [228, 252], tag="camp"), unit("raider_bunker", [218, 246], tag="camp"), unit("raider_bunker", [234, 242], tag="camp"),
-        unit("raider_mortar", [232, 258], tag="camp"), unit("raider_technical", [222, 256], tag="camp"), unit("raider_rocket", [238, 250], tag="camp"),
+        unit("raider_mortar", [232, 258], tag="camp"), unit("raider_gatling", [222, 256], tag="camp"), unit("raider_rocket", [238, 250], tag="camp"),
     ],
     "mission": {
         "title": "Cold Start",
