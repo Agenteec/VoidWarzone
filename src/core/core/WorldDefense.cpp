@@ -321,7 +321,7 @@ SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team, bool
 void World::clearSite(UnitDefId id, glm::vec2 pos, std::uint8_t team) {
     const auto& def = data_->unit(id);
     for (auto [e, p, unit, t, order] : registry_.view<const Position, const Unit, const Team, Order>().each()) {
-        if (t.id != team || (order.type != OrderType::None && order.type != OrderType::Hold) || data_->unit(unit.def).builder)
+        if (t.id != team || (order.type != OrderType::None && order.type != OrderType::Hold))
             continue;
         const glm::vec2 d = p.value - pos;
         const float dist = glm::length(d);
@@ -382,6 +382,12 @@ glm::vec2 World::builderStep(entt::entity e, glm::vec2 pos, const Unit& unit, st
     }
     if (status == SiteStatus::Occupied) {
         clearSite(order.build, order.point, team);
+        const glm::vec2 d = pos - order.point;
+        const float dist = glm::length(d);
+        if (dist < def.radius + unit.radius + 0.4f) {
+            const glm::vec2 dir = dist > 1e-3f ? d / dist : glm::vec2(std::cos(static_cast<float>(entt::to_integral(e))), std::sin(static_cast<float>(entt::to_integral(e))));
+            return dir * std::max(unit.speed, 1.0f);
+        }
         return {};
     }
     auto& player = players_[owner->player];

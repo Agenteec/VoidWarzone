@@ -299,6 +299,9 @@ private:
         int attackSize = 6;
         float nextAttack = 0.0f;
         int buildTry = 0;
+        float stageUntil = -1.0f;
+        glm::vec2 stage{};
+        entt::entity target = entt::null;
     };
     std::array<AiState, kMaxPlayers> ai_{};
     int skirmishSlots_ = 0;

@@ -366,19 +366,21 @@ void Server::handlePlayerSetup(Client& client, Reader& r) {
         return;
     if (target != client.player && client.player != leader())
         return;
+    const bool taken = std::any_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c->player != target && c->color == color; }) ||
+                       std::any_of(bots_.begin(), bots_.end(), [&](const auto& b) { return b.player != target && b.color == color; });
     const auto it = std::find_if(clients_.begin(), clients_.end(), [&](const auto& c) { return c->player == target; });
     if (it == clients_.end()) {
         for (auto& b : bots_)
             if (b.player == target && client.player == leader() && !world_) {
                 b.team = team;
-                if (std::none_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c->color == color; }))
+                if (!taken)
                     b.color = color;
                 lobbyDirty_ = true;
             }
         return;
     }
     Client& who = **it;
-    if (std::none_of(clients_.begin(), clients_.end(), [&](const auto& c) { return c.get() != &who && c->color == color; }))
+    if (!taken)
         who.color = color;
     if (!world_)
         who.team = team;

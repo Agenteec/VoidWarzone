@@ -465,6 +465,24 @@ TEST_CASE("labs research upgrades and unlock units") {
     CHECK(loaded.researched(0, 1));
 }
 
+TEST_CASE("research class filters") {
+    const auto data = GameData::parse(R"({"units":[
+        {"id":"tank","classes":["armor","tank"],"maxHp":200,"radius":0.5},
+        {"id":"heli","classes":["air"],"maxHp":100,"radius":0.5},
+        {"id":"pit","classes":["artillery","defense"],"structure":true,"maxHp":500,"radius":1}
+    ]})", {}, {}, R"({"topics":[
+        {"id":"tracks","cost":1,"time":1,"applies":"all","classes":["armor"],"mods":{"speedMul":1.1}},
+        {"id":"guns","cost":1,"time":1,"applies":"all","classes":["artillery","air"],"mods":{"range":2}}
+    ]})");
+    const auto& tracks = data.research(0);
+    const auto& guns = data.research(1);
+    CHECK(tracks.applies(data.unit(data.find("tank"))));
+    CHECK_FALSE(tracks.applies(data.unit(data.find("heli"))));
+    CHECK(guns.applies(data.unit(data.find("heli"))));
+    CHECK(guns.applies(data.unit(data.find("pit"))));
+    CHECK_FALSE(guns.applies(data.unit(data.find("tank"))));
+}
+
 TEST_CASE("cheats work only when enabled") {
     const auto data = GameData::parse(kUnits);
     const auto map = Map::parse(kMap);
@@ -525,4 +543,25 @@ TEST_CASE("rocket salvos, guided missiles and kamikaze drones") {
     run(kamikaze, 3.0f);
     CHECK(count(kamikaze, data, "drone") == 0);
     CHECK(kamikaze.registry().get<Health>(t3).hp < 5000.0f - 50.0f);
+}
+
+TEST_CASE("a builder standing on its own site steps aside and builds") {
+    const auto data = GameData::parse(R"({"units":[
+        {"id":"truck","cost":50,"maxHp":200,"radius":0.5,"speed":4,"builder":true},
+        {"id":"tower","structure":true,"buildable":true,"cost":100,"maxHp":1000,"radius":1.0,"buildTime":2}
+    ]})");
+    const auto map = Map::parse(R"({"width":40,"height":40,"playerStart":{"pos":[20.5,20.5],"units":["truck","truck"]},
+        "defense":{"startEnergy":1000,"baseIncome":0,"waves":[]}})");
+    World world(data, map);
+    const auto units = world.spawnPlayer(0);
+    REQUIRE(units.size() == 2);
+    const glm::vec2 site = snapBuild(world.registry().get<Position>(units[0]).value);
+    world.registry().get<Position>(units[1]).value = site + glm::vec2(0.3f, 0.0f);
+    world.apply(BuildCommand{{units[0]}, data.find("tower"), site, false});
+    run(world, 8.0f);
+    CHECK(countDef(world, data, "tower") == 1);
+    bool done = false;
+    for (auto [e, unit] : world.registry().view<const Unit>().each())
+        done = done || (unit.def == data.find("tower") && !world.registry().all_of<Construction>(e));
+    CHECK(done);
 }

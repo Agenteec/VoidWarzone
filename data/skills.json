@@ -266,6 +266,53 @@
           }
         }
       ]
+    },
+    {
+      "id": "spotter_aura",
+      "name": "Spotter",
+      "passive": true,
+      "effects": [
+        {
+          "type": "aura",
+          "radius": 10,
+          "who": "allies",
+          "mods": {
+            "range": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "uav_spotter",
+      "name": "Aerial Spotting",
+      "passive": true,
+      "effects": [
+        {
+          "type": "aura",
+          "radius": 12,
+          "who": "allies",
+          "mods": {
+            "range": 2.0,
+            "damageMul": 1.1
+          }
+        }
+      ]
+    },
+    {
+      "id": "radar_net_aura",
+      "name": "Radar Coverage",
+      "passive": true,
+      "effects": [
+        {
+          "type": "aura",
+          "radius": 16,
+          "who": "allies",
+          "mods": {
+            "range": 1.5,
+            "attackSpeedMul": 1.1
+          }
+        }
+      ]
     }
   ]
 }

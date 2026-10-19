@@ -1842,6 +1842,179 @@ def crane_truck():
     return {"hull": (m, (0, 0, 0))}, {}
 
 
+def brdm2():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    for sx in (-1, 1):
+        for z in (-0.65, 0.65):
+            hull.cyl((sx * 0.6, 0.3, z), 0.3, 0.22, MAT["rubber"], n=10, axis="x", capmat=MAT["graphite"])
+    hull.box((0, 0.66, 0.0), (1.15, 0.44, 2.3), MAT["team_dark"], top=(0.8, 0.86))
+    hull.box((0, 0.62, -1.1), (1.0, 0.3, 0.3), MAT["team"], top=(1.0, 0.3), shift=(0, 0.1))
+    hull.box((0, 0.88, -0.75), (0.9, 0.04, 0.3), MAT["glass_dark"])
+    antenna(hull, 0.4, 0.8, 1.6)
+    pivot = (0.0, 0.88, 0.05)
+    tur.cyl((0, 0.12, 0), 0.26, 0.24, MAT["team"], n=8, r2=0.2, capmat=MAT["team_dark"])
+    muzzle = cannon(bar, r=0.03, length=0.6, y=0.14, twin=0.0, brake=False)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def orlan():
+    m = Mesh()
+    m.cyl((0, 0.3, 0.0), 0.1, 1.0, MAT["paint_white"], n=8, axis="z", r2=0.07)
+    m.cyl((0, 0.3, -0.55), 0.1, 0.12, MAT["glass_dark"], n=8, axis="z", r2=0.02)
+    m.box((0, 0.34, -0.05), (1.9, 0.03, 0.22), MAT["team"])
+    m.box((0, 0.36, 0.45), (0.6, 0.03, 0.14), MAT["team_dark"])
+    m.box((0, 0.46, 0.46), (0.03, 0.2, 0.12), MAT["team_dark"])
+    m.cyl((0, 0.3, 0.55), 0.18, 0.02, MAT["glass_dark"], n=8, axis="z")
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def t90():
+    parts, points = t72()
+    tur = parts["turret"][0]
+    era_blocks(tur, 0.36, -0.55, 0.25, 0.56)
+    tur.box((0.42, 0.34, -0.25), (0.16, 0.14, 0.2), MAT["warn"])
+    tur.box((-0.42, 0.34, -0.25), (0.16, 0.14, 0.2), MAT["warn"])
+    tur.box((0, 0.46, 0.2), (0.3, 0.1, 0.3), MAT["graphite_dark"])
+    return parts, points
+
+
+def msta():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    soviet_tracks(hull, 3.0, 0.76, 7, 0.48)
+    hull.box((0, 0.62, 0.1), (1.48, 0.3, 2.9), MAT["team_dark"], top=(0.94, 0.9), sides={"front": MAT["graphite"]})
+    pivot = (0.0, 0.78, 0.3)
+    tur.box((0, 0.4, 0.2), (1.25, 0.8, 1.5), MAT["team"], top=(0.9, 0.85), shift=(0, 0.05), sides={"front": MAT["graphite"]})
+    tur.box((0.45, 0.85, 0.5), (0.2, 0.1, 0.3), MAT["graphite_dark"])
+    tur.box((0, 0.45, 1.05), (1.0, 0.5, 0.3), MAT["container_green"])
+    bar.cyl((0, 0.45, -1.6), 0.09, 2.7, MAT["graphite"], n=8, axis="z")
+    bar.box((0, 0.45, -2.98), (0.3, 0.2, 0.24), MAT["graphite_dark"])
+    bar.box((0, 0.45, -0.4), (0.4, 0.38, 0.4), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.45, -3.15), "barrel")}
+
+
+def tunguska():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    soviet_tracks(hull, 2.7, 0.7, 6, 0.44)
+    hull.box((0, 0.6, 0.05), (1.4, 0.3, 2.6), MAT["team_dark"], top=(0.95, 0.9))
+    pivot = (0.0, 0.76, 0.0)
+    tur.box((0, 0.32, 0.1), (1.1, 0.6, 1.2), MAT["team"], top=(0.9, 0.85))
+    dish(tur, (0.0, 0.62, 0.6), 0.34)
+    tur.box((0, 0.95, -0.2), (0.5, 0.08, 0.2), MAT["steel"])
+    for sx in (-1, 1):
+        bar.cyl((sx * 0.62, 0.36, -0.75), 0.04, 1.1, MAT["graphite_dark"], n=6, axis="z")
+        bar.cyl((sx * 0.62, 0.36, -1.32), 0.06, 0.08, MAT["steel"], n=6, axis="z")
+        for k in range(2):
+            bar.cyl((sx * 0.8, 0.5 + k * 0.16, -0.2), 0.07, 0.9, MAT["container_green"], n=6, axis="z")
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.36, -1.4), "barrel")}
+
+
+def buk():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    soviet_tracks(hull, 2.9, 0.72, 6, 0.42)
+    hull.box((0, 0.6, 0.1), (1.42, 0.3, 2.8), MAT["team_dark"], top=(0.95, 0.9))
+    hull.box((0, 0.9, -1.05), (1.2, 0.35, 0.6), MAT["team"], sides={"front": MAT["glass_dark"]})
+    pivot = (0.0, 0.76, 0.4)
+    tur.cyl((0, 0.08, 0), 0.55, 0.16, MAT["graphite"], n=10)
+    dish(tur, (0.0, 0.2, 0.55), 0.3)
+    for sx in (-0.3, -0.1, 0.1, 0.3):
+        bar.cyl((sx * 1.4, 0.42, -0.6), 0.09, 1.6, MAT["paint_white"], n=8, axis="z")
+        bar.cyl((sx * 1.4, 0.42, -1.48), 0.09, 0.2, MAT["paint_red"], n=8, axis="z", r2=0.01)
+    bar.box((0, 0.3, -0.5), (1.0, 0.08, 1.6), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.42, -1.6), "barrel")}
+
+
+def helicopter(attack):
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    ln = 2.4 if attack else 2.8
+    hull.box((0, 0.55, -0.1), (0.62 if attack else 0.9, 0.7, ln), MAT["team"], top=(0.8, 0.9), sides={"front": MAT["glass_dark"]})
+    if attack:
+        hull.box((0, 0.75, -1.05), (0.45, 0.4, 0.5), MAT["glass_dark"], top=(0.6, 0.6))
+        hull.box((0, 0.55, 0.3), (1.9, 0.06, 0.4), MAT["team_dark"])
+        for sx in (-1, 1):
+            hull.cyl((sx * 0.85, 0.45, 0.3), 0.1, 0.5, MAT["container_green"], n=6, axis="z")
+    hull.box((0, 0.6, ln * 0.62), (0.18, 0.18, ln * 0.7), MAT["team_dark"])
+    hull.box((0, 0.85, ln * 0.95), (0.05, 0.45, 0.25), MAT["team_dark"])
+    hull.cyl((0, 0.98, -0.1), 0.1, 0.18, MAT["graphite_dark"], n=6)
+    rotor(hull, (0, 1.08, -0.1), 1.6, 0.4)
+    rotor(hull, (0.07, 0.85, ln * 0.95), 0.32, 0.0)
+    for sx in (-1, 1):
+        hull.strut((sx * 0.3, 0.2, -0.6), (sx * 0.4, 0.05, -0.6), 0.03, MAT["graphite_dark"])
+        hull.strut((sx * 0.3, 0.2, 0.4), (sx * 0.4, 0.05, 0.4), 0.03, MAT["graphite_dark"])
+    pivot = (0.0, 0.3, -1.1)
+    tur.box((0, 0.0, 0), (0.22, 0.16, 0.22), MAT["graphite"])
+    muzzle = cannon(bar, r=0.03, length=0.4, y=0.0, twin=0.04 if attack else 0.0, brake=False)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def brem():
+    hull = Mesh()
+    soviet_tracks(hull, 2.8, 0.74, 6, 0.48)
+    hull.box((0, 0.62, 0.1), (1.42, 0.3, 2.7), MAT["team_dark"], top=(0.94, 0.9))
+    hull.box((0, 0.95, 0.2), (1.1, 0.45, 1.2), MAT["team"], top=(0.9, 0.9))
+    hull.box((0, 0.45, -1.55), (1.6, 0.45, 0.12), MAT["hazard"], top=(1.0, 0.6), shift=(0, -0.08))
+    hull.strut((0.4, 1.2, 0.4), (0.4, 1.9, -0.6), 0.07, MAT["hazard"])
+    hull.strut((0.4, 1.9, -0.6), (0.4, 1.4, -0.9), 0.02, MAT["graphite_dark"])
+    hull.box((0.4, 1.35, -0.9), (0.14, 0.12, 0.14), MAT["graphite_dark"])
+    hull.box((-0.35, 1.0, 1.0), (0.5, 0.3, 0.5), MAT["container_green"])
+    hull.cyl((-0.45, 1.25, -0.2), 0.06, 0.1, MAT["warn"], n=6)
+    return {"hull": (hull, (0, 0, 0))}, {}
+
+
+def sprut():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    soviet_tracks(hull, 2.6, 0.68, 6, 0.42)
+    hull.box((0, 0.6, 0.05), (1.36, 0.32, 2.6), MAT["team_dark"], top=(0.92, 0.9), sides={"front": MAT["graphite"]})
+    pivot = (0.0, 0.76, 0.2)
+    tur.cyl((0, 0.16, 0.05), 0.55, 0.32, MAT["team"], n=10, r2=0.42, capmat=MAT["team_dark"])
+    tur.box((0.25, 0.36, 0.2), (0.18, 0.1, 0.2), MAT["graphite_dark"])
+    bar.cyl((0, 0.18, -1.15), 0.06, 1.8, MAT["graphite"], n=8, axis="z")
+    bar.box((0, 0.18, -0.3), (0.3, 0.24, 0.24), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.18, -2.1), "barrel")}
+
+
+def helipad():
+    m = Mesh()
+    m.box((0, 0.06, 0), (3.2, 0.12, 3.2), MAT["concrete"])
+    m.box((0, 0.13, 0), (2.4, 0.02, 2.4), MAT["concrete_dark"])
+    m.box((-0.45, 0.15, 0), (0.18, 0.02, 1.2), MAT["paint_white"])
+    m.box((0.45, 0.15, 0), (0.18, 0.02, 1.2), MAT["paint_white"])
+    m.box((0, 0.15, 0), (0.9, 0.02, 0.18), MAT["paint_white"])
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            m.cyl((sx * 1.45, 0.2, sz * 1.45), 0.06, 0.2, MAT["lamp"], n=6)
+    m.box((1.25, 0.7, -1.25), (0.6, 1.3, 0.6), MAT["team"], sides={"front": MAT["glass"]})
+    m.box((1.25, 1.45, -1.25), (0.75, 0.25, 0.75), MAT["glass_dark"])
+    m.cyl((-1.3, 0.9, 1.3), 0.03, 1.6, MAT["graphite_dark"], n=5)
+    m.box((-1.15, 1.6, 1.3), (0.3, 0.12, 0.08), MAT["warn"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def radar_station():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    hull.box((0, 0.4, 0.4), (1.4, 0.8, 1.0), MAT["team"], sides={"front": MAT["graphite"]})
+    hull.box((0, 0.85, 0.4), (1.3, 0.05, 0.9), MAT["snow"])
+    hull.strut((0, 0.1, -0.3), (0, 1.3, -0.3), 0.12, MAT["steel"])
+    pivot = (0.0, 1.35, -0.3)
+    tur.cyl((0, 0.05, 0), 0.18, 0.12, MAT["graphite"], n=8)
+    bar.box((0, 0.35, 0), (1.8, 0.5, 0.06), MAT["steel"], top=(1.0, 1.0))
+    bar.box((0, 0.35, -0.08), (1.7, 0.42, 0.06), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.35, -0.2), "barrel")}
+
+
+def sam_site():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    hull.box((0, 0.04, 0), (2.2, 0.08, 2.2), MAT["concrete_dark"])
+    sandbag_ring(hull, 1.1, rows=2, n=16, gap=math.pi / 2)
+    pivot = (0.0, 0.35, 0.0)
+    tur.cyl((0, 0.05, 0), 0.45, 0.12, MAT["graphite"], n=10)
+    tur.box((0, 0.25, 0.05), (0.5, 0.3, 0.6), MAT["team"])
+    for sx in (-0.28, 0.28):
+        bar.cyl((sx, 0.55, -0.4), 0.1, 1.5, MAT["paint_white"], n=8, axis="z")
+        bar.cyl((sx, 0.55, -1.22), 0.1, 0.2, MAT["paint_red"], n=8, axis="z", r2=0.01)
+    bar.box((0, 0.4, -0.3), (0.8, 0.06, 1.4), MAT["graphite_dark"])
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.55, -1.35), "barrel")}
+
+
 def extractor():
     m = Mesh()
     m.cyl((0, 0.2, 0), 1.3, 0.4, MAT["concrete_dark"], n=8, capmat=MAT["concrete"])
@@ -1936,6 +2109,19 @@ MODELS = {
     "colony_gvozdika": gvozdika,
     "colony_tochka": tochka,
     "colony_crane_truck": crane_truck,
+    "colony_brdm2": brdm2,
+    "colony_orlan": orlan,
+    "colony_t90": t90,
+    "colony_msta": msta,
+    "colony_tunguska": tunguska,
+    "colony_buk": buk,
+    "colony_mi24": lambda: helicopter(True),
+    "colony_mi8": lambda: helicopter(False),
+    "colony_brem": brem,
+    "colony_sprut": sprut,
+    "colony_helipad": helipad,
+    "colony_radar_station": radar_station,
+    "colony_sam_site": sam_site,
     "colony_tos1": tos1,
     "colony_howitzer": howitzer,
     "colony_rotary_tower": rotary_tower,

@@ -38,6 +38,7 @@ struct EditorState;
 
 struct LaunchOptions {
     bool host = false;
+    bool stayInLobby = false;
     std::optional<std::string> editor;
     bool editorTest = false;
     int mission = 0;
@@ -146,6 +147,16 @@ private:
     void enterGame();
     void returnToLobby();
     void buildMinimap();
+    struct MapPreview {
+        TextureId texture = 0;
+        int width = 0;
+        int height = 0;
+        std::vector<glm::vec2> slots;
+        std::vector<glm::vec2> points;
+    };
+    static std::vector<std::uint32_t> mapPixels(const Map& map);
+    const MapPreview* mapPreview(const std::string& name);
+    std::map<std::string, MapPreview> previews_;
     void applyVideo();
     void applyWindow();
     bool touchLayout() const;
@@ -356,6 +367,7 @@ private:
     void spawnImpact(glm::vec3 at, ShotKind kind, float splash, bool voidSide);
     void smokePuff(glm::vec3 at, glm::vec3 vel, float size0, float size1, float life, glm::vec4 color);
     void muzzleFx(const net::InterpolatedEntity& shooter);
+    void renderConstruction(const net::InterpolatedEntity& e, float height, float built);
     enum class ParticleKind : std::uint8_t { Glow, Smoke, Debris, Shard, Decal, Fire, Spark, Flash, Ring };
     struct Particle {
         glm::vec3 pos;

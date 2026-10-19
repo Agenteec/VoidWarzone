@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -130,6 +131,7 @@ struct UnitDef {
     bool factory = false;
     bool lab = false;
     ResearchId research = 0xffff;
+    std::vector<std::string> classes;
     float produceTime = 0.0f;
     float produceInterval = 20.0f;
     int produceMax = 4;
@@ -210,11 +212,15 @@ struct ResearchDef {
     ResearchScope scope = ResearchScope::All;
     int weapon = -1;
     int tier = 0;
+    std::vector<std::string> classes;
 
     bool applies(const UnitDef& def) const {
         if (scope == ResearchScope::Vehicles && def.structure)
             return false;
         if (scope == ResearchScope::Structures && !def.structure)
+            return false;
+        if (!classes.empty() &&
+            std::none_of(classes.begin(), classes.end(), [&](const std::string& c) { return std::find(def.classes.begin(), def.classes.end(), c) != def.classes.end(); }))
             return false;
         return weapon < 0 || (def.weapon && static_cast<int>(def.weapon->type) == weapon);
     }

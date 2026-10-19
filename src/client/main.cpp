@@ -59,6 +59,8 @@ int main(int argc, char** argv) {
         const bool hasValue = i + 1 < argc;
         if (arg == "--host")
             options.host = true;
+        else if (arg == "--lobby")
+            options.host = options.stayInLobby = true;
         else if (arg == "--mission" && hasValue)
             options.mission = std::atoi(argv[++i]);
         else if (arg == "--editor-selftest")

@@ -490,7 +490,7 @@ void App::startHost(bool multiplayer) {
     config.mode = options_.mode;
     config.cheats = options_.cheats;
     config.lobby = true;
-    config.maxPlayers = 8;
+    config.maxPlayers = 16;
     config.loadMap = [](const std::string& name) { return readMap(name); };
     config.saveDir = savesDir();
     if (!campaignMission_.empty()) {
@@ -584,14 +584,12 @@ void App::returnToLobby() {
     setScreen(Screen::Lobby);
 }
 
-void App::buildMinimap() {
-    if (minimapHash_ == map_->hash())
-        return;
-    const int w = map_->width();
-    const int h = map_->height();
+std::vector<std::uint32_t> App::mapPixels(const Map& map) {
+    const int w = map.width();
+    const int h = map.height();
     std::vector<std::uint32_t> pixels(static_cast<std::size_t>(w * h));
     auto nearLane = [&](glm::vec2 p) {
-        for (const auto& lane : map_->lanes())
+        for (const auto& lane : map.lanes())
             for (std::size_t k = 0; k + 1 < lane.points.size(); ++k) {
                 const glm::vec2 a = lane.points[k];
                 const glm::vec2 ab = lane.points[k + 1] - a;
@@ -601,26 +599,54 @@ void App::buildMinimap() {
             }
         return false;
     };
+    const bool winter = map.theme() == "winter";
+    const std::uint32_t ground = winter ? 0xffcec6c0u : map.theme() == "autumn" ? 0xff8c9298u : 0xff50606cu;
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x) {
-            const glm::vec2 p = Map::center({x, y});
-            const bool winter = map_->theme() == "winter";
-            std::uint32_t c = winter ? 0xffcec6c0u : map_->theme() == "autumn" ? 0xff8c9298u : 0xff50606cu;
-            const auto kind = map_->cellKind(x, y);
+            std::uint32_t c = ground;
+            const auto kind = map.cellKind(x, y);
             if (kind == CellKind::Building)
                 c = 0xff4c4642u;
             else if (kind == CellKind::Forest)
                 c = 0xff3e5040u;
             else if (kind == CellKind::Water)
                 c = 0xff5c4c3eu;
-            else if (map_->blocked(x, y))
+            else if (map.blocked(x, y))
                 c = ((x * 7 + y * 13) % 5 == 0) ? 0xff282c3au : 0xff242632u;
-            else if (nearLane(p))
+            else if (nearLane(Map::center({x, y})))
                 c = winter ? 0xffa09a96u : 0xff6c7070u;
             pixels[static_cast<std::size_t>(y * w + x)] = c;
         }
-    minimap_ = renderer_.createTextureRgba(w, h, pixels.data());
+    return pixels;
+}
+
+void App::buildMinimap() {
+    if (minimapHash_ == map_->hash())
+        return;
+    const auto pixels = mapPixels(*map_);
+    minimap_ = renderer_.createTextureRgba(map_->width(), map_->height(), pixels.data());
     minimapHash_ = map_->hash();
+}
+
+const App::MapPreview* App::mapPreview(const std::string& name) {
+    if (const auto it = previews_.find(name); it != previews_.end())
+        return it->second.width > 0 ? &it->second : nullptr;
+    auto& preview = previews_[name];
+    try {
+        const Map map = Map::parse(readMap(name));
+        const auto pixels = mapPixels(map);
+        preview.texture = renderer_.createTextureRgba(map.width(), map.height(), pixels.data());
+        preview.width = map.width();
+        preview.height = map.height();
+        preview.slots = map.playerStart().slots;
+        if (preview.slots.empty())
+            preview.slots.push_back(map.playerStart().pos);
+        for (const auto& point : map.resourcePoints())
+            preview.points.push_back(point.pos);
+    } catch (const std::exception&) {
+        return nullptr;
+    }
+    return &preview;
 }
 
 void App::leaveGame(std::string status) {
@@ -1266,9 +1292,14 @@ void App::updateGame(float dt) {
                 options_.select.clear();
                 debugOpen_ = options_.debug;
                 researchOpen_ = options_.researchTree;
+                options_.researchTree = false;
                 options_.debug = false;
                 break;
             }
+    if (cameraPlaced_ && options_.select.empty() && options_.researchTree) {
+        researchOpen_ = true;
+        options_.researchTree = false;
+    }
     if (cameraPlaced_ && options_.select.empty() && options_.debug && !debugOpen_) {
         debugOpen_ = true;
         options_.debug = false;
@@ -1322,7 +1353,8 @@ void App::frame(double dt) {
         if (net_.lobby().leader == net_.player()) {
             for (int b = 0; b < options_.bots; ++b)
                 net_.sendBot(true);
-            net_.sendStart();
+            if (!options_.stayInLobby)
+                net_.sendStart();
         }
     }
     updateLobby();
@@ -1493,7 +1525,11 @@ void App::renderWorld() {
             glm::vec3 hullBase = base;
             if (heavy && !def.structure)
                 hullBase -= glm::vec3(std::cos(e.aim), 0.0f, std::sin(e.aim)) * (kick * def.radius * 0.12f);
+            const bool constructing = (e.flags & net::kStateBuilding) != 0;
+            const float built = constructing ? std::clamp((static_cast<float>(e.hp) / std::max(1.0f, static_cast<float>(e.maxHp)) - 0.1f) / 0.9f, 0.05f, 1.0f) : 1.0f;
             for (const auto& part : vis.parts) {
+                if (constructing && part.turret && built < 0.9f)
+                    continue;
                 if (part.turret) {
                     const float length = part.model->max.z - part.model->min.z;
                     const float back = part.pitch ? kick * length * (heavy ? 0.28f : 0.12f) : kick * length * (heavy ? 0.05f : 0.0f);
@@ -1511,9 +1547,14 @@ void App::renderWorld() {
                     }
                 } else {
                     makeModelMatrix(mtx, hullBase, hullYaw, vis.scale * grow, part.offset);
+                    if (constructing)
+                        for (const int k : {4, 5, 6})
+                            mtx[k] *= built;
                 }
                 renderer_.drawMesh(part.model->mesh, part.model->texture, part.model->mask, mtx, color, part.model->glow ? Tint | Glow : Tint);
             }
+            if (constructing)
+                renderConstruction(e, std::max(vis.height, 0.8f), built);
             renderModules(e, vis, base, grow, color);
         }
         if (e.rank > 0 && rank != Rank::Recruit) {
@@ -1559,7 +1600,7 @@ void App::renderWorld() {
             renderer_.draw(Mesh::Cube, {e.pos.x - barW * 0.5f + barW * frac * 0.5f, y, e.pos.y - 0.05f}, {barW * frac, 0.1f, 0.1f}, 0.0f,
                            {0.35f, 0.85f, 1.0f, 1.0f}, Unlit);
         }
-        if (e.flags & net::kStateBuilding) {
+        if ((e.flags & net::kStateBuilding) && vis.parts.empty()) {
             const float h = std::max(height, 1.0f) * (0.3f + 0.7f * std::clamp(static_cast<float>(e.hp) / maxHp, 0.0f, 1.0f));
             renderer_.draw(Mesh::Cube, {e.pos.x, h * 0.5f, e.pos.y}, {d * 1.05f, h, d * 1.05f}, 0.0f, glm::vec4{0.85f, 0.55f, 1.0f, 0.3f},
                            Unlit | Alpha);

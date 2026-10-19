@@ -620,7 +620,8 @@
         "projectileSpeed": 18,
         "splash": 1.6
       },
-      "visual": { "shot": "rocket",
+      "visual": {
+        "shot": "rocket",
         "shape": "cube",
         "height": 1.0,
         "model": {
@@ -659,7 +660,8 @@
         "projectileSpeed": 16,
         "splash": 2.4
       },
-      "visual": { "shot": "mortar",
+      "visual": {
+        "shot": "mortar",
         "shape": "cube",
         "height": 1.0,
         "model": {
@@ -700,7 +702,8 @@
         "splash": 1.0,
         "targets": "both"
       },
-      "visual": { "shot": "missile",
+      "visual": {
+        "shot": "missile",
         "shape": "cube",
         "height": 1.0,
         "model": {
@@ -1192,7 +1195,8 @@
         "splash": 1.2,
         "targets": "ground"
       },
-      "visual": { "shot": "rocket",
+      "visual": {
+        "shot": "rocket",
         "shape": "cube",
         "height": 1.0,
         "model": {
@@ -1338,7 +1342,8 @@
       }
     },
     {
-      "id": "lab", "lab": true,
+      "id": "lab",
+      "lab": true,
       "name": "Research Facility",
       "structure": true,
       "maxHp": 4500,
@@ -1466,7 +1471,10 @@
       },
       "wall": true,
       "priority": 0.2,
-      "buildTime": 3
+      "buildTime": 3,
+      "classes": [
+        "defense"
+      ]
     },
     {
       "id": "gun_tower",
@@ -1498,7 +1506,10 @@
         },
         "shot": "frost"
       },
-      "buildTime": 8
+      "buildTime": 8,
+      "classes": [
+        "defense"
+      ]
     },
     {
       "id": "cannon_hardpoint",
@@ -1524,7 +1535,10 @@
           "glb": "colony_pillbox"
         }
       },
-      "buildTime": 14
+      "buildTime": 14,
+      "classes": [
+        "defense"
+      ]
     },
     {
       "id": "zu23",
@@ -1550,7 +1564,11 @@
         "model": {
           "glb": "colony_zu23"
         }
-      }
+      },
+      "classes": [
+        "aa",
+        "defense"
+      ]
     },
     {
       "id": "mortar_pit",
@@ -1571,13 +1589,18 @@
         "splash": 1.6,
         "targets": "ground"
       },
-      "visual": { "shot": "mortar",
+      "visual": {
+        "shot": "mortar",
         "shape": "cylinder",
         "height": 0.8,
         "model": {
           "glb": "colony_mortar_pit"
         }
-      }
+      },
+      "classes": [
+        "artillery",
+        "defense"
+      ]
     },
     {
       "id": "power_plant",
@@ -1617,7 +1640,8 @@
       }
     },
     {
-      "id": "laboratory", "lab": true,
+      "id": "laboratory",
+      "lab": true,
       "name": "Laboratory",
       "structure": true,
       "buildable": true,
@@ -1725,7 +1749,8 @@
           0.16
         ],
         "model": {
-          "glb": "real_vaz2106", "turret": "raider_buggy"
+          "glb": "real_vaz2106",
+          "turret": "raider_buggy"
         }
       }
     },
@@ -1783,7 +1808,8 @@
         "splash": 1.6,
         "targets": "ground"
       },
-      "visual": { "shot": "mortar",
+      "visual": {
+        "shot": "mortar",
         "shape": "cube",
         "height": 1.2,
         "tint": [
@@ -1871,7 +1897,10 @@
         "model": {
           "glb": "colony_kshm"
         }
-      }
+      },
+      "classes": [
+        "support"
+      ]
     },
     {
       "id": "hq",
@@ -1918,7 +1947,11 @@
         }
       },
       "repair": 15,
-      "repairRange": 3
+      "repairRange": 3,
+      "classes": [
+        "light",
+        "support"
+      ]
     },
     {
       "id": "uaz",
@@ -1955,9 +1988,14 @@
         "shape": "sphere",
         "height": 1.0,
         "model": {
-          "glb": "real_uaz469", "turret": "colony_uaz"
+          "glb": "real_uaz469",
+          "turret": "colony_uaz"
         }
-      }
+      },
+      "classes": [
+        "light",
+        "recon"
+      ]
     },
     {
       "id": "mtlb",
@@ -1997,7 +2035,11 @@
         "model": {
           "glb": "colony_mtlb"
         }
-      }
+      },
+      "classes": [
+        "armor",
+        "light"
+      ]
     },
     {
       "id": "tractor_tank",
@@ -2036,23 +2078,1090 @@
         "model": {
           "glb": "real_t26"
         }
+      },
+      "classes": [
+        "armor",
+        "tank"
+      ]
+    },
+    {
+      "id": "grad",
+      "name": "BM-21 Grad",
+      "cost": 260,
+      "maxHp": 380,
+      "armor": 1,
+      "armorType": "heavy",
+      "radius": 0.75,
+      "speed": 2.8,
+      "sight": 18,
+      "accel": 3.0,
+      "turnRate": 2.2,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 18,
+      "weapon": {
+        "type": "explosive",
+        "damage": 26,
+        "range": 17,
+        "cooldown": 11,
+        "projectileSpeed": 15,
+        "splash": 1.5,
+        "burst": 12,
+        "burstGap": 0.09,
+        "spread": 2.6,
+        "turnRate": 2.0,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.4,
+        "shot": "rocket",
+        "model": {
+          "glb": "colony_grad"
+        }
+      },
+      "classes": [
+        "artillery",
+        "missile"
+      ]
+    },
+    {
+      "id": "atgm_uaz",
+      "name": "UAZ Konkurs",
+      "cost": 120,
+      "maxHp": 200,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.5,
+      "speed": 6.2,
+      "sight": 11,
+      "accel": 8.0,
+      "turnRate": 5.0,
+      "producedAt": [
+        "workshop"
+      ],
+      "produceTime": 9,
+      "weapon": {
+        "type": "piercing",
+        "damage": 95,
+        "range": 10,
+        "cooldown": 4.5,
+        "projectileSpeed": 13,
+        "guided": 3.5,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "sphere",
+        "height": 1.0,
+        "shot": "missile",
+        "model": {
+          "glb": "real_uaz469",
+          "turret": "colony_atgm"
+        }
+      },
+      "classes": [
+        "light",
+        "recon",
+        "missile"
+      ]
+    },
+    {
+      "id": "fpv_drone",
+      "name": "FPV Drone",
+      "cost": 35,
+      "maxHp": 30,
+      "armor": 0,
+      "armorType": "light",
+      "radius": 0.32,
+      "speed": 9.0,
+      "sight": 9,
+      "accel": 14.0,
+      "turnRate": 8.0,
+      "air": true,
+      "producedAt": [
+        "workshop"
+      ],
+      "produceTime": 4,
+      "priority": 1.5,
+      "weapon": {
+        "type": "explosive",
+        "damage": 130,
+        "range": 0.6,
+        "cooldown": 1,
+        "splash": 1.0,
+        "suicide": true,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "sphere",
+        "height": 0.5,
+        "model": {
+          "glb": "colony_fpv_drone"
+        },
+        "fit": 1.6
+      },
+      "classes": [
+        "air",
+        "drone"
+      ]
+    },
+    {
+      "id": "missile_silo",
+      "name": "Missile Silo",
+      "sight": 35,
+      "structure": true,
+      "buildable": true,
+      "cost": 650,
+      "maxHp": 2500,
+      "armor": 6,
+      "radius": 1.4,
+      "buildTime": 40,
+      "priority": 2.5,
+      "weapon": {
+        "type": "explosive",
+        "damage": 420,
+        "range": 34,
+        "cooldown": 20,
+        "projectileSpeed": 11,
+        "splash": 3.2,
+        "turnRate": 12,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.6,
+        "shot": "ballistic",
+        "model": {
+          "glb": "colony_missile_silo"
+        }
+      },
+      "classes": [
+        "missile",
+        "artillery"
+      ]
+    },
+    {
+      "id": "raider_rocket",
+      "name": "Rocket Technical",
+      "maxHp": 300,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.65,
+      "speed": 4.0,
+      "sight": 12,
+      "bounty": 30,
+      "accel": 5.0,
+      "turnRate": 3.0,
+      "weapon": {
+        "type": "explosive",
+        "damage": 22,
+        "range": 11,
+        "cooldown": 7,
+        "projectileSpeed": 14,
+        "splash": 1.2,
+        "burst": 4,
+        "burstGap": 0.15,
+        "spread": 1.4,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.2,
+        "tint": [
+          0.86,
+          0.46,
+          0.16
+        ],
+        "shot": "rocket",
+        "model": {
+          "glb": "real_jeep_gun",
+          "turret": "raider_rocket_rack"
+        }
       }
     },
-    {"id": "grad", "name": "BM-21 Grad", "cost": 260, "maxHp": 380, "armor": 1, "armorType": "heavy", "radius": 0.75, "speed": 2.8, "sight": 18, "accel": 3.0, "turnRate": 2.2, "producedAt": ["tank_shop"], "produceTime": 18, "weapon": {"type": "explosive", "damage": 26, "range": 17, "cooldown": 11, "projectileSpeed": 15, "splash": 1.5, "burst": 12, "burstGap": 0.09, "spread": 2.6, "turnRate": 2.0, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.4, "shot": "rocket", "model": {"glb": "colony_grad"}}},
-    {"id": "atgm_uaz", "name": "UAZ Konkurs", "cost": 120, "maxHp": 200, "armor": 1, "armorType": "light", "radius": 0.5, "speed": 6.2, "sight": 11, "accel": 8.0, "turnRate": 5.0, "producedAt": ["workshop"], "produceTime": 9, "weapon": {"type": "piercing", "damage": 95, "range": 10, "cooldown": 4.5, "projectileSpeed": 13, "guided": 3.5, "targets": "ground"}, "visual": {"shape": "sphere", "height": 1.0, "shot": "missile", "model": {"glb": "real_uaz469", "turret": "colony_atgm"}}},
-    {"id": "fpv_drone", "name": "FPV Drone", "cost": 35, "maxHp": 30, "armor": 0, "armorType": "light", "radius": 0.32, "speed": 9.0, "sight": 9, "accel": 14.0, "turnRate": 8.0, "air": true, "producedAt": ["workshop"], "produceTime": 4, "priority": 1.5, "weapon": {"type": "explosive", "damage": 130, "range": 0.6, "cooldown": 1, "splash": 1.0, "suicide": true, "targets": "ground"}, "visual": {"shape": "sphere", "height": 0.5, "model": {"glb": "colony_fpv_drone"}, "fit": 1.6}},
-    {"id": "missile_silo", "name": "Missile Silo", "sight": 35, "structure": true, "buildable": true, "cost": 650, "maxHp": 2500, "armor": 6, "radius": 1.4, "buildTime": 40, "priority": 2.5, "weapon": {"type": "explosive", "damage": 420, "range": 34, "cooldown": 20, "projectileSpeed": 11, "splash": 3.2, "turnRate": 12, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.6, "shot": "ballistic", "model": {"glb": "colony_missile_silo"}}},
-    {"id": "raider_rocket", "name": "Rocket Technical", "maxHp": 300, "armor": 1, "armorType": "light", "radius": 0.65, "speed": 4.0, "sight": 12, "bounty": 30, "accel": 5.0, "turnRate": 3.0, "weapon": {"type": "explosive", "damage": 22, "range": 11, "cooldown": 7, "projectileSpeed": 14, "splash": 1.2, "burst": 4, "burstGap": 0.15, "spread": 1.4, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.2, "tint": [0.86, 0.46, 0.16], "shot": "rocket", "model": {"glb": "real_jeep_gun", "turret": "raider_rocket_rack"}}},
-    {"id": "raider_drone", "name": "Marauder FPV", "maxHp": 25, "armor": 0, "armorType": "light", "radius": 0.3, "speed": 9.5, "sight": 9, "bounty": 6, "accel": 14.0, "turnRate": 8.0, "air": true, "priority": 1.5, "weapon": {"type": "explosive", "damage": 90, "range": 0.6, "cooldown": 1, "splash": 0.9, "suicide": true, "targets": "ground"}, "visual": {"shape": "sphere", "height": 0.5, "tint": [0.86, 0.46, 0.16], "model": {"glb": "colony_fpv_drone"}, "fit": 1.6}},
-    {"id": "t72", "name": "T-72B", "cost": 380, "maxHp": 1300, "armor": 7, "armorType": "heavy", "radius": 0.85, "speed": 3.4, "sight": 10, "accel": 3.5, "turnRate": 1.8, "producedAt": ["tank_shop"], "produceTime": 30, "weapon": {"type": "piercing", "damage": 90, "range": 8, "cooldown": 2.4, "projectileSpeed": 34, "turnRate": 1.6, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.3, "model": {"glb": "colony_t72"}}},
-    {"id": "bmp1", "name": "BMP-1", "cost": 200, "maxHp": 600, "armor": 3, "armorType": "heavy", "radius": 0.7, "speed": 4.6, "sight": 10, "accel": 3.5, "turnRate": 2.6, "producedAt": ["tank_shop"], "produceTime": 16, "transport": 4, "weapon": {"type": "piercing", "damage": 34, "range": 7, "cooldown": 1.4, "projectileSpeed": 30, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.3, "model": {"glb": "colony_bmp1"}}},
-    {"id": "btr80", "name": "BTR-80 Gatling", "cost": 170, "maxHp": 520, "armor": 2, "armorType": "heavy", "radius": 0.72, "speed": 5.6, "sight": 10, "accel": 3.5, "turnRate": 3.0, "producedAt": ["tank_shop"], "produceTime": 14, "transport": 6, "weapon": {"type": "kinetic", "damage": 6, "range": 7, "cooldown": 0.06, "projectileSpeed": 64, "targets": "both"}, "visual": {"shape": "cube", "height": 1.3, "model": {"glb": "colony_btr80"}, "spin": true}},
-    {"id": "shilka", "name": "ZSU-23-4 Shilka", "cost": 240, "maxHp": 520, "armor": 3, "armorType": "heavy", "radius": 0.75, "speed": 4.0, "sight": 11, "accel": 3.5, "turnRate": 2.2, "producedAt": ["tank_shop"], "produceTime": 18, "weapon": {"type": "kinetic", "damage": 10, "range": 10, "cooldown": 0.07, "projectileSpeed": 64, "turnRate": 4, "targets": "both"}, "visual": {"shape": "cube", "height": 1.3, "model": {"glb": "colony_shilka"}}},
-    {"id": "gvozdika", "name": "2S1 Gvozdika", "cost": 300, "maxHp": 520, "armor": 3, "armorType": "heavy", "radius": 0.78, "speed": 3.6, "sight": 21, "accel": 3.5, "turnRate": 2.2, "producedAt": ["tank_shop"], "produceTime": 22, "weapon": {"type": "explosive", "damage": 75, "range": 20, "cooldown": 5, "projectileSpeed": 14, "splash": 1.8, "turnRate": 1.5, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.3, "model": {"glb": "colony_gvozdika"}, "shot": "artillery"}},
-    {"id": "tochka", "name": "9K79 Tochka", "cost": 520, "maxHp": 450, "armor": 2, "armorType": "heavy", "radius": 0.85, "speed": 3.0, "sight": 42, "accel": 3.5, "turnRate": 1.6, "producedAt": ["tank_shop"], "produceTime": 40, "weapon": {"type": "explosive", "damage": 520, "range": 40, "cooldown": 32, "projectileSpeed": 12, "splash": 3.6, "turnRate": 1.0, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.3, "model": {"glb": "colony_tochka"}, "shot": "ballistic"}},
-    {"id": "tos1", "name": "TOS-1 Buratino", "cost": 420, "maxHp": 1000, "armor": 6, "armorType": "heavy", "radius": 0.85, "speed": 3.2, "sight": 11, "accel": 3.5, "turnRate": 1.8, "producedAt": ["tank_shop"], "produceTime": 32, "weapon": {"type": "explosive", "damage": 60, "range": 10, "cooldown": 14, "projectileSpeed": 13, "splash": 2.4, "burst": 8, "burstGap": 0.12, "spread": 2.0, "turnRate": 1.4, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.3, "model": {"glb": "colony_tos1"}, "shot": "rocket"}},
-    {"id": "howitzer", "name": "D-30 Howitzer", "structure": true, "buildable": true, "cost": 320, "maxHp": 1400, "armor": 4, "radius": 1.0, "buildTime": 18, "weapon": {"type": "explosive", "damage": 80, "range": 24, "cooldown": 5.5, "projectileSpeed": 14, "splash": 2.0, "turnRate": 1.5, "targets": "ground"}, "visual": {"shape": "cylinder", "height": 1.0, "shot": "artillery", "model": {"glb": "colony_howitzer"}}},
-    {"id": "rotary_tower", "name": "Rotary MG Tower", "structure": true, "buildable": true, "cost": 260, "maxHp": 1500, "armor": 5, "radius": 0.9, "buildTime": 14, "weapon": {"type": "kinetic", "damage": 6, "range": 9, "cooldown": 0.05, "projectileSpeed": 64, "turnRate": 4, "targets": "both"}, "visual": {"shape": "cylinder", "height": 1.6, "spin": true, "model": {"glb": "colony_rotary_tower"}}},
-    {"id": "raider_gatling", "name": "Gatling Technical", "maxHp": 300, "armor": 1, "armorType": "light", "radius": 0.65, "speed": 4.0, "sight": 9, "bounty": 25, "accel": 5.0, "turnRate": 3.0, "weapon": {"type": "kinetic", "damage": 5, "range": 7, "cooldown": 0.07, "projectileSpeed": 64, "targets": "both"}, "visual": {"shape": "cube", "height": 1.2, "tint": [0.86, 0.46, 0.16], "spin": true, "model": {"glb": "real_jeep_gun", "turret": "raider_gatling_mount"}}}
+    {
+      "id": "raider_drone",
+      "name": "Marauder FPV",
+      "maxHp": 25,
+      "armor": 0,
+      "armorType": "light",
+      "radius": 0.3,
+      "speed": 9.5,
+      "sight": 9,
+      "bounty": 6,
+      "accel": 14.0,
+      "turnRate": 8.0,
+      "air": true,
+      "priority": 1.5,
+      "weapon": {
+        "type": "explosive",
+        "damage": 90,
+        "range": 0.6,
+        "cooldown": 1,
+        "splash": 0.9,
+        "suicide": true,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "sphere",
+        "height": 0.5,
+        "tint": [
+          0.86,
+          0.46,
+          0.16
+        ],
+        "model": {
+          "glb": "colony_fpv_drone"
+        },
+        "fit": 1.6
+      }
+    },
+    {
+      "id": "t72",
+      "name": "T-72B",
+      "cost": 380,
+      "maxHp": 1300,
+      "armor": 7,
+      "armorType": "heavy",
+      "radius": 0.85,
+      "speed": 3.4,
+      "sight": 10,
+      "accel": 3.5,
+      "turnRate": 1.8,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 30,
+      "weapon": {
+        "type": "piercing",
+        "damage": 90,
+        "range": 8,
+        "cooldown": 2.4,
+        "projectileSpeed": 34,
+        "turnRate": 1.6,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_t72"
+        }
+      },
+      "classes": [
+        "armor",
+        "tank"
+      ]
+    },
+    {
+      "id": "bmp1",
+      "name": "BMP-1",
+      "cost": 200,
+      "maxHp": 600,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 0.7,
+      "speed": 4.6,
+      "sight": 10,
+      "accel": 3.5,
+      "turnRate": 2.6,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 16,
+      "transport": 4,
+      "weapon": {
+        "type": "piercing",
+        "damage": 34,
+        "range": 7,
+        "cooldown": 1.4,
+        "projectileSpeed": 30,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_bmp1"
+        }
+      },
+      "classes": [
+        "armor"
+      ]
+    },
+    {
+      "id": "btr80",
+      "name": "BTR-80 Gatling",
+      "cost": 170,
+      "maxHp": 520,
+      "armor": 2,
+      "armorType": "heavy",
+      "radius": 0.72,
+      "speed": 5.6,
+      "sight": 10,
+      "accel": 3.5,
+      "turnRate": 3.0,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 14,
+      "transport": 6,
+      "weapon": {
+        "type": "kinetic",
+        "damage": 6,
+        "range": 7,
+        "cooldown": 0.06,
+        "projectileSpeed": 64,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_btr80"
+        },
+        "spin": true
+      },
+      "classes": [
+        "armor",
+        "light"
+      ]
+    },
+    {
+      "id": "shilka",
+      "name": "ZSU-23-4 Shilka",
+      "cost": 240,
+      "maxHp": 520,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 0.75,
+      "speed": 4.0,
+      "sight": 11,
+      "accel": 3.5,
+      "turnRate": 2.2,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 18,
+      "weapon": {
+        "type": "kinetic",
+        "damage": 10,
+        "range": 10,
+        "cooldown": 0.07,
+        "projectileSpeed": 64,
+        "turnRate": 4,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_shilka"
+        }
+      },
+      "classes": [
+        "armor",
+        "aa"
+      ]
+    },
+    {
+      "id": "gvozdika",
+      "name": "2S1 Gvozdika",
+      "cost": 300,
+      "maxHp": 520,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 0.78,
+      "speed": 3.6,
+      "sight": 21,
+      "accel": 3.5,
+      "turnRate": 2.2,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 22,
+      "weapon": {
+        "type": "explosive",
+        "damage": 75,
+        "range": 20,
+        "cooldown": 5,
+        "projectileSpeed": 14,
+        "splash": 1.8,
+        "turnRate": 1.5,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_gvozdika"
+        },
+        "shot": "artillery"
+      },
+      "classes": [
+        "armor",
+        "artillery"
+      ]
+    },
+    {
+      "id": "tochka",
+      "name": "9K79 Tochka",
+      "cost": 520,
+      "maxHp": 450,
+      "armor": 2,
+      "armorType": "heavy",
+      "radius": 0.85,
+      "speed": 3.0,
+      "sight": 42,
+      "accel": 3.5,
+      "turnRate": 1.6,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 40,
+      "weapon": {
+        "type": "explosive",
+        "damage": 520,
+        "range": 40,
+        "cooldown": 32,
+        "projectileSpeed": 12,
+        "splash": 3.6,
+        "turnRate": 1.0,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_tochka"
+        },
+        "shot": "ballistic"
+      },
+      "classes": [
+        "artillery",
+        "missile"
+      ]
+    },
+    {
+      "id": "tos1",
+      "name": "TOS-1 Buratino",
+      "cost": 420,
+      "maxHp": 1000,
+      "armor": 6,
+      "armorType": "heavy",
+      "radius": 0.85,
+      "speed": 3.2,
+      "sight": 11,
+      "accel": 3.5,
+      "turnRate": 1.8,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 32,
+      "weapon": {
+        "type": "explosive",
+        "damage": 60,
+        "range": 10,
+        "cooldown": 14,
+        "projectileSpeed": 13,
+        "splash": 2.4,
+        "burst": 8,
+        "burstGap": 0.12,
+        "spread": 2.0,
+        "turnRate": 1.4,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_tos1"
+        },
+        "shot": "rocket"
+      },
+      "classes": [
+        "armor",
+        "artillery"
+      ]
+    },
+    {
+      "id": "howitzer",
+      "name": "D-30 Howitzer",
+      "structure": true,
+      "buildable": true,
+      "cost": 320,
+      "maxHp": 1400,
+      "armor": 4,
+      "radius": 1.0,
+      "buildTime": 18,
+      "weapon": {
+        "type": "explosive",
+        "damage": 80,
+        "range": 24,
+        "cooldown": 5.5,
+        "projectileSpeed": 14,
+        "splash": 2.0,
+        "turnRate": 1.5,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cylinder",
+        "height": 1.0,
+        "shot": "artillery",
+        "model": {
+          "glb": "colony_howitzer"
+        }
+      },
+      "classes": [
+        "artillery",
+        "defense"
+      ]
+    },
+    {
+      "id": "rotary_tower",
+      "name": "Rotary MG Tower",
+      "structure": true,
+      "buildable": true,
+      "cost": 260,
+      "maxHp": 1500,
+      "armor": 5,
+      "radius": 0.9,
+      "buildTime": 14,
+      "weapon": {
+        "type": "kinetic",
+        "damage": 6,
+        "range": 9,
+        "cooldown": 0.05,
+        "projectileSpeed": 64,
+        "turnRate": 4,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cylinder",
+        "height": 1.6,
+        "spin": true,
+        "model": {
+          "glb": "colony_rotary_tower"
+        }
+      },
+      "classes": [
+        "defense"
+      ]
+    },
+    {
+      "id": "raider_gatling",
+      "name": "Gatling Technical",
+      "maxHp": 300,
+      "armor": 1,
+      "armorType": "light",
+      "radius": 0.65,
+      "speed": 4.0,
+      "sight": 9,
+      "bounty": 25,
+      "accel": 5.0,
+      "turnRate": 3.0,
+      "weapon": {
+        "type": "kinetic",
+        "damage": 5,
+        "range": 7,
+        "cooldown": 0.07,
+        "projectileSpeed": 64,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.2,
+        "tint": [
+          0.86,
+          0.46,
+          0.16
+        ],
+        "spin": true,
+        "model": {
+          "glb": "real_jeep_gun",
+          "turret": "raider_gatling_mount"
+        }
+      }
+    },
+    {
+      "id": "brdm2",
+      "name": "BRDM-2",
+      "classes": [
+        "armor",
+        "light",
+        "recon"
+      ],
+      "cost": 130,
+      "maxHp": 420,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 0.62,
+      "speed": 6.4,
+      "sight": 14,
+      "accel": 7.0,
+      "turnRate": 3.8,
+      "producedAt": [
+        "workshop"
+      ],
+      "produceTime": 10,
+      "research": "recon",
+      "auras": [
+        "spotter_aura"
+      ],
+      "weapon": {
+        "type": "kinetic",
+        "damage": 14,
+        "range": 7,
+        "cooldown": 0.28,
+        "projectileSpeed": 60,
+        "turnRate": 4,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.0,
+        "model": {
+          "glb": "colony_brdm2"
+        }
+      }
+    },
+    {
+      "id": "orlan",
+      "name": "Orlan-10 UAV",
+      "classes": [
+        "air",
+        "drone",
+        "recon"
+      ],
+      "cost": 90,
+      "maxHp": 110,
+      "armor": 0,
+      "armorType": "light",
+      "radius": 0.5,
+      "speed": 7.5,
+      "sight": 20,
+      "accel": 8.0,
+      "turnRate": 3.0,
+      "air": true,
+      "producedAt": [
+        "workshop"
+      ],
+      "produceTime": 8,
+      "research": "uav",
+      "priority": 1.0,
+      "auras": [
+        "uav_spotter"
+      ],
+      "visual": {
+        "shape": "cube",
+        "height": 0.5,
+        "model": {
+          "glb": "colony_orlan"
+        },
+        "fit": 1.4
+      }
+    },
+    {
+      "id": "sprut",
+      "name": "2S25 Sprut",
+      "classes": [
+        "armor",
+        "tank",
+        "light"
+      ],
+      "cost": 300,
+      "maxHp": 760,
+      "armor": 4,
+      "armorType": "heavy",
+      "radius": 0.8,
+      "speed": 5.2,
+      "sight": 11,
+      "accel": 5.0,
+      "turnRate": 2.4,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 22,
+      "research": "light_tanks",
+      "weapon": {
+        "type": "piercing",
+        "damage": 95,
+        "range": 9,
+        "cooldown": 2.6,
+        "projectileSpeed": 36,
+        "turnRate": 2.0,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_sprut"
+        }
+      }
+    },
+    {
+      "id": "t90",
+      "name": "T-90M",
+      "classes": [
+        "armor",
+        "tank"
+      ],
+      "cost": 480,
+      "maxHp": 1650,
+      "armor": 9,
+      "armorType": "heavy",
+      "radius": 0.88,
+      "speed": 3.6,
+      "sight": 12,
+      "accel": 3.5,
+      "turnRate": 1.9,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 36,
+      "research": "t90",
+      "weapon": {
+        "type": "piercing",
+        "damage": 115,
+        "range": 9.5,
+        "cooldown": 2.2,
+        "projectileSpeed": 38,
+        "turnRate": 1.8,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_t90"
+        }
+      }
+    },
+    {
+      "id": "brem",
+      "name": "BREM-1 Recovery",
+      "classes": [
+        "armor",
+        "support"
+      ],
+      "cost": 220,
+      "maxHp": 1100,
+      "armor": 6,
+      "armorType": "heavy",
+      "radius": 0.85,
+      "speed": 3.8,
+      "sight": 9,
+      "accel": 3.5,
+      "turnRate": 2.0,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 20,
+      "research": "recovery",
+      "repair": 28,
+      "repairRange": 5,
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_brem"
+        }
+      }
+    },
+    {
+      "id": "msta",
+      "name": "2S19 Msta-S",
+      "classes": [
+        "armor",
+        "artillery"
+      ],
+      "cost": 440,
+      "maxHp": 800,
+      "armor": 4,
+      "armorType": "heavy",
+      "radius": 0.9,
+      "speed": 3.2,
+      "sight": 28,
+      "accel": 3.0,
+      "turnRate": 1.7,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 32,
+      "research": "heavy_howitzer",
+      "weapon": {
+        "type": "explosive",
+        "damage": 150,
+        "range": 27,
+        "cooldown": 7,
+        "projectileSpeed": 15,
+        "splash": 2.2,
+        "turnRate": 1.2,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_msta"
+        },
+        "shot": "artillery"
+      }
+    },
+    {
+      "id": "tunguska",
+      "name": "2K22 Tunguska",
+      "classes": [
+        "armor",
+        "aa"
+      ],
+      "cost": 360,
+      "maxHp": 700,
+      "armor": 4,
+      "armorType": "heavy",
+      "radius": 0.8,
+      "speed": 4.0,
+      "sight": 14,
+      "accel": 3.5,
+      "turnRate": 2.2,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 24,
+      "research": "tunguska",
+      "requires": "radar_station",
+      "weapon": {
+        "type": "kinetic",
+        "damage": 16,
+        "range": 12,
+        "cooldown": 0.07,
+        "projectileSpeed": 68,
+        "turnRate": 4.5,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_tunguska"
+        },
+        "spin": true
+      }
+    },
+    {
+      "id": "buk",
+      "name": "9K37 Buk",
+      "classes": [
+        "armor",
+        "aa",
+        "missile"
+      ],
+      "cost": 420,
+      "maxHp": 600,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 0.85,
+      "speed": 3.6,
+      "sight": 24,
+      "accel": 3.5,
+      "turnRate": 1.9,
+      "producedAt": [
+        "tank_shop"
+      ],
+      "produceTime": 30,
+      "research": "sam",
+      "requires": "radar_station",
+      "weapon": {
+        "type": "explosive",
+        "damage": 170,
+        "range": 22,
+        "cooldown": 5,
+        "projectileSpeed": 18,
+        "splash": 0.8,
+        "guided": 4.0,
+        "burst": 2,
+        "burstGap": 0.5,
+        "turnRate": 2.0,
+        "targets": "air"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.3,
+        "model": {
+          "glb": "colony_buk"
+        },
+        "shot": "missile"
+      }
+    },
+    {
+      "id": "mi8",
+      "name": "Mi-8 Transport",
+      "classes": [
+        "air",
+        "support"
+      ],
+      "cost": 260,
+      "maxHp": 800,
+      "armor": 3,
+      "armorType": "heavy",
+      "radius": 1.2,
+      "speed": 6.0,
+      "sight": 10,
+      "accel": 5.0,
+      "turnRate": 2.4,
+      "air": true,
+      "transport": 8,
+      "producedAt": [
+        "helipad"
+      ],
+      "produceTime": 22,
+      "research": "helicopters",
+      "weapon": {
+        "type": "kinetic",
+        "damage": 10,
+        "range": 6,
+        "cooldown": 0.3,
+        "projectileSpeed": 60,
+        "targets": "both"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.4,
+        "model": {
+          "glb": "colony_mi8"
+        }
+      }
+    },
+    {
+      "id": "mi24",
+      "name": "Mi-24 Hind",
+      "classes": [
+        "air",
+        "attack"
+      ],
+      "cost": 420,
+      "maxHp": 950,
+      "armor": 4,
+      "armorType": "heavy",
+      "radius": 1.1,
+      "speed": 6.4,
+      "sight": 12,
+      "accel": 5.0,
+      "turnRate": 2.6,
+      "air": true,
+      "producedAt": [
+        "helipad"
+      ],
+      "produceTime": 30,
+      "research": "attack_helicopters",
+      "weapon": {
+        "type": "explosive",
+        "damage": 34,
+        "range": 10,
+        "cooldown": 7,
+        "projectileSpeed": 26,
+        "splash": 1.2,
+        "burst": 8,
+        "burstGap": 0.12,
+        "turnRate": 3.0,
+        "targets": "ground"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.4,
+        "model": {
+          "glb": "colony_mi24"
+        },
+        "shot": "rocket"
+      }
+    },
+    {
+      "id": "helipad",
+      "name": "Helipad",
+      "classes": [
+        "support"
+      ],
+      "structure": true,
+      "buildable": true,
+      "cost": 350,
+      "maxHp": 2400,
+      "armor": 4,
+      "radius": 1.7,
+      "buildTime": 18,
+      "research": "helicopters",
+      "visual": {
+        "shape": "cube",
+        "height": 1.6,
+        "model": {
+          "glb": "colony_helipad"
+        }
+      }
+    },
+    {
+      "id": "radar_station",
+      "name": "Radar Station",
+      "classes": [
+        "support",
+        "aa"
+      ],
+      "structure": true,
+      "buildable": true,
+      "cost": 200,
+      "maxHp": 1400,
+      "armor": 3,
+      "radius": 0.9,
+      "buildTime": 12,
+      "research": "radar",
+      "auras": [
+        "radar_net_aura"
+      ],
+      "visual": {
+        "shape": "cube",
+        "height": 2.0,
+        "model": {
+          "glb": "colony_radar_station"
+        },
+        "spin": true
+      }
+    },
+    {
+      "id": "sam_site",
+      "name": "S-125 SAM Site",
+      "classes": [
+        "aa",
+        "missile",
+        "defense"
+      ],
+      "structure": true,
+      "buildable": true,
+      "cost": 320,
+      "maxHp": 1300,
+      "armor": 4,
+      "radius": 1.1,
+      "buildTime": 16,
+      "research": "sam_site",
+      "requires": "radar_station",
+      "weapon": {
+        "type": "explosive",
+        "damage": 150,
+        "range": 20,
+        "cooldown": 4,
+        "projectileSpeed": 18,
+        "splash": 0.8,
+        "guided": 4.0,
+        "turnRate": 2.0,
+        "targets": "air"
+      },
+      "visual": {
+        "shape": "cube",
+        "height": 1.4,
+        "model": {
+          "glb": "colony_sam_site"
+        },
+        "shot": "missile"
+      }
+    }
   ]
 }

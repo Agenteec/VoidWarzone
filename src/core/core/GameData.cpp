@@ -280,6 +280,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         }
         def.builder = u.value("builder", def.builder);
         def.lab = u.value("lab", def.lab);
+        def.classes = u.value("classes", std::vector<std::string>{});
         def.deployOnly = u.value("deployOnly", false);
         def.produceTime = u.value("produceTime", std::max(2.0f, def.cost / 10.0f));
         {
@@ -434,6 +435,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             def.scope = scope == "vehicles" ? ResearchScope::Vehicles : scope == "structures" ? ResearchScope::Structures : ResearchScope::All;
             if (const auto w = t.find("weapon"); w != t.end())
                 def.weapon = static_cast<int>(parseDamage(w->get<std::string>()));
+            def.classes = t.value("classes", std::vector<std::string>{});
             if (index.contains(def.id))
                 throw std::runtime_error("duplicate research: " + def.id);
             const auto id = static_cast<ResearchId>(d.research_.size());

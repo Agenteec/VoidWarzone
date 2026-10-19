@@ -19,6 +19,12 @@
       "description": "Skirmish for up to 6 players. Winter: a frozen river splits a dead industrial town; three bridges, the fenced plant on the north bank and a ruined panel district on the south bank hold the richest points."
     },
     {
+      "id": "frozen_oblast",
+      "name": "Frozen Oblast",
+      "players": "2-16",
+      "description": "Huge skirmish map for up to 16 players. Winter: two frozen rivers cross the region and meet in a lake around a ruined island city; villages, depots and bridges between the bases."
+    },
+    {
       "id": "random",
       "name": "Random Map",
       "players": "2-8",

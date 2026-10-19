@@ -225,6 +225,39 @@ void App::renderShell(const net::InterpolatedEntity& e, Shell& shell, glm::vec3 
     }
 }
 
+void App::renderConstruction(const net::InterpolatedEntity& e, float height, float built) {
+    const float half = data_->unit(e.def).radius + 0.15f;
+    const float top = height * 1.08f;
+    const glm::vec4 steel{0.32f, 0.33f, 0.35f, 1.0f};
+    const glm::vec4 plank{0.52f, 0.4f, 0.26f, 1.0f};
+    for (const float sx : {-1.0f, 1.0f})
+        for (const float sz : {-1.0f, 1.0f})
+            renderer_.draw(Mesh::Cube, {e.pos.x + sx * half, top * 0.5f, e.pos.y + sz * half}, {0.06f, top, 0.06f}, 0.0f, steel, Lit);
+    const int levels = std::max(2, static_cast<int>(top / 0.45f));
+    for (int l = 1; l <= levels; ++l) {
+        const float y = top * static_cast<float>(l) / static_cast<float>(levels);
+        const glm::vec4 c = l % 2 ? steel : plank;
+        renderer_.draw(Mesh::Cube, {e.pos.x, y, e.pos.y - half}, {half * 2.0f, 0.04f, 0.05f}, 0.0f, c, Lit);
+        renderer_.draw(Mesh::Cube, {e.pos.x, y, e.pos.y + half}, {half * 2.0f, 0.04f, 0.05f}, 0.0f, c, Lit);
+        renderer_.draw(Mesh::Cube, {e.pos.x - half, y, e.pos.y}, {0.05f, 0.04f, half * 2.0f}, 0.0f, c, Lit);
+        renderer_.draw(Mesh::Cube, {e.pos.x + half, y, e.pos.y}, {0.05f, 0.04f, half * 2.0f}, 0.0f, c, Lit);
+    }
+    renderer_.draw(Mesh::Cube, {e.pos.x, 0.02f, e.pos.y}, {half * 2.2f, 0.03f, half * 2.2f}, 0.0f, {0.24f, 0.22f, 0.2f, 1.0f}, Lit);
+    const float edge = height * built;
+    if (fxRandom(0.0f, 1.0f) < frameDt_ * 7.0f * kFxDensity) {
+        const float a = fxRandom(0.0f, 6.2832f);
+        const glm::vec3 at{e.pos.x + std::cos(a) * half * 0.8f, edge + 0.05f, e.pos.y + std::sin(a) * half * 0.8f};
+        Particle flash{at, {}, {0.75f, 0.9f, 1.0f, 1.0f}, 0.5f, 0.2f, 0.12f, 0.0f, 0.0f, 0.0f, fxRandom(0.0f, 6.0f), ParticleKind::Glow};
+        flash.sprite = Sprite::Star;
+        addParticle(flash);
+        for (int i = 0; i < fxCount(5.0f); ++i)
+            addParticle({at, fxDirection(0.2f) * fxRandom(1.5f, 3.5f), {1.0f, 0.75f, 0.35f, 1.0f}, 0.035f, 0.02f, fxRandom(0.3f, 0.6f), 0.0f, 9.0f, 0.4f,
+                         0.0f, ParticleKind::Spark});
+    }
+    if (fxRandom(0.0f, 1.0f) < frameDt_ * 1.5f * kFxDensity)
+        smokePuff({e.pos.x + fxRandom(-half, half), 0.2f, e.pos.y + fxRandom(-half, half)}, {0.0f, 0.3f, 0.0f}, 0.4f, 1.4f, 1.6f, {0.62f, 0.58f, 0.52f, 0.35f});
+}
+
 void App::muzzleFx(const net::InterpolatedEntity& shooter) {
     const auto& def = data_->unit(shooter.def);
     const glm::vec3 m = muzzleOf(shooter);

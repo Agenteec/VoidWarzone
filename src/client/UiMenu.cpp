@@ -16,7 +16,8 @@ using namespace ui;
 
 namespace {
 
-constexpr const char* kColorNames[] = {"Green", "Blue", "Yellow", "Orange", "Purple", "Cyan", "Pink", "White"};
+constexpr const char* kColorNames[] = {"Green", "Blue",  "Yellow", "Orange", "Purple", "Cyan", "Pink", "White",
+                                       "Red",   "Navy",  "Lime",   "Brown",  "Teal",   "Magenta", "Gold", "Grey"};
 
 ImVec4 colorVec(std::size_t i, float alpha) {
     const std::uint32_t c = net::kPlayerColors[i];
@@ -496,14 +497,37 @@ void App::drawLobby() {
     const float leftW = ImGui::GetContentRegionAvail().x * 0.46f;
 
     ImGui::BeginChild("players", {leftW, bodyH}, ImGuiChildFlags_Borders);
+    const bool skirmish = info.mode == static_cast<std::uint8_t>(GameMode::Skirmish);
     ImGui::TextDisabled("PLAYERS  %d / %d", static_cast<int>(info.players.size()), info.maxPlayers);
-    float nameCol = 0.0f;
-    for (const auto& p : info.players)
-        nameCol = std::max(nameCol, ImGui::CalcTextSize((p.name + " (you)").c_str()).x);
-    for (int slot = 0; slot < info.maxPlayers; ++slot) {
-        ImGui::PushID(slot);
-        if (slot < static_cast<int>(info.players.size())) {
-            const auto& p = info.players[static_cast<std::size_t>(slot)];
+    ImGui::SameLine();
+    {
+        std::array<int, net::kLobbyTeams> perTeam{};
+        for (const auto& p : info.players)
+            ++perTeam[std::min<std::size_t>(p.team, perTeam.size() - 1)];
+        const int sides = static_cast<int>(std::count_if(perTeam.begin(), perTeam.end(), [](int n) { return n > 0; }));
+        std::string summary;
+        if (!skirmish)
+            summary = "co-op: everyone fights the Void together";
+        else if (sides <= 1)
+            summary = "free-for-all: everyone fights everyone";
+        else
+            for (int t = 0; t < net::kLobbyTeams; ++t)
+                if (perTeam[static_cast<std::size_t>(t)] > 0)
+                    summary += (summary.empty() ? "teams: " : " vs ") + std::to_string(perTeam[static_cast<std::size_t>(t)]);
+        ImGui::TextColored(toVec(kAccent), "  %s", summary.c_str());
+    }
+    const float rosterH = multiplayer ? std::max(150.0f * s, bodyH * 0.55f) : ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing() * 3.0f;
+    ImGui::BeginChild("roster", {0.0f, rosterH});
+    if (ImGui::BeginTable("##roster", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_PadOuterX)) {
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("Player", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Colour", ImGuiTableColumnFlags_WidthFixed, 100.0f * s);
+        ImGui::TableSetupColumn("Team", ImGuiTableColumnFlags_WidthFixed, 86.0f * s);
+        ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, 96.0f * s);
+        ImGui::TableHeadersRow();
+        for (const auto& p : info.players) {
+            ImGui::PushID(p.id);
+            ImGui::TableNextRow(0, ImGui::GetFrameHeight() + 4.0f * s);
             const bool me = p.id == net_.player();
             if (me && !setupSent_) {
                 setupSent_ = true;
@@ -511,6 +535,7 @@ void App::drawLobby() {
                     net_.sendPlayerSetup(p.id, static_cast<std::uint8_t>(preferredColor_), p.team);
             }
             const bool editable = me || leader;
+            ImGui::TableNextColumn();
             bool picked = lobbySelected_.contains(p.id);
             if (ImGui::Checkbox("##pick", &picked)) {
                 if (picked)
@@ -519,18 +544,31 @@ void App::drawLobby() {
                     lobbySelected_.erase(p.id);
             }
             ImGui::SetItemTooltip("Select for group actions");
-            ImGui::SameLine();
-            ImGui::TextColored(toVec(p.id == info.leader ? kEnergy : kDim), p.id == info.leader ? ICON_FA_STAR : ICON_FA_USERS);
-            ImGui::SameLine();
-            const float nameX = ImGui::GetCursorPosX();
-            ImGui::TextColored(toVec(me ? kGood : kText), "%s%s", p.name.c_str(), me ? " (you)" : "");
-            const float colorW = 96.0f * s;
-            const float teamW = 86.0f * s;
-            ImGui::SameLine();
-            ImGui::SetCursorPosX(nameX + nameCol + ImGui::GetStyle().ItemSpacing.x);
+
+            ImGui::TableNextColumn();
+            {
+                const ImVec2 a = ImGui::GetCursorScreenPos();
+                const float h = ImGui::GetFrameHeight();
+                ImGui::GetWindowDrawList()->AddRectFilled({a.x, a.y + 2.0f}, {a.x + 5.0f * s, a.y + h - 2.0f},
+                                                          ImGui::ColorConvertFloat4ToU32(colorVec(p.color, 1.0f)), 2.0f);
+                ImGui::Dummy({8.0f * s, h});
+                ImGui::SameLine();
+            }
+            if (p.bot) {
+                ImGui::TextColored(toVec(kAccent), ICON_FA_COGS);
+                ImGui::SameLine();
+            } else if (p.id == info.leader) {
+                ImGui::TextColored(toVec(kEnergy), ICON_FA_STAR);
+                ImGui::SetItemTooltip("Host: changes the settings and starts the match");
+                ImGui::SameLine();
+            }
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextColored(toVec(me ? kGood : kText), "%s%s", p.name.c_str(), me ? "  (you)" : "");
+
+            ImGui::TableNextColumn();
             ImGui::BeginDisabled(!editable);
-            ImGui::SetNextItemWidth(colorW);
-            if (ImGui::BeginCombo("##color", kColorNames[p.color])) {
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::BeginCombo("##color", kColorNames[p.color % std::size(kColorNames)])) {
                 for (std::size_t i = 0; i < net::kPlayerColors.size(); ++i) {
                     const bool taken = std::any_of(info.players.begin(), info.players.end(),
                                                    [&](const auto& o) { return o.id != p.id && o.color == i; });
@@ -549,14 +587,9 @@ void App::drawLobby() {
                 }
                 ImGui::EndCombo();
             }
-            {
-                const ImVec2 a = ImGui::GetItemRectMin();
-                const float h = ImGui::GetItemRectSize().y;
-                ImGui::GetWindowDrawList()->AddRectFilled({a.x + 3.0f, a.y + 3.0f}, {a.x + 7.0f * s, a.y + h - 3.0f},
-                                                          ImGui::ColorConvertFloat4ToU32(colorVec(p.color, 1.0f)), 2.0f);
-            }
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(teamW);
+
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(-1.0f);
             char teamLabel[16];
             std::snprintf(teamLabel, sizeof(teamLabel), "Team %d", p.team + 1);
             if (ImGui::BeginCombo("##team", teamLabel)) {
@@ -569,34 +602,46 @@ void App::drawLobby() {
                 ImGui::EndCombo();
             }
             ImGui::EndDisabled();
-            ImGui::SameLine();
+
+            ImGui::TableNextColumn();
+            ImGui::AlignTextToFramePadding();
             if (p.bot) {
-                ImGui::BeginDisabled(!leader);
-                if (ImGui::SmallButton(ICON_FA_TIMES "##rm"))
-                    net_.sendBot(false, p.id);
-                ImGui::EndDisabled();
-                ImGui::SetItemTooltip("Remove this AI player");
-            } else if (p.id != info.leader) {
-                ImGui::TextColored(toVec(p.ready ? kGood : kDim), p.ready ? ICON_FA_CHECK : ICON_FA_TIMES);
+                ImGui::TextDisabled("computer");
+                if (leader) {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton(ICON_FA_TIMES "##rm"))
+                        net_.sendBot(false, p.id);
+                    ImGui::SetItemTooltip("Remove this AI player");
+                }
+            } else if (p.id == info.leader) {
+                ImGui::TextColored(toVec(kEnergy), "host");
             } else {
-                ImGui::TextUnformatted("");
+                ImGui::TextColored(toVec(p.ready ? kGood : kBad), p.ready ? ICON_FA_CHECK " ready" : ICON_FA_TIMES " not ready");
             }
-            if (p.id != info.leader && !p.bot)
-                ImGui::SetItemTooltip(p.ready ? "ready" : "not ready");
-        } else {
-            ImGui::TextDisabled(ICON_FA_USERS "  open slot");
+            ImGui::PopID();
         }
-        ImGui::PopID();
-        if (slot > 10)
-            break;
+        const int open = info.maxPlayers - static_cast<int>(info.players.size());
+        if (open > 0) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TableNextColumn();
+            ImGui::TextDisabled(ICON_FA_USERS "  %d open slot%s", open, open == 1 ? "" : "s");
+        }
+        ImGui::EndTable();
     }
-    if (leader && info.mode == static_cast<std::uint8_t>(GameMode::Skirmish)) {
+    ImGui::EndChild();
+    if (leader && skirmish) {
         ImGui::BeginDisabled(static_cast<int>(info.players.size()) >= info.maxPlayers);
         if (ImGui::Button(ICON_FA_PLUS "  Add AI opponent"))
             net_.sendBot(true);
+        ImGui::SameLine();
+        if (ImGui::Button("Fill with AI"))
+            for (int i = static_cast<int>(info.players.size()); i < info.maxPlayers; ++i)
+                net_.sendBot(true);
         ImGui::EndDisabled();
         ImGui::SameLine();
-        ImGui::TextDisabled("same team for everyone = free-for-all");
+        ImGui::TextDisabled("(?)");
+        ImGui::SetItemTooltip("Put everyone on the same team for free-for-all, or split players into teams.");
     }
     std::erase_if(lobbySelected_, [&](std::uint8_t id) {
         return std::none_of(info.players.begin(), info.players.end(), [&](const auto& p) { return p.id == id; });
@@ -660,6 +705,55 @@ void App::drawLobby() {
     };
     if (!leader)
         ImGui::TextDisabled("Only the host can change the settings");
+    {
+        const auto it = std::find_if(maps_.begin(), maps_.end(), [&](const auto& m) {
+            return m.id == info.map || (m.id == "random" && info.map.rfind("random_", 0) == 0);
+        });
+        const float size = std::min(ImGui::GetContentRegionAvail().x * 0.42f, 220.0f * s);
+        const ImVec2 a = ImGui::GetCursorScreenPos();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        if (const auto* preview = mapPreview(info.map)) {
+            const float scale = size / static_cast<float>(std::max(preview->width, preview->height));
+            const ImVec2 o{a.x + (size - preview->width * scale) * 0.5f, a.y + (size - preview->height * scale) * 0.5f};
+            dl->AddImage(static_cast<ImTextureID>(renderer_.textureHandle(preview->texture).idx) + 1, o,
+                         {o.x + preview->width * scale, o.y + preview->height * scale});
+            for (const auto& pt : preview->points)
+                dl->AddCircleFilled({o.x + pt.x * scale, o.y + pt.y * scale}, 2.5f * s, IM_COL32(250, 210, 40, 255));
+            for (std::size_t i = 0; i < preview->slots.size(); ++i) {
+                const ImVec2 c{o.x + preview->slots[i].x * scale, o.y + preview->slots[i].y * scale};
+                const bool taken = i < info.players.size();
+                const ImU32 col = taken ? ImGui::ColorConvertFloat4ToU32(colorVec(info.players[i].color, 1.0f)) : IM_COL32(230, 230, 230, 200);
+                dl->AddCircleFilled(c, 6.0f * s, IM_COL32(10, 10, 14, 220));
+                dl->AddCircle(c, 6.0f * s, col, 0, 2.0f * s);
+                char n[4];
+                std::snprintf(n, sizeof(n), "%d", static_cast<int>(i + 1));
+                const ImVec2 ts = ImGui::CalcTextSize(n);
+                dl->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 0.75f, {c.x - ts.x * 0.375f, c.y - ts.y * 0.375f}, col, n);
+            }
+        } else {
+            dl->AddRectFilled(a, {a.x + size, a.y + size}, IM_COL32(20, 22, 30, 255));
+        }
+        dl->AddRect(a, {a.x + size, a.y + size}, IM_COL32(90, 100, 120, 255));
+        ImGui::Dummy({size, size});
+        ImGui::SameLine();
+        ImGui::BeginGroup();
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+        ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.25f);
+        ImGui::TextUnformatted(it != maps_.end() ? it->name.c_str() : info.map.c_str());
+        ImGui::PopFont();
+        if (it != maps_.end()) {
+            ImGui::TextColored(toVec(kAccent), "%s players", it->players.c_str());
+            ImGui::TextDisabled("%s", it->description.c_str());
+        }
+        ImGui::Spacing();
+        if (info.mode < modes_.size()) {
+            ImGui::Text("%s  -  %s", modes_[info.mode].name.c_str(), kDifficultyNames[std::min<int>(info.difficulty, 3)]);
+            ImGui::TextDisabled("%s", modes_[info.mode].description.c_str());
+        }
+        ImGui::PopTextWrapPos();
+        ImGui::EndGroup();
+        ImGui::Separator();
+    }
     ImGui::BeginDisabled(!leader);
     ImGui::TextDisabled("MAP");
     for (const auto& m : maps_) {
@@ -697,7 +791,7 @@ void App::drawLobby() {
         ImGui::Spacing();
         int maxPlayers = info.maxPlayers;
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
-        ImGui::SliderInt("Max players", &maxPlayers, 2, 8);
+        ImGui::SliderInt("Max players", &maxPlayers, 2, 16);
         if (ImGui::IsItemDeactivatedAfterEdit())
             send(info.map, info.mode, info.difficulty, maxPlayers);
     }
