@@ -109,8 +109,8 @@ void World::thinkAi(std::uint8_t p) {
     // Enemy picture: armed strength per team and how much of it flies.
     std::array<float, 256> enemyStrength{};
     int enemyArmed = 0, enemyAir = 0;
-    for (auto [e, unit, t] : registry_.view<const Unit, const Team>(entt::exclude<Carried>).each()) {
-        if (t.id == team || !alive(e))
+    for (auto [e, unit, t, pos] : registry_.view<const Unit, const Team, const Position>(entt::exclude<Carried>).each()) {
+        if (t.id == team || !alive(e) || !visibleTo(team, pos.value))
             continue;
         const auto& def = data_->unit(unit.def);
         if (!def.weapon || def.structure)
@@ -118,6 +118,11 @@ void World::thinkAi(std::uint8_t p) {
         enemyStrength[t.id] += def.maxHp;
         ++enemyArmed;
         enemyAir += registry_.all_of<Air>(e) ? 1 : 0;
+    }
+
+    for (std::size_t t = 0; t < enemyStrength.size() && t < ai.seenStrength.size(); ++t) {
+        ai.seenStrength[t] = std::max(ai.seenStrength[t] * 0.995f, enemyStrength[t]);
+        enemyStrength[t] = ai.seenStrength[t];
     }
 
     auto unlocked = [&](const UnitDef& def) {
@@ -271,7 +276,7 @@ void World::thinkAi(std::uint8_t p) {
     entt::entity threat = entt::null;
     float threatDist = 22.0f;
     for (auto [e, pos, t, unit] : registry_.view<const Position, const Team, const Unit>(entt::exclude<Carried>).each()) {
-        if (t.id == team || !alive(e) || !data_->unit(unit.def).weapon)
+        if (t.id == team || !alive(e) || !data_->unit(unit.def).weapon || !visibleTo(team, pos.value))
             continue;
         const float d = glm::distance(pos.value, home);
         if (d < threatDist) {
@@ -290,7 +295,7 @@ void World::thinkAi(std::uint8_t p) {
         entt::entity raid = entt::null;
         float best = 1e9f;
         for (auto [e, pos, t, unit] : registry_.view<const Position, const Team, const Unit, const Structure>().each()) {
-            if (t.id == team || t.id == kVoidTeam || !alive(e) || data_->unit(unit.def).weapon)
+            if (t.id == team || t.id == kVoidTeam || !alive(e) || data_->unit(unit.def).weapon || !exploredBy(team, pos.value))
                 continue;
             const float d = glm::distance(pos.value, home);
             if (d < best) {
@@ -306,7 +311,7 @@ void World::thinkAi(std::uint8_t p) {
 
     // Attacks: pick the enemy whose army is weakest relative to its distance, gather at a staging point, then go together.
     if (ai.stageUntil >= 0.0f) {
-        if (!alive(ai.target)) {
+        if (ai.target != entt::null && !alive(ai.target)) {
             ai.stageUntil = -1.0f;
         } else {
             std::vector<entt::entity> ready, late;
@@ -317,7 +322,7 @@ void World::thinkAi(std::uint8_t p) {
                 for (const auto e : army)
                     if (registry_.get<Order>(e).type != OrderType::Move && !data_->unit(registry_.get<Unit>(e).def).air)
                         group.push_back(e);
-                apply(MoveCommand{group, registry_.get<Position>(ai.target).value, true});
+                apply(MoveCommand{group, ai.target != entt::null ? registry_.get<Position>(ai.target).value : ai.goal, true});
                 ai.stageUntil = -1.0f;
                 ai.attackSize = std::min(30, ai.attackSize + 3);
                 ai.nextAttack = missionTime() + 40.0f;
@@ -330,8 +335,14 @@ void World::thinkAi(std::uint8_t p) {
     if (static_cast<int>(idle.size()) >= ai.attackSize && missionTime() >= ai.nextAttack) {
         entt::entity target = entt::null;
         float best = 1e9f;
+        auto known = [&](entt::entity e, glm::vec2 at) {
+            if (exploredBy(team, at))
+                return true;
+            const auto* owner = registry_.try_get<Owner>(e);
+            return owner && glm::distance(at, startOf(owner->player)) < 30.0f;
+        };
         for (auto [e, pos, t] : registry_.view<const Position, const Team, const Structure>().each()) {
-            if (t.id == team || t.id == kVoidTeam || !alive(e))
+            if (t.id == team || t.id == kVoidTeam || !alive(e) || !known(e, pos.value))
                 continue;
             const float d = glm::distance(pos.value, home) * (0.6f + enemyStrength[t.id] / (strength + 1.0f));
             if (d < best) {
@@ -341,7 +352,7 @@ void World::thinkAi(std::uint8_t p) {
         }
         if (target == entt::null)
             for (auto [e, pos, t] : registry_.view<const Position, const Team>().each()) {
-                if (t.id == team || !alive(e))
+                if (t.id == team || !alive(e) || !visibleTo(team, pos.value))
                     continue;
                 const float d = glm::distance(pos.value, home);
                 if (d < best) {
@@ -349,19 +360,36 @@ void World::thinkAi(std::uint8_t p) {
                     target = e;
                 }
             }
+        glm::vec2 to{};
         if (target != entt::null) {
-            const glm::vec2 to = registry_.get<Position>(target).value;
-            const auto path = findPath(navMap(), home, to);
-            ai.target = target;
-            ai.stage = home;
-            float walked = 0.0f;
-            for (std::size_t i = 1; i < path.size() && walked < 28.0f; ++i) {
-                walked += glm::distance(path[i - 1], path[i]);
-                ai.stage = path[i];
+            to = registry_.get<Position>(target).value;
+        } else {
+            // nothing scouted yet: head for the start position of the nearest living enemy (start positions are public)
+            float bestStart = 1e9f;
+            for (std::size_t q = 0; q < players_.size(); ++q) {
+                const auto& other = players_[q];
+                if (!other.active || other.team == team)
+                    continue;
+                const glm::vec2 at = startOf(static_cast<std::uint8_t>(q));
+                if (glm::distance(at, home) < bestStart) {
+                    bestStart = glm::distance(at, home);
+                    to = at;
+                }
             }
-            ai.stageUntil = missionTime() + 25.0f;
-            apply(MoveCommand{idle, ai.stage, true});
+            if (bestStart >= 1e9f)
+                return;
         }
+        const auto path = findPath(navMap(), home, to);
+        ai.target = target;
+        ai.goal = to;
+        ai.stage = home;
+        float walked = 0.0f;
+        for (std::size_t i = 1; i < path.size() && walked < 28.0f; ++i) {
+            walked += glm::distance(path[i - 1], path[i]);
+            ai.stage = path[i];
+        }
+        ai.stageUntil = missionTime() + 25.0f;
+        apply(MoveCommand{idle, ai.stage, true});
         return;
     }
     if (idle.size() >= 3 && map_) {

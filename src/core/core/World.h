@@ -126,6 +126,13 @@ public:
     void handle(const StructureCommand& cmd);
     void handle(const CheatCommand& cmd);
     void setCheats(bool on) { cheats_ = on; }
+    // Fog of war: per-team grids, bit 0 = visible now, bit 1 = explored. Without fog everything counts as seen.
+    void setFog(bool on) { fog_ = on; }
+    bool fog() const { return fog_; }
+    int sidesLeft() const { return sidesLeft_; }
+    bool visibleTo(std::uint8_t team, glm::vec2 pos) const;
+    bool exploredBy(std::uint8_t team, glm::vec2 pos) const;
+    void updateVisibility();
     bool cheats() const { return cheats_; }
     bool researched(std::uint8_t player, ResearchId topic) const;
     bool canResearch(std::uint8_t player, ResearchId topic) const;
@@ -301,13 +308,19 @@ private:
         int buildTry = 0;
         float stageUntil = -1.0f;
         glm::vec2 stage{};
+        glm::vec2 goal{};
+        std::array<float, 32> seenStrength{};
         entt::entity target = entt::null;
     };
     std::array<AiState, kMaxPlayers> ai_{};
     int skirmishSlots_ = 0;
     int skirmishTeams_ = 0;
+    int sidesLeft_ = 0;
     void refreshOwned(std::uint8_t player);
     bool cheats_ = false;
+    bool fog_ = false;
+    std::unordered_map<std::uint8_t, std::vector<std::uint8_t>> vision_;
+    std::uint8_t visionBits(std::uint8_t team, glm::vec2 pos) const;
     void runAction(const MissionAction& action);
     bool tagAlive(const std::string& tag) const;
     bool playerNear(glm::vec2 pos, float radius) const;

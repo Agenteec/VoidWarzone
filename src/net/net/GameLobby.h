@@ -34,6 +34,7 @@ struct LobbyInfo {
     std::uint8_t maxPlayers = 8;
     std::uint8_t leader = 0xff;
     bool cheats = false;
+    bool fog = true;
     std::vector<LobbyPlayer> players;
 };
 

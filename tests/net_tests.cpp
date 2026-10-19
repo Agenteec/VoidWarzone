@@ -209,6 +209,41 @@ TEST_CASE("server and client over loopback") {
     CHECK(server.playerCount() == 0);
 }
 
+TEST_CASE("fog of war hides unseen enemies from snapshots") {
+    NetLibrary lib;
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
+    const auto map = Map::parse(readData("maps/siege_test.json"));
+    auto run = [&](bool fog) {
+        server::ServerConfig config;
+        config.port = 0;
+        config.fog = fog;
+        server::Server server(data, map, config);
+        double now = 0.0;
+        REQUIRE(server.start(now));
+        NetClient client;
+        REQUIRE(client.connect(Address::loopback(server.port()), data.hash(), "tester", now));
+        while (now < 1.0) {
+            now += 1.0 / 120.0;
+            server.update(now);
+            client.update(now);
+            std::this_thread::yield();
+        }
+        REQUIRE(client.hasSnapshot());
+        int own = 0;
+        int enemies = 0;
+        for (const auto& e : client.latest()->entities)
+            if (e.kind == EntityKind::Unit)
+                (e.team == 0 ? own : enemies) += 1;
+        CHECK(client.latest()->game.fog == (fog ? 1 : 0));
+        CHECK(own > 0);
+        return enemies;
+    };
+    const int open = run(false);
+    const int fogged = run(true);
+    CHECK(open > 0);
+    CHECK(fogged < open);
+}
+
 TEST_CASE("lobby picks map and mode, starts and returns") {
     NetLibrary lib;
     const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));

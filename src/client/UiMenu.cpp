@@ -784,6 +784,11 @@ void App::drawLobby() {
             send(info.map, info.mode, i, info.maxPlayers);
     }
     ImGui::Spacing();
+    bool fog = info.fog;
+    if (ImGui::Checkbox("Fog of war", &fog))
+        net_.sendFog(fog);
+    ImGui::SetItemTooltip("Enemies are visible only within sight of your units and buildings; explored ground stays darkened.");
+    ImGui::SameLine();
     bool cheats = info.cheats;
     if (ImGui::Checkbox("Cheats (debug menu F9 in game)", &cheats))
         net_.sendCheats(cheats);

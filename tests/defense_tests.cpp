@@ -465,6 +465,37 @@ TEST_CASE("labs research upgrades and unlock units") {
     CHECK(loaded.researched(0, 1));
 }
 
+TEST_CASE("fog of war tracks visible and explored cells per team") {
+    const auto data = GameData::parse(R"({"units":[
+        {"id":"scout","maxHp":100,"radius":0.4,"speed":5,"sight":6},
+        {"id":"post","structure":true,"maxHp":500,"radius":1,"sight":4}
+    ]})");
+    const auto map = Map::parse(R"({"width":80,"height":40,"playerStart":{"pos":[10,10],"units":["scout"],"slots":[[10,10],[70,30]]},
+        "defense":{"startEnergy":0,"baseIncome":0,"waves":[]},
+        "units":[{"unit":"post","team":3,"owner":1,"pos":[70,30]}]})");
+    World world(data, map, Difficulty::Normal, GameMode::Skirmish);
+    world.setFog(true);
+    world.spawnPlayer(0, 2);
+    world.spawnPlayer(1, 3);
+    world.updateVisibility();
+    CHECK(world.visibleTo(2, {10.5f, 10.5f}));
+    CHECK(world.visibleTo(2, {15.0f, 10.5f}));
+    CHECK_FALSE(world.visibleTo(2, {70.0f, 30.0f}));
+    CHECK_FALSE(world.exploredBy(2, {40.0f, 20.0f}));
+    entt::entity scout = entt::null;
+    for (auto [e, unit, owner] : world.registry().view<const Unit, const Owner>().each())
+        if (owner.player == 0 && unit.def == data.find("scout"))
+            scout = e;
+    REQUIRE(world.registry().valid(scout));
+    world.registry().get<Position>(scout).value = {66.0f, 30.0f};
+    world.updateVisibility();
+    CHECK(world.visibleTo(2, {70.0f, 30.0f}));
+    CHECK_FALSE(world.visibleTo(2, {10.5f, 10.5f}));
+    CHECK(world.exploredBy(2, {10.5f, 10.5f}));
+    world.setFog(false);
+    CHECK(world.visibleTo(2, {40.0f, 20.0f}));
+}
+
 TEST_CASE("research class filters") {
     const auto data = GameData::parse(R"({"units":[
         {"id":"tank","classes":["armor","tank"],"maxHp":200,"radius":0.5},

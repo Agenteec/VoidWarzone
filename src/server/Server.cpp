@@ -29,8 +29,10 @@ Server::Server(const GameData& data, const Map& map, ServerConfig config)
     config_.maxPlayers = std::clamp(config_.maxPlayers, 1, 64);
     if (!config_.lobby)
         world_ = std::make_unique<World>(data_, *map_, config_.difficulty, config_.mode);
-    if (world_)
+    if (world_) {
         world_->setCheats(config_.cheats);
+        world_->setFog(config_.fog);
+    }
 }
 
 Server::~Server() {
@@ -209,6 +211,7 @@ void Server::broadcastLobby() {
     info.maxPlayers = static_cast<std::uint8_t>(config_.maxPlayers);
     info.leader = leader();
     info.cheats = config_.cheats;
+    info.fog = config_.fog;
     for (const auto& c : clients_)
         info.players.push_back({c->player, c->name, c->ready, c->color, c->team});
     for (const auto& b : bots_)
@@ -235,6 +238,7 @@ void Server::startMatch(const std::string* save) {
     const auto t0 = std::chrono::steady_clock::now();
     world_ = std::make_unique<World>(data_, *map_, config_.difficulty, config_.mode);
     world_->setCheats(config_.cheats);
+    world_->setFog(config_.fog);
     spdlog::info("world ready in {:.2f}s", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
     if (save)
         world_->loadState(*save);
@@ -260,6 +264,8 @@ void Server::startMatch(const std::string* save) {
         c->ready = false;
         c->ackedTick = 0;
         c->commandSeq = 0;
+        c->history.reset();
+        c->vanish.clear();
         c->sentTicks = {};
     }
     history_ = {};
@@ -438,6 +444,14 @@ void Server::handleMessages(Client& client) {
             if (!world_ && client.player == leader())
                 startMatch();
             break;
+        case MessageType::Fog: {
+            const bool on = r.u8() != 0;
+            if (r.ok() && client.player == leader() && !world_ && on != config_.fog) {
+                config_.fog = on;
+                lobbyDirty_ = true;
+            }
+            break;
+        }
         case MessageType::Cheats: {
             const bool on = r.u8() != 0;
             if (r.ok() && client.player == leader() && on != config_.cheats) {
@@ -617,6 +631,45 @@ ClientView Server::buildView(const Client& client) const {
     return v;
 }
 
+Snapshot Server::fogView(const Snapshot& full, Client& client) const {
+    const std::uint8_t team = world_->player(client.player).team;
+    Snapshot s;
+    s.tick = full.tick;
+    s.game = full.game;
+    auto pos = [](std::uint16_t x, std::uint16_t y) { return glm::vec2(dequantizePos(x), dequantizePos(y)); };
+    const auto& pointDefs = map_->resourcePoints();
+    for (std::size_t i = 0; i < s.game.points.size() && i < pointDefs.size(); ++i)
+        if (s.game.points[i].owner != team && !world_->visibleTo(team, pointDefs[i].pos))
+            s.game.points[i] = {};
+    for (const auto& e : full.entities) {
+        bool keep = e.team == team;
+        if (!keep && e.kind == EntityKind::Unit)
+            keep = data_.unit(e.def).structure ? world_->exploredBy(team, pos(e.x, e.y)) : world_->visibleTo(team, pos(e.x, e.y));
+        else if (!keep)
+            keep = world_->visibleTo(team, pos(e.x, e.y));
+        if (keep)
+            s.entities.push_back(e);
+    }
+    for (const auto& ev : full.events) {
+        const auto type = static_cast<NetEventType>(ev.type);
+        const bool local = type == NetEventType::Hit || type == NetEventType::Fire || type == NetEventType::SlamWarn || type == NetEventType::Slam ||
+                           type == NetEventType::Summon || type == NetEventType::Enrage || type == NetEventType::SkillCast;
+        if (!local || world_->visibleTo(team, pos(ev.x, ev.y)))
+            s.events.push_back(ev);
+    }
+    // entities that are still alive but just went out of sight, so the client doesn't play their death
+    const auto& history = *client.history;
+    const Snapshot& prev = history[(full.tick - 1) % history.size()];
+    if (prev.tick + 1 == full.tick)
+        for (const auto& e : prev.entities)
+            if (!s.find(e.id) && full.find(e.id))
+                client.vanish[e.id] = full.tick;
+    std::erase_if(client.vanish, [&](const auto& kv) { return full.tick - kv.second > 15; });
+    for (const auto& [id, t] : client.vanish)
+        s.game.vanished.push_back(id);
+    return s;
+}
+
 Snapshot Server::buildSnapshot() const {
     Snapshot s;
     s.tick = static_cast<std::uint32_t>(world_->tick());
@@ -690,6 +743,8 @@ Snapshot Server::buildSnapshot() const {
     s.game.boss = defense.boss == entt::null ? kNoEntity : entt::to_integral(defense.boss);
     s.game.objectives = world_->objectives();
     s.game.mode = static_cast<std::uint8_t>(world_->mode());
+    s.game.fog = world_->fog() ? 1 : 0;
+    s.game.sides = static_cast<std::uint8_t>(std::clamp(world_->sidesLeft(), 0, 255));
     s.game.winner = defense.winner < 0 ? std::uint8_t{0xff} : static_cast<std::uint8_t>(defense.winner);
     s.game.teams.assign(16, 0xff);
     for (std::size_t i = 0; i < s.game.teams.size(); ++i)
@@ -766,14 +821,21 @@ void Server::tick() {
     const Snapshot& current = history_[tick % history_.size()];
 
     for (auto& c : clients_) {
+        const bool fogged = world_->fog() && world_->player(c->player).active;
+        if (fogged && !c->history)
+            c->history = std::make_unique<std::array<Snapshot, 64>>();
+        auto& history = fogged ? *c->history : history_;
+        if (fogged)
+            history[tick % history.size()] = fogView(current, *c);
+        const Snapshot& sent = history[tick % history.size()];
         const Snapshot* base = nullptr;
-        if (c->ackedTick != 0 && tick - c->ackedTick < history_.size() / 2) {
-            const Snapshot& candidate = history_[c->ackedTick % history_.size()];
+        if (c->ackedTick != 0 && tick - c->ackedTick < history.size() / 2) {
+            const Snapshot& candidate = history[c->ackedTick % history.size()];
             if (candidate.tick == c->ackedTick)
                 base = &candidate;
         }
         Writer w;
-        encodeSnapshot(w, current, base, buildView(*c));
+        encodeSnapshot(w, sent, base, buildView(*c));
         c->conn->setUnreliable(std::move(w.data()));
         const std::uint16_t seq = c->conn->flush();
         c->sentTicks[seq % c->sentTicks.size()] = {seq, tick};

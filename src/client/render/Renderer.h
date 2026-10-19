@@ -93,6 +93,10 @@ public:
     void drawStreak(Sprite sprite, glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color, SpriteBlend blend);
     void drawDecal(Sprite sprite, glm::vec3 center, float size, float rotation, const glm::vec4& color, SpriteBlend blend);
     void setTime(float seconds) { time_ = seconds; }
+    // Fog of war: one byte per map cell (brightness), sampled by the world shaders; empty data turns it off.
+    void setFogOfWar(int width, int height, const std::uint8_t* data);
+    // RGBA texture for the minimap fog overlay, updated in place.
+    void updateTextureRgba(TextureId id, int width, int height, const void* pixels);
     void end();
 
     void setLighting(const Lighting& lighting);
@@ -142,6 +146,7 @@ private:
     void submitTextured(bool alpha);
     void submitShadows();
     void bindLighting();
+    void bindFow(bool on);
     void updateLight(const Camera& camera);
     void destroyShadowMap();
     void submitInstances(bgfx::ViewId view, bgfx::ProgramHandle program, std::uint64_t state, const std::vector<Instance>& instances,
@@ -179,6 +184,12 @@ private:
     bgfx::UniformHandle maskSampler_ = BGFX_INVALID_HANDLE;
     bgfx::VertexLayout texLayout_;
     std::vector<bgfx::TextureHandle> textures_;
+    bgfx::TextureHandle fowTexture_ = BGFX_INVALID_HANDLE;
+    int fowWidth_ = 0;
+    int fowHeight_ = 0;
+    bool fowOn_ = false;
+    bgfx::UniformHandle fowUniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle fowSampler_ = BGFX_INVALID_HANDLE;
     std::vector<GpuMesh> texMeshes_;
     std::map<TexBatchKey, std::vector<Instance>> texBatches_;
     TextureId white_ = 0;

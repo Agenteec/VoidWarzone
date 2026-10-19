@@ -282,6 +282,18 @@ private:
     std::unordered_map<std::uint32_t, Spin> spin_;
     bool cheatsOn() const;
     std::uint8_t myTeam() const;
+    bool fowActive() const;
+    void updateFow();
+    bool fowVisible(glm::vec2 p) const;
+    std::vector<std::uint8_t> fowGrid_;
+    std::vector<std::uint8_t> fowSmooth_;
+    std::vector<std::uint8_t> explored_;
+    std::vector<std::uint8_t> visible_;
+    std::vector<std::uint32_t> minimapFowPixels_;
+    std::uint64_t fowHash_ = 0;
+    double fowNext_ = 0.0;
+    TextureId minimapFow_ = 0;
+    glm::ivec2 minimapFowSize_{0};
     glm::vec4 teamColor(std::uint8_t team) const;
     bool wonMatch() const;
     void sendCheat(CheatOp op, std::vector<entt::entity> targets = {}, glm::vec2 point = {});

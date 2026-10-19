@@ -149,6 +149,8 @@ bool Renderer::init(SDL_Window* window, float scale, const std::string& backend)
     focusUniform_ = bgfx::createUniform("u_focus", bgfx::UniformType::Vec4, kFocusPoints);
     camPosUniform_ = bgfx::createUniform("u_camPos", bgfx::UniformType::Vec4);
     shadowSampler_ = bgfx::createUniform("s_shadow", bgfx::UniformType::Sampler);
+    fowSampler_ = bgfx::createUniform("s_fow", bgfx::UniformType::Sampler);
+    fowUniform_ = bgfx::createUniform("u_fow", bgfx::UniformType::Vec4);
     const auto* caps = bgfx::getCaps();
     shadowsSupported_ = bgfx::isValid(shadowProgram_) && bgfx::isValid(shadowTexProgram_) &&
                         (caps->formats[bgfx::TextureFormat::D16] & BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER) != 0;
@@ -192,7 +194,9 @@ void Renderer::shutdown() {
     for (auto h : {texProgram_, terrainProgram_, shadowProgram_, shadowTexProgram_})
         if (bgfx::isValid(h))
             bgfx::destroy(h);
-    for (auto h : {fogUniform_, camPosUniform_, focusUniform_})
+    if (bgfx::isValid(fowTexture_))
+        bgfx::destroy(fowTexture_);
+    for (auto h : {fogUniform_, camPosUniform_, focusUniform_, fowUniform_, fowSampler_})
         if (bgfx::isValid(h))
             bgfx::destroy(h);
     for (auto h : {colorSampler_, maskSampler_, sunDirUniform_, sunColorUniform_, skyColorUniform_, shadowParamsUniform_, lightMtxUniform_,
@@ -244,7 +248,7 @@ void Renderer::setScale(float scale) {
 }
 
 TextureId Renderer::createTextureRgba(int width, int height, const void* pixels) {
-    const bgfx::Memory* mem = bgfx::copy(pixels, static_cast<std::uint32_t>(width * height * 4));
+    const bgfx::Memory* mem = pixels ? bgfx::copy(pixels, static_cast<std::uint32_t>(width * height * 4)) : nullptr;
     textures_.push_back(bgfx::createTexture2D(static_cast<std::uint16_t>(width), static_cast<std::uint16_t>(height), false, 1, bgfx::TextureFormat::RGBA8,
                                               BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP, mem));
     return static_cast<TextureId>(textures_.size() - 1);
@@ -327,6 +331,38 @@ void Renderer::bindLighting() {
     bgfx::setUniform(camPosUniform_, cam);
     if (bgfx::isValid(shadowTexture_))
         bgfx::setTexture(4, shadowSampler_, shadowTexture_, kShadowSamplerFlags);
+    bindFow(true);
+}
+
+void Renderer::bindFow(bool on) {
+    const bool active = on && fowOn_ && bgfx::isValid(fowTexture_);
+    const float fow[4] = {active ? 1.0f / static_cast<float>(fowWidth_) : 0.0f, active ? 1.0f / static_cast<float>(fowHeight_) : 0.0f,
+                          active ? 1.0f : 0.0f, 0.0f};
+    bgfx::setUniform(fowUniform_, fow);
+    bgfx::setTexture(5, fowSampler_, active ? fowTexture_ : textures_[white_]);
+}
+
+void Renderer::setFogOfWar(int width, int height, const std::uint8_t* data) {
+    fowOn_ = data != nullptr && width > 0 && height > 0;
+    if (!fowOn_)
+        return;
+    if (!bgfx::isValid(fowTexture_) || fowWidth_ != width || fowHeight_ != height) {
+        if (bgfx::isValid(fowTexture_))
+            bgfx::destroy(fowTexture_);
+        fowTexture_ = bgfx::createTexture2D(static_cast<std::uint16_t>(width), static_cast<std::uint16_t>(height), false, 1, bgfx::TextureFormat::R8,
+                                            BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP);
+        fowWidth_ = width;
+        fowHeight_ = height;
+    }
+    bgfx::updateTexture2D(fowTexture_, 0, 0, 0, 0, static_cast<std::uint16_t>(width), static_cast<std::uint16_t>(height),
+                          bgfx::copy(data, static_cast<std::uint32_t>(width * height)));
+}
+
+void Renderer::updateTextureRgba(TextureId id, int width, int height, const void* pixels) {
+    if (id >= textures_.size() || !bgfx::isValid(textures_[id]))
+        return;
+    bgfx::updateTexture2D(textures_[id], 0, 0, 0, 0, static_cast<std::uint16_t>(width), static_cast<std::uint16_t>(height),
+                          bgfx::copy(pixels, static_cast<std::uint32_t>(width * height * 4)));
 }
 
 bool Renderer::homogeneousDepth() const {
@@ -697,6 +733,8 @@ void Renderer::submit(bgfx::ViewId view, Mesh mesh, std::uint8_t flags, const st
         bgfx::setUniform(params_, params);
         if (view == kWorldView)
             bindLighting();
+        else
+            bindFow(false);
         bgfx::setState(state);
         bgfx::submit(view, program_);
         offset += count;

@@ -5,6 +5,16 @@ uniform vec4 u_shadowParams;
 uniform vec4 u_fog;
 uniform vec4 u_camPos;
 SAMPLER2DSHADOW(s_shadow, 4);
+SAMPLER2D(s_fow, 5);
+uniform vec4 u_fow;
+
+vec3 applyFow(vec3 color, vec3 wpos)
+{
+	if (u_fow.z < 0.5)
+		return color;
+	float v = texture2D(s_fow, wpos.xz * u_fow.xy).r;
+	return color * v;
+}
 
 float shadowFactor(vec4 coord)
 {

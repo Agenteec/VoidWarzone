@@ -153,6 +153,8 @@ void App::drawMinimap(float size) {
     const bgfx::TextureHandle tex = renderer_.textureHandle(minimap_);
     if (bgfx::isValid(tex))
         dl->AddImage(static_cast<ImTextureID>(tex.idx) + 1, a, b);
+    if (const bgfx::TextureHandle fow = renderer_.textureHandle(minimapFow_); fowActive() && minimapFowSize_.x > 0 && bgfx::isValid(fow))
+        dl->AddImage(static_cast<ImTextureID>(fow.idx) + 1, a, b);
     dl->PushClipRect(a, b, true);
     const auto* latest = net_.latest();
     const auto& defs = map_->resourcePoints();

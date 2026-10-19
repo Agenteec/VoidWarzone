@@ -33,8 +33,9 @@ std::string readFile(const std::filesystem::path& path) {
     return ss.str();
 }
 
-int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty difficulty, vw::GameMode mode, int players) {
+int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty difficulty, vw::GameMode mode, int players, bool fog) {
     vw::World world(data, map, difficulty, mode);
+    world.setFog(fog);
     const bool skirmish = mode == vw::GameMode::Skirmish;
     for (int p = 0; p < players; ++p) {
         world.spawnPlayer(static_cast<std::uint8_t>(p), skirmish ? static_cast<std::uint8_t>(vw::kFirstSkirmishTeam + p) : std::uint8_t{0});
@@ -119,6 +120,7 @@ int main(int argc, char** argv) {
     std::string exportPath;
     std::filesystem::path dataDir = std::filesystem::path(argv[0]).parent_path() / "data";
     vw::server::ServerConfig config;
+    bool fog = true;
     config.lobby = true;
     double runFor = 0.0;
     std::string master;
@@ -141,6 +143,8 @@ int main(int argc, char** argv) {
             master = argv[++i];
         else if (arg == "--cheats")
             config.cheats = true;
+        else if (arg == "--no-fog")
+            fog = false;
         else if (arg == "--seconds" && hasValue)
             runFor = std::atof(argv[++i]);
         else if (arg == "--difficulty" && hasValue) {
@@ -188,12 +192,13 @@ int main(int argc, char** argv) {
         }
         const auto map = vw::Map::parse(generated ? *generated : readFile(dataDir / "maps" / (config.mapName + ".json")));
         if (simPlayers >= 0)
-            return simulate(data, map, config.difficulty, config.mode, simPlayers);
+            return simulate(data, map, config.difficulty, config.mode, simPlayers, fog);
         config.loadMap = [dataDir](const std::string& name) {
             if (name.empty() || name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_") != std::string::npos)
                 throw std::runtime_error("bad map name");
             return readFile(dataDir / "maps" / (name + ".json"));
         };
+        config.fog = fog;
         vw::server::Server server(data, map, config);
         const double start = nowSeconds();
         if (!server.start(start))

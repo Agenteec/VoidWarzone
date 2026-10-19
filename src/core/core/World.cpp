@@ -408,6 +408,8 @@ void World::step() {
         updateProducers();
         updateFactories();
         updateResearch();
+        if (fog_ && tick_ % 6 == 0)
+            updateVisibility();
         updateAi();
         updateConstruction();
     });

@@ -101,6 +101,7 @@ struct UnitDef {
     float radius = 0.5f;
     float speed = 0.0f;
     float sight = 8.0f;
+    float vision() const { return std::max(sight, weapon ? weapon->range + 1.0f : 0.0f); }
     float accel = 0.0f;
     bool air = false;
     bool anchor = false;

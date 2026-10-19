@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 
 #include <glm/vec2.hpp>
@@ -62,6 +63,7 @@ public:
     void sendPlayerSetup(std::uint8_t target, std::uint8_t color, std::uint8_t team);
     void sendKick(std::uint8_t target);
     void sendCheats(bool on);
+    void sendFog(bool on);
     void sendBot(bool add, std::uint8_t target = 0);
     void sendSettings(const std::string& map, std::uint8_t mode, std::uint8_t difficulty, std::uint8_t maxPlayers);
     void sendStart();
@@ -138,6 +140,7 @@ private:
     std::uint32_t commandSeq_ = 0;
     std::vector<NetEvent> events_;
     std::vector<UnitDeath> deaths_;
+    std::unordered_map<std::uint32_t, double> vanished_;
 };
 
 struct ServerInfo {

@@ -43,5 +43,5 @@ void main()
 	vec3 lit = shade(albedo, n * sign(d + 0.0001), diffuse, v_shadowcoord);
 	vec3 color = mix(lit, albedo, u_params.x);
 	color = mix(color, albedo * 1.3, glow);
-	gl_FragColor = vec4(applyFog(color, v_wpos), v_color0.a);
+	gl_FragColor = vec4(applyFow(applyFog(color, v_wpos), v_wpos), v_color0.a);
 }

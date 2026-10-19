@@ -220,6 +220,11 @@ void encodeSnapshot(Writer& w, const Snapshot& cur, const Snapshot* base, const 
     w.u8(static_cast<std::uint8_t>(std::min<std::size_t>(cur.game.teams.size(), 64)));
     for (std::size_t i = 0; i < cur.game.teams.size() && i < 64; ++i)
         w.u8(cur.game.teams[i]);
+    w.u8(cur.game.fog);
+    w.u8(cur.game.sides);
+    w.varu(std::min<std::size_t>(cur.game.vanished.size(), 4096));
+    for (std::size_t i = 0; i < cur.game.vanished.size() && i < 4096; ++i)
+        w.varu(cur.game.vanished[i]);
 
     std::vector<std::uint32_t> removed;
     Writer changed;
@@ -313,6 +318,14 @@ bool decodeSnapshot(Reader& r, Snapshot& out, const BaselineLookup& baseline) {
     out.game.teams.resize(std::min<std::size_t>(r.u8(), 64));
     for (auto& t : out.game.teams)
         t = r.u8();
+    out.game.fog = r.u8();
+    out.game.sides = r.u8();
+    const auto vanishedCount = r.varu();
+    if (vanishedCount > 4096)
+        return false;
+    out.game.vanished.resize(static_cast<std::size_t>(vanishedCount));
+    for (auto& id : out.game.vanished)
+        id = static_cast<std::uint32_t>(r.varu());
     if (!r.ok())
         return false;
 

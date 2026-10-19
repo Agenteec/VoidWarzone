@@ -671,7 +671,7 @@ void World::updateSkirmish() {
     for (std::size_t i = 0; i < players_.size(); ++i)
         if (players_[i].active)
             income[i] = def.baseIncome * (players_[i].ai && difficulty_ >= Difficulty::Hard ? 1.25f : 1.0f);
-    std::array<bool, 16> alive_{};
+    std::array<bool, 64> alive_{};
     for (auto [e, unit, owner, team] : registry_.view<const Unit, const Owner, const Team>().each()) {
         if (!alive(e) || owner.player >= kMaxPlayers)
             continue;
@@ -693,6 +693,7 @@ void World::updateSkirmish() {
             last = static_cast<int>(t);
         }
     skirmishTeams_ = std::max(skirmishTeams_, teams);
+    sidesLeft_ = teams;
     if (skirmishTeams_ >= 2 && teams <= 1 && tick_ > kTickRate * 5) {
         defense_.state = MatchState::Victory;
         defense_.winner = last;

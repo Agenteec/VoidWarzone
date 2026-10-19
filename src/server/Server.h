@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/World.h"
@@ -24,6 +25,7 @@ struct ServerConfig {
     Difficulty difficulty = Difficulty::Normal;
     GameMode mode = GameMode::Defense;
     bool cheats = false;
+    bool fog = false;
     bool lobby = false;
     std::function<std::string(const std::string&)> loadMap;
     std::string saveDir = "saves";
@@ -61,6 +63,8 @@ private:
         std::uint32_t commandSeq = 0;
         std::uint32_t ackedTick = 0;
         std::array<std::pair<std::uint16_t, std::uint32_t>, 256> sentTicks{};
+        std::unique_ptr<std::array<net::Snapshot, 64>> history;
+        std::unordered_map<std::uint32_t, std::uint32_t> vanish;
     };
 
     void receive(double now);
@@ -86,6 +90,7 @@ private:
     std::uint8_t leader() const;
     void tick();
     net::Snapshot buildSnapshot() const;
+    net::Snapshot fogView(const net::Snapshot& full, Client& client) const;
     net::ClientView buildView(const Client& client) const;
     Client* findClient(const net::Address& address);
 

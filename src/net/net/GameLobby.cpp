@@ -12,6 +12,7 @@ void writeLobby(Writer& w, const LobbyInfo& info) {
     w.u8(info.maxPlayers);
     w.u8(info.leader);
     w.u8(info.cheats ? 1 : 0);
+    w.u8(info.fog ? 1 : 0);
     w.u8(static_cast<std::uint8_t>(info.players.size()));
     for (const auto& p : info.players) {
         w.u8(p.id);
@@ -33,6 +34,7 @@ bool readLobby(Reader& r, LobbyInfo& info) {
     info.maxPlayers = r.u8();
     info.leader = r.u8();
     info.cheats = r.u8() != 0;
+    info.fog = r.u8() != 0;
     info.players.resize(r.u8());
     for (auto& p : info.players) {
         p.id = r.u8();

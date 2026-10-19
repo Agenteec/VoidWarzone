@@ -66,6 +66,9 @@ struct GameInfo {
     std::uint8_t mode = 0;
     std::uint8_t winner = 0xff;
     std::vector<std::uint8_t> teams;
+    std::uint8_t fog = 0;
+    std::uint8_t sides = 0;
+    std::vector<std::uint32_t> vanished;
 };
 
 struct OwnSkill {

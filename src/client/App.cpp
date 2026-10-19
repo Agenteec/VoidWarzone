@@ -422,6 +422,8 @@ void App::shutdown() {
 }
 
 void App::setScreen(Screen screen) {
+    if (screen != Screen::Game)
+        fowHash_ = 0;
     if (screen_ == Screen::Lan && screen != Screen::Lan)
         lan_.stop();
     if (screen == Screen::Lan)
@@ -491,6 +493,7 @@ void App::startHost(bool multiplayer) {
     config.cheats = options_.cheats;
     config.lobby = true;
     config.maxPlayers = 16;
+    config.fog = true;
     config.loadMap = [](const std::string& name) { return readMap(name); };
     config.saveDir = savesDir();
     if (!campaignMission_.empty()) {
@@ -1414,6 +1417,7 @@ void App::render() {
     camera_.update(renderer_.width(), renderer_.height(), renderer_.homogeneousDepth());
     renderer_.setTime(static_cast<float>(std::fmod(now_, 3600.0)));
     updateFocus();
+    updateFow();
     renderer_.begin(camera_);
     if ((screen_ == Screen::Game || screen_ == Screen::Editor) && map_)
         renderWorld();
@@ -1613,7 +1617,7 @@ void App::renderWorld() {
             continue;
         if (shell.frost)
             spawnFrostBurst(shell.last, shell.frostScale);
-        else if (shell.kind != ShotKind::Auto)
+        else if (shell.kind != ShotKind::Auto && fowVisible({shell.last.x, shell.last.z}))
             spawnImpact(shell.last, shell.kind, shell.splash, shell.team != 0);
     }
     std::erase_if(shells_, [](const auto& kv) { return !kv.second.seen; });

@@ -292,6 +292,13 @@ void NetClient::sendBot(bool add, std::uint8_t target) {
     sendMessage(w);
 }
 
+void NetClient::sendFog(bool on) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Fog));
+    w.u8(on ? 1 : 0);
+    sendMessage(w);
+}
+
 void NetClient::sendCheats(bool on) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::Cheats));
@@ -403,9 +410,12 @@ bool NetClient::onSnapshot(Reader& r) {
         const double target = std::clamp(kDt + 2.5 * jitter_ + 0.004, kDt * 0.8, 0.3);
         delay_ += (target - delay_) * 0.05;
 
+        for (const auto id : snap.game.vanished)
+            vanished_[id] = now_;
+        std::erase_if(vanished_, [&](const auto& kv) { return now_ - kv.second > 3.0; });
         if (const Snapshot* prev = latest())
             for (const auto& e : prev->entities)
-                if (e.kind == EntityKind::Unit && !snap.find(e.id))
+                if (e.kind == EntityKind::Unit && !snap.find(e.id) && !vanished_.contains(e.id))
                     deaths_.push_back({{dequantizePos(e.x), dequantizePos(e.y)}, e.team, e.def, e.flags});
         events_.insert(events_.end(), snap.events.begin(), snap.events.end());
         latestTick_ = snap.tick;
