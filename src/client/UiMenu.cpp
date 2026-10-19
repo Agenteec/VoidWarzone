@@ -654,7 +654,7 @@ void App::drawLobby() {
     auto send = [&](const std::string& map, int mode, int difficulty, int maxPlayers) {
         net_.sendSettings(map, static_cast<std::uint8_t>(mode), static_cast<std::uint8_t>(difficulty), static_cast<std::uint8_t>(maxPlayers));
         options_.map = map;
-        options_.mode = static_cast<GameMode>(std::clamp(mode, 0, 2));
+        options_.mode = static_cast<GameMode>(std::clamp(mode, 0, 3));
         options_.difficulty = static_cast<Difficulty>(difficulty);
         saveSettings();
     };
@@ -664,7 +664,11 @@ void App::drawLobby() {
     ImGui::TextDisabled("MAP");
     for (const auto& m : maps_) {
         ImGui::PushID(m.id.c_str());
-        if (cardSelectable("##map", info.map == m.id, m.name, m.players + " players", m.description, s) && info.map != m.id)
+        const bool random = m.id == "random";
+        const bool chosen = random ? info.map.rfind("random_", 0) == 0 : info.map == m.id;
+        const std::string title = random && chosen ? m.name + "  #" + info.map.substr(7) : m.name;
+        if (cardSelectable("##map", chosen, title, m.players + " players", random && chosen ? m.description + " Click again for a new one." : m.description, s) &&
+            (random || !chosen))
             send(m.id, info.mode, info.difficulty, info.maxPlayers);
         ImGui::PopID();
     }

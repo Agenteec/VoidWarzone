@@ -27,7 +27,7 @@ def ring(k, n, radius, phase=0.0):
 def blob(grid, cx, cy, r, value, wobble=0.18, seed=0):
     rr = random.Random(seed)
     harm = [(rr.uniform(0, 6.28), rr.uniform(0.03, wobble)) for _ in range(5)]
-    yy, xx = np.mgrid[0:H, 0:W]
+    yy, xx = np.mgrid[0:grid.shape[0], 0:grid.shape[1]]
     ang = np.arctan2(yy + 0.5 - cy, xx + 0.5 - cx)
     rad = r * (1.0 + sum(a * np.sin((i + 2) * ang + p) for i, (p, a) in enumerate(harm)))
     grid[np.hypot(xx + 0.5 - cx, yy + 0.5 - cy) < rad] = value
@@ -90,7 +90,7 @@ def main():
         ix, iy, _ = islets[k]
         dams.append(((ix, iy), C))
     for a, b in dams:
-        stroke(grid, a, b, 1.8, OPEN)
+        stroke(grid, a, b, 3.6, OPEN)
 
     buildings, areas, paths, props, units, points = [], [], [], [], [], []
     occupied = np.zeros((H, W), dtype=bool)
@@ -140,7 +140,7 @@ def main():
         occupied[np.hypot(xx - sx, yy - sy) < 10] = True
     for a, b in dams:
         tmp = np.zeros((H, W), dtype=np.int32)
-        stroke(tmp, a, b, 3.0, 1)
+        stroke(tmp, a, b, 5.0, 1)
         occupied |= tmp.astype(bool)
 
     for k, (hx, hy, a) in enumerate(homes):
@@ -174,12 +174,12 @@ def main():
 
     for i in range(8):
         a = 2 * math.pi * i / 8
-        for r in (20, 17, 23, 14):
+        for r in (22, 25, 18, 27, 14):
             cx, cy = C[0] + math.cos(a) * r, C[1] + math.sin(a) * r
             if i == 2:
                 ok = building(cx, cy, 9, 6, a + math.pi / 2, levels=2, kind="industrial")
             else:
-                ok = building(cx, cy, 7, 3, a + math.pi / 2, levels=9 if i % 2 else 5, kind="panel", ruin=i % 3 != 0)
+                ok = building(cx, cy, 6, 3, a + math.pi / 2, levels=9 if i % 2 else 5, kind="panel", ruin=i % 3 != 0)
             if ok:
                 break
     props.append({"model": "prop_cell_tower", "pos": [C[0] + 21, C[1] - 12], "yaw": 0, "radius": 1.0})
@@ -193,7 +193,7 @@ def main():
               {"unit": "raider_mortar", "team": 1, "pos": [C[0] + 3, C[1] - 7]}]
 
     for a, b in dams:
-        paths.append({"kind": "road", "width": 1.6, "points": [[round(a[0], 1), round(a[1], 1)], [round(b[0], 1), round(b[1], 1)]]})
+        paths.append({"kind": "road", "width": 3.0, "points": [[round(a[0], 1), round(a[1], 1)], [round(b[0], 1), round(b[1], 1)]]})
     ring_pts = [[round(C[0] + math.cos(2 * math.pi * k / 16) * 10, 1), round(C[1] + math.sin(2 * math.pi * k / 16) * 10, 1)] for k in range(17)]
     paths.append({"kind": "road", "width": 1.4, "points": ring_pts})
     for k, (hx, hy, a) in enumerate(homes):

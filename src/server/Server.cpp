@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <optional>
+#include <random>
+
+#include "core/MapGen.h"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -306,7 +309,7 @@ void Server::loadGame(Client& client, const std::string& name) {
         if (header.map != config_.mapName) {
             if (!config_.loadMap)
                 throw std::runtime_error("map " + header.map + " unavailable");
-            map_ = std::make_unique<Map>(Map::parse(config_.loadMap(header.map)));
+            map_ = std::make_unique<Map>(Map::parse(generatedMap(header.map).value_or(config_.loadMap(header.map))));
             config_.mapName = header.map;
         }
         config_.mode = header.mode;
@@ -337,9 +340,12 @@ void Server::handleSettings(Client& client, Reader& r) {
     const std::uint8_t maxPlayers = r.u8();
     if (!r.ok() || world_ || client.player != leader())
         return;
+    if (mapName == "random")
+        mapName = std::string(kRandomMapPrefix) + std::to_string(std::random_device{}() % 1000000u);
     if (mapName != config_.mapName && config_.loadMap) {
         try {
-            auto map = std::make_unique<Map>(Map::parse(config_.loadMap(mapName)));
+            const auto generated = generatedMap(mapName);
+            auto map = std::make_unique<Map>(Map::parse(generated ? *generated : config_.loadMap(mapName)));
             map_ = std::move(map);
             config_.mapName = std::move(mapName);
         } catch (const std::exception& e) {
@@ -410,7 +416,7 @@ void Server::handleMessages(Client& client) {
                         std::any_of(bots_.begin(), bots_.end(), [&](const Bot& o) { return o.color == b.color; })) &&
                        b.color + 1u < kPlayerColors.size())
                     ++b.color;
-                b.team = static_cast<std::uint8_t>(bots_.size() % kLobbyTeams);
+                b.team = client.team;
                 bots_.push_back(b);
             } else if (!add) {
                 std::erase_if(bots_, [&](const Bot& b) { return b.player == target; });

@@ -1,4 +1,6 @@
 #include "App.h"
+
+#include "core/MapGen.h"
 #include "Editor.h"
 
 #include <algorithm>
@@ -102,6 +104,8 @@ bool validMapName(const std::string& name) {
 }
 
 std::string readMap(const std::string& name) {
+    if (auto generated = generatedMap(name))
+        return *generated;
     if (!validMapName(name))
         throw std::runtime_error("bad map name");
     const std::string user = userMapsDir() + name + ".json";

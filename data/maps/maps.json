@@ -13,6 +13,18 @@
       "description": "Skirmish for up to 8 players. Islands of a flooded Soviet reservoir in late autumn with the first snow; dams link the home islands, guarded islets and a ruined settlement in the middle."
     },
     {
+      "id": "dead_kombinat",
+      "name": "Dead Kombinat",
+      "players": "2-6",
+      "description": "Skirmish for up to 6 players. Winter: a frozen river splits a dead industrial town; three bridges, the fenced plant on the north bank and a ruined panel district on the south bank hold the richest points."
+    },
+    {
+      "id": "random",
+      "name": "Random Map",
+      "players": "2-8",
+      "description": "A new skirmish map from a random seed: islands, lakes or a river, winter or late autumn, 8 bases, guarded points and a ruined centre. Everyone generates the same map from the seed."
+    },
+    {
       "id": "voronezh_shilovo",
       "name": "Voronezh: Shilovo",
       "players": "1-8",

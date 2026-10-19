@@ -7,6 +7,7 @@
 #include <doctest/doctest.h>
 #include <glm/geometric.hpp>
 
+#include "core/MapGen.h"
 #include "core/Pathfinding.h"
 #include "core/World.h"
 #include "net/NetLibrary.h"
@@ -420,4 +421,38 @@ TEST_CASE("map cells round-trip through the rle string") {
     CHECK(copy.cellKind(4, 1) == vw::CellKind::Rock);
     CHECK(copy.cellKind(5, 2) == vw::CellKind::Forest);
     CHECK(copy.cellKind(0, 0) == vw::CellKind::Open);
+}
+
+TEST_CASE("random maps are deterministic and connected") {
+    for (std::uint32_t seed = 1; seed <= 60; ++seed) {
+        const std::string a = vw::generateMap(seed);
+        CHECK(a == vw::generateMap(seed));
+        const auto map = vw::Map::parse(a);
+        const auto& slots = map.playerStart().slots;
+        REQUIRE(slots.size() == 8);
+        const int w = map.width();
+        std::vector<int> seen(static_cast<std::size_t>(w * map.height()), 0);
+        std::vector<glm::ivec2> queue{vw::Map::cellOf({100.5f, 100.5f})};
+        seen[static_cast<std::size_t>(queue[0].y * w + queue[0].x)] = 1;
+        for (std::size_t q = 0; q < queue.size(); ++q)
+            for (const glm::ivec2 d : {glm::ivec2{1, 0}, glm::ivec2{-1, 0}, glm::ivec2{0, 1}, glm::ivec2{0, -1}}) {
+                const glm::ivec2 n = queue[q] + d;
+                if (map.blocked(n) || seen[static_cast<std::size_t>(n.y * w + n.x)])
+                    continue;
+                seen[static_cast<std::size_t>(n.y * w + n.x)] = 1;
+                queue.push_back(n);
+            }
+        for (const auto s : slots) {
+            const auto c = vw::Map::cellOf(s);
+            CHECK_MESSAGE(seen[static_cast<std::size_t>(c.y * w + c.x)], "seed ", seed, " slot not connected");
+        }
+        CHECK(map.resourcePoints().size() == 18);
+        for (const auto& p : map.resourcePoints()) {
+            const auto c = vw::Map::cellOf(p.pos);
+            CHECK_MESSAGE(seen[static_cast<std::size_t>(c.y * w + c.x)], "seed ", seed, " point ", p.name, " not reachable");
+        }
+    }
+    CHECK(vw::generatedMap("random_42").has_value());
+    CHECK_FALSE(vw::generatedMap("random_x").has_value());
+    CHECK_FALSE(vw::generatedMap("void_siege").has_value());
 }

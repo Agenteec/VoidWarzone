@@ -11,6 +11,7 @@ add_library(vw_core STATIC
     core/WorldMission.cpp
     core/WorldResearch.cpp
     core/WorldAi.cpp
+    core/MapGen.cpp
 )
 target_include_directories(vw_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(vw_core PUBLIC VW_VERSION="${PROJECT_VERSION}")

@@ -17,6 +17,7 @@
 #include "core/Version.h"
 #include "net/NetLibrary.h"
 #include "net/MasterClient.h"
+#include "core/MapGen.h"
 #include "server/Server.h"
 
 namespace {
@@ -115,6 +116,7 @@ double nowSeconds() {
 }
 
 int main(int argc, char** argv) {
+    std::string exportPath;
     std::filesystem::path dataDir = std::filesystem::path(argv[0]).parent_path() / "data";
     vw::server::ServerConfig config;
     config.lobby = true;
@@ -155,6 +157,8 @@ int main(int argc, char** argv) {
             iceLog = true;
         } else if (arg == "--no-lobby") {
             config.lobby = false;
+        } else if (arg == "--export-map" && hasValue) {
+            exportPath = argv[++i];
         } else if (arg == "--simulate")
             simPlayers = hasValue && argv[i + 1][0] != '-' ? std::atoi(argv[++i]) : 0;
     }
@@ -177,7 +181,12 @@ int main(int argc, char** argv) {
 
     try {
         const auto data = vw::GameData::parse(readFile(dataDir / "units.json"), readFile(dataDir / "skills.json"), readFile(dataDir / "items.json"), readFile(dataDir / "research.json"));
-        const auto map = vw::Map::parse(readFile(dataDir / "maps" / (config.mapName + ".json")));
+        const auto generated = vw::generatedMap(config.mapName);
+        if (generated && !exportPath.empty()) {
+            std::ofstream(exportPath, std::ios::binary) << *generated;
+            return 0;
+        }
+        const auto map = vw::Map::parse(generated ? *generated : readFile(dataDir / "maps" / (config.mapName + ".json")));
         if (simPlayers >= 0)
             return simulate(data, map, config.difficulty, config.mode, simPlayers);
         config.loadMap = [dataDir](const std::string& name) {
