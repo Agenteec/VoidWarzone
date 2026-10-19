@@ -252,6 +252,7 @@ void App::placeBuild(glm::vec2 screen, bool keep) {
         if (buildValid(def, pos)) {
             const bool queue = !touchLayout() && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
             net_.sendCommand(BuildCommand{selectedBuilders(), def, pos, queue});
+            playUi("ui_build", 0.7f);
             pendingBuilds_.push_back({def, pos, now_});
             addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.y}, {0.35f, 1.0f, 0.55f, 0.8f}, 0.4f, data_->unit(def).radius * 2.5f, 0.35f);
         }
@@ -607,6 +608,7 @@ void App::redDot(ImDrawList* dl, ImVec2 at, float radius) {
 }
 
 void App::levelUpEffect(glm::vec2 pos, const std::string& label) {
+    playAt("level_up", pos, 0.8f);
     for (int i = 0; i < 3; ++i) {
         Effect ring{Mesh::Cylinder, {pos.x, 0.15f, pos.y}, {1.0f, 0.82f, 0.25f, 0.85f}, 0.6f, 2.6f, 0.9f};
         ring.rise = 2.2f;

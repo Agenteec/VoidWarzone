@@ -250,6 +250,8 @@ void App::renderConstruction(const net::InterpolatedEntity& e, float height, flo
         Particle flash{at, {}, {0.75f, 0.9f, 1.0f, 1.0f}, 0.5f, 0.2f, 0.12f, 0.0f, 0.0f, 0.0f, fxRandom(0.0f, 6.0f), ParticleKind::Glow};
         flash.sprite = Sprite::Star;
         addParticle(flash);
+        if (fxRandom(0.0f, 1.0f) < 0.35f)
+            playAt("build", e.pos, 0.45f);
         for (int i = 0; i < fxCount(5.0f); ++i)
             addParticle({at, fxDirection(0.2f) * fxRandom(1.5f, 3.5f), {1.0f, 0.75f, 0.35f, 1.0f}, 0.035f, 0.02f, fxRandom(0.3f, 0.6f), 0.0f, 9.0f, 0.4f,
                          0.0f, ParticleKind::Spark});
@@ -452,6 +454,7 @@ void App::onUnitDeath(const net::UnitDeath& d) {
     const glm::vec4 hull = kSideColors[d.team & 1];
     const bool voidSide = def.armorType == ArmorType::Crystal || def.id.rfind("void", 0) == 0;
     spawnExplosion({d.pos.x, lift, d.pos.y}, def.radius * 2.0f, def.structure, voidSide, hull);
+    playDeath(d.pos, def, voidSide);
 }
 
 void App::updateSnow(float dt) {

@@ -342,6 +342,7 @@ void App::trackResearch() {
     for (std::size_t i = 0; i < now.size(); ++i)
         if (now[i] && !knownResearch_[i]) {
             showBanner("RESEARCH COMPLETE: " + data_->research(static_cast<ResearchId>(i)).name, 3.0f);
+            playUi("research", 0.8f);
             researchDot_ = true;
         }
     knownResearch_ = now;

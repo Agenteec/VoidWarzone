@@ -19,6 +19,7 @@
 #include <glm/vec4.hpp>
 
 #include "Prediction.h"
+#include "Audio.h"
 #include "Visuals.h"
 #include "core/GameData.h"
 #include "core/Map.h"
@@ -49,6 +50,7 @@ struct LaunchOptions {
     std::uint16_t port = net::kGamePort;
     Difficulty difficulty = Difficulty::Normal;
     GameMode mode = GameMode::Defense;
+    bool modeGiven = false;
     bool cheats = false;
     int windowMode = -1;
     std::string master = "77.83.86.108:27400";
@@ -529,6 +531,23 @@ private:
     bool upnp_ = true;
     int fpsLimit_ = 0;
     bool limitBackground_ = true;
+    Audio audio_;
+    float volMaster_ = 0.8f;
+    float volEffects_ = 1.0f;
+    float volUi_ = 0.8f;
+    float volAmbient_ = 0.6f;
+    std::unordered_map<std::string, double> soundThrottle_;
+    MatchState lastMatchState_ = MatchState::Playing;
+    std::vector<std::uint32_t> lastSelection_;
+    void loadSounds();
+    void applyAudio();
+    void updateAudio();
+    float listenerGain(glm::vec2 pos, float* pan) const;
+    void playAt(const std::string& name, glm::vec2 pos, float gain, float pitch = 1.0f);
+    void playUi(const std::string& name, float gain = 1.0f);
+    void playShot(const net::InterpolatedEntity& shooter);
+    void playImpact(glm::vec2 at, ShotKind kind, float splash);
+    void playDeath(glm::vec2 at, const UnitDef& def, bool voidSide);
     void startUpnp();
 
 public:

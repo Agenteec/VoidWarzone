@@ -163,8 +163,8 @@ void App::loadSettings() {
                 options_.difficulty = static_cast<Difficulty>(std::clamp(j.value("difficulty", 1), 0, 3));
             if (options_.map == LaunchOptions{}.map)
                 options_.map = j.value("map", options_.map);
-            if (options_.mode == LaunchOptions{}.mode)
-                options_.mode = static_cast<GameMode>(std::clamp(j.value("mode", 0), 0, 2));
+            if (!options_.modeGiven)
+                options_.mode = static_cast<GameMode>(std::clamp(j.value("mode", 0), 0, 3));
             windowMode_ = std::clamp(j.value("window", windowMode_), 0, 2);
             resWidth_ = j.value("resWidth", resWidth_);
             resHeight_ = j.value("resHeight", resHeight_);
@@ -173,10 +173,14 @@ void App::loadSettings() {
             uiScaleUser_ = std::clamp(j.value("uiScale", uiScaleUser_), 0.6f, 2.0f);
             renderScale_ = std::clamp(j.value("renderScale", renderScale_), 25, 100);
             layout_ = std::clamp(j.value("layout", layout_), 0, 2);
-            preferredColor_ = std::clamp(j.value("color", preferredColor_), -1, 7);
+            preferredColor_ = std::clamp(j.value("color", preferredColor_), -1, static_cast<int>(net::kPlayerColors.size()) - 1);
             upnp_ = j.value("upnp", upnp_);
             fpsLimit_ = std::clamp(j.value("fpsLimit", fpsLimit_), 0, 1000);
             limitBackground_ = j.value("limitBackground", limitBackground_);
+            volMaster_ = std::clamp(j.value("volume", volMaster_), 0.0f, 1.0f);
+            volEffects_ = std::clamp(j.value("volumeEffects", volEffects_), 0.0f, 1.0f);
+            volUi_ = std::clamp(j.value("volumeInterface", volUi_), 0.0f, 1.0f);
+            volAmbient_ = std::clamp(j.value("volumeAmbient", volAmbient_), 0.0f, 1.0f);
         }
     }
     if (options_.shadows >= 0)
@@ -212,7 +216,11 @@ void App::saveSettings() const {
                                             {"color", preferredColor_},
                                             {"upnp", upnp_},
                                             {"fpsLimit", fpsLimit_},
-                                            {"limitBackground", limitBackground_}}
+                                            {"limitBackground", limitBackground_},
+                                            {"volume", volMaster_},
+                                            {"volumeEffects", volEffects_},
+                                            {"volumeInterface", volUi_},
+                                            {"volumeAmbient", volAmbient_}}
                                  .dump(2);
     SDL_SaveFile(path.c_str(), text.data(), text.size());
 }
@@ -405,12 +413,14 @@ void App::loadContent() {
     }
     loadUserMaps();
     loadCampaign();
+    loadSounds();
 }
 
 App::App() = default;
 App::~App() = default;
 
 void App::shutdown() {
+    audio_.shutdown();
     net_.disconnect();
     if (host_)
         host_->stop();
@@ -1199,6 +1209,7 @@ void App::issueCommandAt(glm::vec2 point, bool attackMove, bool patrol) {
     const std::optional<glm::vec2> ground = point;
     if (selected_.empty())
         return;
+    playUi("ui_confirm", 0.45f);
     std::uint8_t ownTeam = 0;
     if (const auto* first = findEntity(selected_.front()))
         ownTeam = first->team;
@@ -1425,7 +1436,10 @@ void App::render() {
         renderEditorOverlay();
     ui_.beginFrame(frameDt_, renderer_.width(), renderer_.height(), uiScale());
     drawUi();
+    if (ImGui::GetIO().MouseClicked[0] && ImGui::IsAnyItemHovered())
+        playUi("ui_click", 0.6f);
     ui_.endFrame(kUiView);
+    updateAudio();
     renderer_.end();
 }
 
@@ -1617,8 +1631,10 @@ void App::renderWorld() {
             continue;
         if (shell.frost)
             spawnFrostBurst(shell.last, shell.frostScale);
-        else if (shell.kind != ShotKind::Auto && fowVisible({shell.last.x, shell.last.z}))
+        else if (shell.kind != ShotKind::Auto && fowVisible({shell.last.x, shell.last.z})) {
             spawnImpact(shell.last, shell.kind, shell.splash, shell.team != 0);
+            playImpact({shell.last.x, shell.last.z}, shell.kind, shell.splash);
+        }
     }
     std::erase_if(shells_, [](const auto& kv) { return !kv.second.seen; });
     renderParticles();
@@ -1743,6 +1759,8 @@ void App::handleNetEvent(const net::NetEvent& ev) {
         else if (shooter) {
             muzzleFx(*shooter);
         }
+        if (shooter)
+            playShot(*shooter);
         break;
     }
     case net::NetEventType::Hit: {
@@ -1771,12 +1789,14 @@ void App::handleNetEvent(const net::NetEvent& ev) {
         const int total = latest ? latest->game.totalWaves : 0;
         const int wave = static_cast<int>(std::lround(value));
         showBanner(wave == total ? "FINAL WAVE" : "WAVE " + std::to_string(wave), 3.0f);
+        playUi("wave_horn", 0.8f);
         break;
     }
     case net::NetEventType::PointCaptured: {
         const int owner = static_cast<int>(std::lround(value));
         const glm::vec4 c = owner == 0 ? kTeamColors[0] : owner == 1 ? kTeamColors[1] : glm::vec4{0.7f, 0.7f, 0.7f, 1.0f};
         addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.z}, {c.r, c.g, c.b, 0.8f}, 2.0f, 12.0f, 0.7f);
+        playAt("point", {pos.x, pos.z}, 0.8f);
         break;
     }
     case net::NetEventType::MatchEnd:
@@ -1812,6 +1832,7 @@ void App::handleNetEvent(const net::NetEvent& ev) {
     }
     case net::NetEventType::Promote:
         addEffect(Mesh::Sphere, pos, {1.0f, 0.85f, 0.3f, 0.7f}, 0.5f, 4.0f, 0.6f);
+        playAt("promote", {pos.x, pos.z}, 0.8f);
         if (static_cast<Rank>(std::lround(value)) == Rank::Hero)
             showBanner("A HERO RISES", 2.0f);
         break;

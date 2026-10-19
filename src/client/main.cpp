@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
         else if (arg == "--fullscreen")
             options.windowMode = 2;
         else if (arg == "--mode" && hasValue)
-            vw::parseGameMode(argv[++i], options.mode);
+            options.modeGiven = vw::parseGameMode(argv[++i], options.mode);
         else if (arg == "--shadows" && hasValue)
             options.shadows = vw::client::parseShadowQuality(argv[++i]);
         else if (arg == "--light" && hasValue)

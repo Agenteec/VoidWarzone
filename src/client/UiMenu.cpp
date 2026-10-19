@@ -422,6 +422,27 @@ void App::drawSettings() {
             saveSettings();
         ImGui::EndTabItem();
     }
+    if (ImGui::BeginTabItem("Audio")) {
+        auto slider = [&](const char* label, float& value) {
+            int percent = static_cast<int>(std::lround(value * 100.0f));
+            ImGui::SetNextItemWidth(labelW);
+            if (ImGui::SliderInt(label, &percent, 0, 100, "%d%%")) {
+                value = static_cast<float>(percent) / 100.0f;
+                applyAudio();
+            }
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                saveSettings();
+                playUi("ui_click");
+            }
+        };
+        slider("Master volume", volMaster_);
+        slider("Effects", volEffects_);
+        slider("Interface", volUi_);
+        slider("Ambience", volAmbient_);
+        if (!audio_.ready())
+            ImGui::TextColored(toVec(kBad), "No audio device");
+        ImGui::EndTabItem();
+    }
     if (screen_ != Screen::Game && screen_ != Screen::Lobby && ImGui::BeginTabItem("Network")) {
         ImGui::SetNextItemWidth(labelW);
         if (ImGui::InputText("Master server", masterBuf_.data(), masterBuf_.size()))

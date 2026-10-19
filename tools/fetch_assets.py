@@ -4,6 +4,7 @@ python tools/fetch_assets.py
 - Poly Haven textures (diffuse, 1k) -> assets_src/polyhaven/<name>/<name>_diff_1k.jpg
 - Poly Haven models (glTF, 1k textures) -> assets_src/polyhaven/<name>/<name>.gltf (+ bin, textures)
 - Kenney Particle Pack -> assets_src/kenney_particles/
+- Kenney Interface / Impact / Sci-fi Sounds -> assets_src/kenney_sounds/<pack>/
 Everything here is CC0 (polyhaven.com, kenney.nl); see data/models/CREDITS.md.
 """
 import io
@@ -33,6 +34,11 @@ MODELS = [
 ]
 
 KENNEY = "https://kenney.nl/media/pages/assets/particle-pack/f8fe0f8cb8-1677578741/kenney_particle-pack.zip"
+SOUNDS = {
+    "interface": "https://kenney.nl/media/pages/assets/interface-sounds/fa43c1dd4d-1677589452/kenney_interface-sounds.zip",
+    "impact": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+    "scifi": "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip",
+}
 
 
 def get(url):
@@ -80,12 +86,23 @@ def kenney():
     print("kenney particles")
 
 
+def sounds():
+    for name, url in SOUNDS.items():
+        root = os.path.join(SRC, "kenney_sounds", name)
+        if os.path.isdir(root):
+            continue
+        os.makedirs(root, exist_ok=True)
+        zipfile.ZipFile(io.BytesIO(get(url))).extractall(root)
+        print("kenney sounds", name)
+
+
 def main():
     for t in TEXTURES:
         texture(t)
     for m in MODELS:
         model(m)
     kenney()
+    sounds()
     print("assets ready in", SRC)
 
 
