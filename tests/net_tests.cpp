@@ -140,7 +140,7 @@ TEST_CASE("build command roundtrip and arena map") {
 
     const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
     const auto map = Map::parse(readData("maps/void_arena.json"));
-    CHECK(data.buildable().size() == 11);
+    CHECK(data.buildable().size() == 12);
     World world(data, map, Difficulty::Normal, GameMode::Arena);
     world.spawnPlayer(0);
     CHECK(world.canBuild(data.find("wall"), {52.5f, 20.5f}));

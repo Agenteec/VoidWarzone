@@ -603,7 +603,10 @@ Snapshot Server::buildSnapshot() const {
         st.y = quantizePos(pos.value.y);
         const glm::vec2 d = proj.targetPos - pos.value;
         const float len = glm::length(d);
-        if (len > 1e-4f) {
+        if (proj.guided > 0.0f) {
+            st.vx = quantizeVel(proj.dir.x * proj.speed);
+            st.vy = quantizeVel(proj.dir.y * proj.speed);
+        } else if (len > 1e-4f) {
             st.vx = quantizeVel(d.x / len * proj.speed);
             st.vy = quantizeVel(d.y / len * proj.speed);
         }

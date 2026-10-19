@@ -10,3 +10,11 @@ team-colour masks or remapped onto our palette). Thanks to the authors.
 | real_uaz452, prop_car_burnt2 | [UAZ-452 Utility Van Lowpoly](https://opengameart.org/node/165264) | Mehozavr | CC0 |
 | real_t26 | [T-12 soviet light tank lowpoly](https://opengameart.org/content/t-12-soviet-light-tank-lowpoly) | artie31 | CC0 |
 | real_jeep_gun | [Jeep-like Vehicle with Mounted Gun](https://opengameart.org/content/jeep-like-vehicle-with-mounted-gun) | OpenGameArt user (Torque3D jeep) | CC0 |
+
+## Environment, textures and sprites (CC0)
+
+Fetched by `tools/fetch_assets.py` into the gitignored `tools/assets_src/`, then processed by the generators:
+
+- [Poly Haven](https://polyhaven.com) models (CC0), converted by `tools/import_models.py` (`PROPS`): barrel_03, Barrel_01, old_tyre, metal_trash_can, trashbag, utility_box_01/02, concrete_road_barrier_02, covered_car, wooden_military_crate, old_military_crate, propane_tank, barrel_stove, stone_fire_pit, tree_stump_01, dead_tree_trunk, rock_07, metal_jerrycan_green, portable_generator, water_manhole_cover → `prop_barrel`, `prop_barrel_rust`, `prop_tyre`, `prop_trashcan`, `prop_trashbag`, `prop_utility1/2`, `prop_barrier`, `prop_covered_car`, `prop_crate_mil`, `prop_crate_old`, `prop_propane`, `prop_stove`, `prop_firepit`, `prop_stump`, `prop_deadtree`, `prop_rock_ph`, `prop_jerrycan`, `prop_generator`, `prop_manhole`.
+- Poly Haven textures (CC0) as photo bases in `tools/gen_city.py` / `tools/gen_terrain.py` (`tools/photolib.py`): snow_02, snow_04, asphalt_snow, muddy_tracks, rock_ground_02, brown_mud_rocks_01, burned_ground_01, rock_ground, concrete_wall_008, brick_wall_02, rusty_corrugated_iron, distressed_painted_planks, rusty_metal_shutter, concrete_debris, damaged_plaster.
+- [Kenney Particle Pack](https://kenney.nl/assets/particle-pack) (CC0) → `data/fx/sprites.png` via `tools/gen_fx.py`.

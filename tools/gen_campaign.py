@@ -52,7 +52,7 @@ M1 = {
         unit("raider_bunker", [140, 150], tag="outpost"), unit("raider_bunker", [151, 160], tag="outpost"),
         unit("raider_technical", [147, 148], tag="outpost"), unit("raider_buggy", [138, 160], tag="outpost"),
         unit("raider_camp", [228, 252], tag="camp"), unit("raider_bunker", [218, 246], tag="camp"), unit("raider_bunker", [234, 242], tag="camp"),
-        unit("raider_mortar", [232, 258], tag="camp"), unit("raider_technical", [222, 256], tag="camp"),
+        unit("raider_mortar", [232, 258], tag="camp"), unit("raider_technical", [222, 256], tag="camp"), unit("raider_rocket", [238, 250], tag="camp"),
     ],
     "mission": {
         "title": "Cold Start",
@@ -109,9 +109,11 @@ M2 = {
                 spawn("raider_buggy", 5, [260, 120], [110, 130]), spawn("raider_technical", 3, [270, 190], [110, 135]),
                 spawn("raider_mortar", 1, [265, 160], [112, 130])]},
             {"when": "time", "time": 150, "repeat": 60, "times": 4, "do": [
-                say("Mortar trucks on the main road!"), spawn("raider_mortar", 4, [250, 180], [112, 132]), spawn("raider_technical", 3, [240, 90], [110, 125])]},
+                say("Mortar trucks on the main road!"), spawn("raider_mortar", 3, [250, 180], [112, 132]), spawn("raider_rocket", 1, [255, 175], [112, 132]),
+                spawn("raider_technical", 3, [240, 90], [110, 125])]},
             {"when": "time", "time": 240, "repeat": 40, "times": 3, "do": [
-                say("Their whole gang is coming!"), spawn("raider_technical", 5, [280, 150], [106, 130]), spawn("raider_buggy", 6, [250, 230], [106, 130])]},
+                say("Their whole gang is coming! Drones in the air!"), spawn("raider_technical", 5, [280, 150], [106, 130]), spawn("raider_buggy", 5, [250, 230], [106, 130]),
+                spawn("raider_drone", 3, [240, 140], [106, 130])]},
             {"when": "time", "time": 300, "do": [say("Convoy is a minute away. Hold on!")]},
             {"when": "objective", "objective": "hold", "do": [say("The convoy is here. Shilovo is ours.")]},
         ],

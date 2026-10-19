@@ -1533,6 +1533,104 @@ def mortar_pit():
     return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
 
 
+def tube_pack(bar, rows, cols, size, length, y, z=0.0):
+    w, h = cols * size, rows * size
+    bar.box((0, y, z - length * 0.5), (w + 0.06, h + 0.06, length * 0.96), MAT["container_green"], sides={"front": MAT["graphite_dark"]})
+    for r in range(rows):
+        for c in range(cols):
+            x = -w / 2 + size * (c + 0.5)
+            yy = y - h / 2 + size * (r + 0.5)
+            bar.cyl((x, yy, z - length - 0.005), size * 0.36, 0.02, MAT["charred"], n=6, axis="z")
+    return (0.0, y, z - length - 0.05)
+
+
+def grad():
+    """BM-21 Grad: a Ural 6x6 with a 40-tube pack."""
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    six_wheels(hull, 1.35, 0.68, 0.36)
+    hull.box((0, 0.66, 0.0), (1.25, 0.24, 3.4), MAT["graphite_dark"])
+    hull.box((0, 1.05, 1.25), (1.2, 0.62, 0.8), MAT["team"], top=(0.92, 0.85), sides={"front": MAT["glass_dark"]})
+    hull.box((0, 1.38, 1.25), (1.05, 0.05, 0.7), MAT["snow"])
+    hull.box((0, 0.7, 1.75), (1.15, 0.3, 0.2), MAT["steel"], top=(1.0, 0.6))
+    for sx in (-1, 1):
+        hull.box((sx * 0.62, 0.86, 0.65), (0.1, 0.3, 0.5), MAT["team_dark"])
+    hull.box((0, 0.88, -0.55), (1.0, 0.18, 1.9), MAT["graphite"])
+    pivot = (0.0, 1.0, -0.6)
+    tur.cyl((0, 0.05, 0), 0.38, 0.1, MAT["graphite"], n=10)
+    tur.box((0, 0.2, 0.15), (0.5, 0.25, 0.5), MAT["team_dark"])
+    muzzle = tube_pack(bar, 4, 10, 0.1, 2.3, 0.45, 0.9)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": (muzzle, "barrel")}
+
+
+def atgm_launcher():
+    """Konkurs-style ATGM on a pintle: turret = mount, barrel = launch tube."""
+    tur, bar = Mesh(), Mesh()
+    tur.cyl((0, 0.08, 0), 0.05, 0.18, MAT["graphite_dark"], n=6)
+    tur.box((0.12, 0.2, 0.05), (0.14, 0.16, 0.2), MAT["team_dark"])
+    bar.cyl((0, 0.24, -0.2), 0.07, 0.9, MAT["container_green"], n=8, axis="z")
+    bar.cyl((0, 0.24, -0.66), 0.08, 0.04, MAT["graphite_dark"], n=8, axis="z")
+    bar.box((0.11, 0.3, 0.12), (0.06, 0.08, 0.16), MAT["glass"])
+    return {"turret": (tur, (0, 0, 0)), "barrel": (bar, (0, 0, 0))}, {"muzzle": ((0.0, 0.24, -0.7), "barrel")}
+
+
+def rocket_rack():
+    """Marauder rocket pod welded on a pickup (turret + barrel only)."""
+    tur, bar = Mesh(), Mesh()
+    tur.box((0, 0.06, 0), (0.5, 0.12, 0.5), MAT["rust"])
+    tur.strut((0, 0.1, 0.1), (0, 0.4, 0.0), 0.04, MAT["graphite_dark"])
+    muzzle = tube_pack(bar, 2, 4, 0.12, 0.9, 0.45, 0.35)
+    return {"turret": (tur, (0, 0, 0)), "barrel": (bar, (0, 0, 0))}, {"muzzle": (muzzle, "barrel")}
+
+
+def fpv_drone():
+    m = Mesh()
+    for a in (math.pi / 4, 3 * math.pi / 4):
+        dx, dz = math.cos(a) * 0.55, math.sin(a) * 0.55
+        m.strut((-dx, 0.3, -dz), (dx, 0.3, dz), 0.04, MAT["graphite_dark"])
+    m.box((0, 0.33, 0), (0.22, 0.1, 0.36), MAT["team"])
+    m.box((0, 0.28, -0.05), (0.14, 0.12, 0.3), MAT["container_green"])
+    m.cyl((0, 0.2, 0.0), 0.08, 0.16, MAT["warn"], n=6)
+    m.box((0, 0.38, -0.17), (0.06, 0.05, 0.05), MAT["glass"])
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        c = (math.cos(a) * 0.55, 0.36, math.sin(a) * 0.55)
+        m.cyl(c, 0.05, 0.08, MAT["graphite"], n=6)
+        m.cyl((c[0], 0.41, c[2]), 0.24, 0.01, MAT["glass_dark"], n=10)
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
+def missile_silo():
+    hull, tur, bar = Mesh(), Mesh(), Mesh()
+    hull.box((0, 0.12, 0), (2.8, 0.24, 2.8), MAT["concrete"], top=(0.96, 0.96))
+    hull.box((0, 0.26, 0), (2.4, 0.06, 2.4), MAT["concrete_dark"])
+    hull.box((0, 0.27, 0), (1.3, 0.04, 1.3), MAT["charred"])
+    hull.box((-0.95, 0.55, 0), (0.35, 0.6, 1.3), MAT["steel"], top=(0.3, 1.0), shift=(-0.1, 0), sides={"right": MAT["hazard"]})
+    hull.box((0.95, 0.55, 0), (0.35, 0.6, 1.3), MAT["steel"], top=(0.3, 1.0), shift=(0.1, 0), sides={"left": MAT["hazard"]})
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            hull.cyl((sx * 1.2, 0.35, sz * 1.2), 0.08, 0.2, MAT["warn"], n=6)
+    hull.box((1.15, 0.5, -1.05), (0.5, 0.5, 0.4), MAT["team"], sides={"front": MAT["glass"]})
+    hull.strut((1.25, 0.75, -1.05), (1.25, 1.6, -1.05), 0.03, MAT["steel"])
+    pivot = (0.0, 0.3, 0.0)
+    tur.cyl((0, 0.05, 0), 0.5, 0.1, MAT["graphite_dark"], n=10)
+    bar.cyl((0, 0.65, 0), 0.26, 1.1, MAT["paint_white"], n=10)
+    bar.cyl((0, 1.3, 0), 0.26, 0.2, MAT["team"], n=10, r2=0.05)
+    bar.cyl((0, 0.85, 0), 0.27, 0.06, MAT["paint_red"], n=10)
+    return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 1.45, 0.0), "barrel")}
+
+
+def rocket_shell(big):
+    m = Mesh()
+    r, ln = (0.12, 1.3) if big else (0.06, 0.8)
+    m.cyl((0, 0, 0), r, ln, MAT["paint_white"] if big else MAT["graphite"], n=8, axis="z")
+    m.cyl((0, 0, -ln / 2 - r * 1.5), r, r * 3, MAT["paint_red"] if big else MAT["container_green"], n=8, axis="z", r2=0.005)
+    for k in range(4):
+        a = k * math.pi / 2
+        m.box((math.cos(a) * r * 1.6, math.sin(a) * r * 1.6, ln / 2 - r * 1.5), (r * (2.4 if k % 2 == 0 else 0.4), r * (0.4 if k % 2 == 0 else 2.4), r * 3),
+              MAT["steel"])
+    return {"hull": (m, (0, 0, 0))}, {}
+
+
 def extractor():
     m = Mesh()
     m.cyl((0, 0.2, 0), 1.3, 0.4, MAT["concrete_dark"], n=8, capmat=MAT["concrete"])
@@ -1619,6 +1717,13 @@ MODELS = {
     "colony_zu23": zu23,
     "colony_mortar_pit": mortar_pit,
     "colony_pillbox": pillbox,
+    "colony_grad": grad,
+    "colony_atgm": atgm_launcher,
+    "raider_rocket_rack": rocket_rack,
+    "colony_fpv_drone": fpv_drone,
+    "colony_missile_silo": missile_silo,
+    "proj_rocket": lambda: rocket_shell(False),
+    "proj_missile": lambda: rocket_shell(True),
     "raider_buggy": raider_buggy,
     "raider_technical": lambda: raider_truck("mg"),
     "raider_mortar": lambda: raider_truck("mortar"),

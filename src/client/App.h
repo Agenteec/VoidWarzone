@@ -336,8 +336,18 @@ private:
         bool frost = false;
         float frostScale = 1.0f;
         glm::vec3 last{};
+        glm::vec3 dir{1.0f, 0.0f, 0.0f};
+        ShotKind kind = ShotKind::Auto;
+        float splash = 0.0f;
+        float trail = 0.0f;
+        std::uint8_t team = 0;
     };
-    enum class ParticleKind : std::uint8_t { Glow, Smoke, Debris, Shard, Decal };
+    ShotKind shotKind(UnitDefId def) const;
+    void renderShell(const net::InterpolatedEntity& e, Shell& shell, glm::vec3 p);
+    void spawnImpact(glm::vec3 at, ShotKind kind, float splash, bool voidSide);
+    void smokePuff(glm::vec3 at, glm::vec3 vel, float size0, float size1, float life, glm::vec4 color);
+    void muzzleFx(const net::InterpolatedEntity& shooter);
+    enum class ParticleKind : std::uint8_t { Glow, Smoke, Debris, Shard, Decal, Fire, Spark, Flash, Ring };
     struct Particle {
         glm::vec3 pos;
         glm::vec3 vel;
@@ -350,6 +360,7 @@ private:
         float drag;
         float spin;
         ParticleKind kind;
+        Sprite sprite = Sprite::Dot;
     };
     std::vector<Particle> particles_;
     std::mt19937 fxRng_{12345u};

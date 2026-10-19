@@ -30,6 +30,15 @@
     {"id": "reactive_armor", "name": "Reactive Armour", "desc": "Explosive tiles that break incoming shells.", "cost": 320, "time": 70,
      "after": ["composite_armor"], "applies": "vehicles", "mods": {"hpMul": 1.2}},
     {"id": "fire_control", "name": "Fire Control", "desc": "A field computer for the mortars and artillery.", "cost": 300, "time": 65,
-     "after": ["mortar_shells", "tank_guns"], "weapon": "explosive", "mods": {"range": 1.0, "damageMul": 1.1}}
+     "after": ["mortar_shells", "tank_guns"], "weapon": "explosive", "mods": {"range": 1.0, "damageMul": 1.1}},
+
+    {"id": "fpv_drones", "name": "FPV Drones", "desc": "Racing quadcopters with a shaped charge. Unlocks the FPV drone in the Workshop.", "cost": 150, "time": 40,
+     "after": ["engine_tuning"], "unlocks": ["fpv_drone"]},
+    {"id": "atgm", "name": "Guided Missiles", "desc": "Konkurs launchers from the depot, wire-guided. Unlocks the UAZ Konkurs.", "cost": 180, "time": 45,
+     "after": ["ap_rounds"], "unlocks": ["atgm_uaz"]},
+    {"id": "rocketry", "name": "Rocket Artillery", "desc": "A Grad launcher and a crate of 122 mm rockets. Unlocks the BM-21 Grad in the Tank Shop.", "cost": 220, "time": 50,
+     "after": ["mortar_shells"], "unlocks": ["grad"]},
+    {"id": "missile_silo", "name": "Missile Silo", "desc": "An old tactical missile, a concrete pit and a lot of patience. Unlocks the Missile Silo.", "cost": 400, "time": 80,
+     "after": ["rocketry", "fire_control"], "unlocks": ["missile_silo"]}
   ]
 }

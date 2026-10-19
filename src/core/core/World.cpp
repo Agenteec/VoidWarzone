@@ -991,6 +991,19 @@ void World::updateWeapons() {
     for (auto [e, pos, unit, team, weapon, target] :
          registry_.view<const Position, const Unit, const Team, Weapon, const Target>(entt::exclude<Construction, Carried>).each()) {
         weapon.cooldown = std::max(0.0f, weapon.cooldown - kTickDt);
+        if (weapon.burstLeft > 0) {
+            weapon.burstTimer -= kTickDt;
+            if (weapon.burstTimer <= 0.0f) {
+                --weapon.burstLeft;
+                weapon.burstTimer += weapon.def.burstGap;
+                const bool live = alive(weapon.burstTarget);
+                const glm::vec2 to = live ? registry_.get<Position>(weapon.burstTarget).value : weapon.burstPos;
+                const auto* owner = registry_.try_get<Owner>(e);
+                shots.push_back({e, live ? weapon.burstTarget : entt::null, pos.value, to, weapon.def, team.id, owner ? static_cast<int>(owner->player) : -1,
+                                 unit.def});
+            }
+            continue;
+        }
         if (weapon.cooldown > 0.0f || !alive(target.value) || !canHit(e, target.value))
             continue;
         const glm::vec2 tp = registry_.get<Position>(target.value).value;
@@ -1001,6 +1014,12 @@ void World::updateWeapons() {
             turret && std::abs(wrapAngle(std::atan2(tp.y - pos.value.y, tp.x - pos.value.x) - turret->yaw)) > kAimTolerance)
             continue;
         weapon.cooldown = weapon.def.cooldown;
+        if (weapon.def.burst > 1) {
+            weapon.burstLeft = weapon.def.burst - 1;
+            weapon.burstTimer = weapon.def.burstGap;
+            weapon.burstTarget = target.value;
+            weapon.burstPos = tp;
+        }
         const auto* owner = registry_.try_get<Owner>(e);
         shots.push_back({e, target.value, pos.value, tp, weapon.def, team.id, owner ? static_cast<int>(owner->player) : -1, unit.def});
     }
@@ -1027,15 +1046,38 @@ void World::updateWeapons() {
     for (const auto& s : shots) {
         events_.push_back({EventType::Shot, s.source, s.target, s.from, s.to});
         if (s.def.projectileSpeed > 0.0f) {
+            entt::entity target = s.target;
+            glm::vec2 to = s.to;
+            const auto seed = static_cast<std::uint32_t>(tick_ * 2654435761u) ^ static_cast<std::uint32_t>(entt::to_integral(s.source) * 40503u) ^
+                              static_cast<std::uint32_t>(registry_.storage<Projectile>().size() * 9973u);
+            if (s.def.spread > 0.0f) {
+                const float a = static_cast<float>(seed % 6283u) * 0.001f;
+                const float r = s.def.spread * std::sqrt(static_cast<float>((seed / 6283u) % 1000u) * 0.001f);
+                to += glm::vec2(std::cos(a), std::sin(a)) * r;
+                target = entt::null;
+            }
+            Projectile proj{s.source, target, to, s.def.projectileSpeed, s.def.damage, s.def.type, s.def.splash,
+                            s.def.slowMove, s.def.slowAttack, s.def.slowTime, s.team, s.owner, s.unit};
+            if (s.def.guided > 0.0f) {
+                const glm::vec2 d = to - s.from;
+                const float base = glm::length(d) > 1e-3f ? std::atan2(d.y, d.x) : 0.0f;
+                const float off = (seed & 1u ? 1.0f : -1.0f) * (0.5f + static_cast<float>(seed % 100u) * 0.004f);
+                proj.dir = {std::cos(base + off), std::sin(base + off)};
+                proj.guided = s.def.guided;
+            }
             const auto p = registry_.create();
             registry_.emplace<Position>(p, s.from);
             registry_.emplace<PrevPosition>(p, s.from);
-            registry_.emplace<Projectile>(p, Projectile{s.source, s.target, s.to, s.def.projectileSpeed, s.def.damage, s.def.type, s.def.splash,
-                                                        s.def.slowMove, s.def.slowAttack, s.def.slowTime, s.team, s.owner, s.unit});
+            registry_.emplace<Projectile>(p, proj);
         } else {
             damage(s.target, s.def.damage, s.owner, s.source, s.def.type);
             applySlow(s.target, s.def.slowMove, s.def.slowAttack, s.def.slowTime);
             splashDamage(s.to, s.def.splash, s.def.damage, s.team, s.owner, s.source, s.def.type, s.target);
+        }
+        if (s.def.suicide && alive(s.source)) {
+            auto& h = registry_.get<Health>(s.source);
+            h.hp = 0.0f;
+            h.lastHitBy = -2;
         }
     }
 }
@@ -1049,6 +1091,18 @@ void World::updateProjectiles() {
         const glm::vec2 d = proj.targetPos - pos.value;
         const float dist = glm::length(d);
         const float step = proj.speed * kTickDt;
+        proj.age += kTickDt;
+        if (proj.guided > 0.0f && dist > step) {
+            const glm::vec2 want = d / dist;
+            const float turn = (proj.guided + proj.age * 3.0f) * kTickDt;
+            const float delta = wrapAngle(std::atan2(want.y, want.x) - std::atan2(proj.dir.y, proj.dir.x));
+            const float a = std::atan2(proj.dir.y, proj.dir.x) + std::clamp(delta, -turn, turn);
+            proj.dir = {std::cos(a), std::sin(a)};
+            if (proj.age < 8.0f) {
+                pos.value += proj.dir * step;
+                continue;
+            }
+        }
         if (dist <= step) {
             pos.value = proj.targetPos;
             if (targetAlive)
@@ -1090,7 +1144,8 @@ void World::removeDead() {
         }
         events_.push_back({EventType::Death, e, entt::null, pos.value, pos.value});
         if (team.id != 0) {
-            kills.push_back({unit.def, pos.value, h.lastHitBy});
+            if (h.lastHitBy != -2)
+                kills.push_back({unit.def, pos.value, h.lastHitBy});
             continue;
         }
         const auto* prog = registry_.try_get<Progression>(e);

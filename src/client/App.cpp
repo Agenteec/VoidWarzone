@@ -377,6 +377,7 @@ void App::loadContent() {
 
     models_ = std::make_unique<ModelLibrary>(renderer_, loadText);
     visuals_ = loadUnitVisuals(unitsText, *data_, *models_);
+    renderer_.setSpriteTexture(models_->texture("data/fx/sprites.png"));
     moduleLooks_.clear();
     for (const auto& m : data_->modules()) {
         ModuleLook look;
@@ -1425,22 +1426,14 @@ void App::renderWorld() {
                                        glm::vec3(0.5f - 0.1f * static_cast<float>(k)), {0.4f, 0.08f, 0.55f, 1.0f});
                 continue;
             }
-            const auto& shooter = data_->unit(e.def);
-            const glm::vec2 dir2 = glm::length(e.target - e.pos) > 1e-3f ? glm::normalize(e.target - e.pos) : glm::vec2(1.0f, 0.0f);
-            const glm::vec3 dir{dir2.x, 0.0f, dir2.y};
-            if (smallCalibre(shooter)) {
-                const glm::vec4 tracer = e.team == 0 ? glm::vec4{1.0f, 0.82f, 0.35f, 1.0f} : glm::vec4{1.0f, 0.45f, 0.3f, 1.0f};
-                renderer_.drawBeam(p - dir * 1.1f, p, 0.05f, tracer, true);
-                renderer_.drawGlow(Mesh::Sphere, p, glm::vec3(0.14f), {1.0f, 0.95f, 0.8f, 1.0f});
-            } else if (heavyGun(shooter) && (shooter.weapon->splash <= 0.0f || shooter.weapon->type == DamageType::Piercing)) {
-                renderer_.drawBeam(p - dir * 0.7f, p, 0.09f, {1.0f, 0.6f, 0.25f, 0.8f}, true);
-                renderer_.draw(Mesh::Sphere, p, glm::vec3(0.22f), 0.0f, {1.0f, 0.92f, 0.7f, 1.0f}, Unlit);
-            } else {
-                const glm::vec4 c = glm::mix(kTeamColors[e.team & 1], glm::vec4(1.0f, 0.9f, 0.6f, 1.0f), 0.6f);
-                renderer_.draw(Mesh::Sphere, p, glm::vec3(0.28f), 0.0f, c, Unlit);
-                if (fxRandom(0.0f, 1.0f) < frameDt_ * 30.0f)
-                    addParticle({p, glm::vec3(0.0f, 0.3f, 0.0f), {0.5f, 0.5f, 0.5f, 0.5f}, 0.15f, 0.5f, 0.6f, 0.0f, 0.0f, 1.0f, 0.0f, ParticleKind::Smoke});
+            auto& shell = shells_[e.id];
+            if (shell.kind == ShotKind::Auto) {
+                shell.kind = shotKind(e.def);
+                shell.splash = e.def < data_->units().size() && data_->unit(e.def).weapon ? data_->unit(e.def).weapon->splash : 0.0f;
+                shell.team = e.def < data_->units().size() && (data_->unit(e.def).armorType == ArmorType::Crystal || data_->unit(e.def).id.rfind("void", 0) == 0) ? 1 : 0;
+                shell.last = p;
             }
+            renderShell(e, shell, p);
             continue;
         }
         const auto& def = data_->unit(e.def);
@@ -1543,9 +1536,14 @@ void App::renderWorld() {
         }
     }
 
-    for (const auto& [id, shell] : shells_)
-        if (!shell.seen && shell.frost)
+    for (const auto& [id, shell] : shells_) {
+        if (shell.seen)
+            continue;
+        if (shell.frost)
             spawnFrostBurst(shell.last, shell.frostScale);
+        else if (shell.kind != ShotKind::Auto)
+            spawnImpact(shell.last, shell.kind, shell.splash, shell.team != 0);
+    }
     std::erase_if(shells_, [](const auto& kv) { return !kv.second.seen; });
     renderParticles();
     renderSnow();
@@ -1616,6 +1614,10 @@ glm::vec3 App::projectilePos(const net::InterpolatedEntity& e) {
                 s.lob = std::tan(std::clamp(u.pitch, 0.0f, 1.2f));
             }
         }
+        if (shotKind(e.def) == ShotKind::Ballistic)
+            s.lob = 1.6f;
+        else if (shotKind(e.def) == ShotKind::Rocket && e.def < data_->units().size() && data_->unit(e.def).weapon && data_->unit(e.def).weapon->spread > 0.0f)
+            s.lob = std::max(s.lob, 0.45f);
     }
     const float done = glm::distance(e.pos, s.start);
     const float left = glm::distance(e.target, e.pos);
@@ -1661,33 +1663,16 @@ void App::handleNetEvent(const net::NetEvent& ev) {
                              ParticleKind::Shard});
         }
         else if (shooter) {
-            const auto& def = data_->unit(shooter->def);
-            const glm::vec3 m = muzzleOf(*shooter);
-            const glm::vec3 fwd{std::cos(shooter->aim), 0.0f, std::sin(shooter->aim)};
-            if (heavyGun(def)) {
-                addEffect(Mesh::Sphere, m + fwd * 0.2f, {1.0f, 0.8f, 0.35f, 1.0f}, 0.4f, 1.3f, 0.12f);
-                addParticle({m, fwd * 2.0f, {1.0f, 0.75f, 0.35f, 1.0f}, 0.5f, 0.1f, 0.12f, 0.0f, 0.0f, 3.0f, 0.0f, ParticleKind::Glow});
-                for (int i = 0; i < fxCount(6.0f); ++i)
-                    addParticle({m + fwd * 0.3f, (fwd * fxRandom(0.8f, 2.4f) + fxDirection(0.2f) * 0.8f), {0.55f, 0.53f, 0.5f, 0.55f}, 0.25f,
-                                 fxRandom(0.7f, 1.2f), fxRandom(0.8f, 1.4f), 0.0f, -0.2f, 1.6f, 0.0f, ParticleKind::Smoke});
-                if (!def.structure || def.radius < 1.2f)
-                    addEffect(Mesh::Cylinder, {shooter->pos.x, 0.05f, shooter->pos.y}, {0.75f, 0.7f, 0.62f, 0.35f}, def.radius, def.radius * 3.0f, 0.35f);
-            } else if (smallCalibre(def)) {
-                addEffect(Mesh::Sphere, m, {1.0f, 0.88f, 0.45f, 0.95f}, 0.15f, 0.45f, 0.05f);
-                addParticle({m, fwd * 4.0f, {1.0f, 0.85f, 0.4f, 1.0f}, 0.12f, 0.02f, 0.06f, 0.0f, 0.0f, 0.0f, 0.0f, ParticleKind::Glow});
-                const glm::vec3 side{-fwd.z, 0.0f, fwd.x};
-                addParticle({m - fwd * 0.2f, side * fxRandom(1.0f, 2.0f) + glm::vec3(0.0f, fxRandom(1.0f, 2.0f), 0.0f), {0.9f, 0.7f, 0.3f, 1.0f}, 0.05f,
-                             0.04f, 0.5f, 0.0f, 9.0f, 0.5f, 6.0f, ParticleKind::Debris});
-            } else {
-                addEffect(Mesh::Sphere, m, {1.0f, 0.85f, 0.4f, 0.9f}, 0.25f, 0.7f, 0.09f);
-            }
-            recoil_[shooter->id] = 1.0f;
+            muzzleFx(*shooter);
         }
         break;
     }
-    case net::NetEventType::Hit:
-        addEffect(Mesh::Sphere, pos, {1.0f, 1.0f, 1.0f, 0.8f}, 0.2f, 0.7f, 0.12f);
+    case net::NetEventType::Hit: {
+        Particle spark{pos, {}, {1.0f, 0.9f, 0.7f, 1.0f}, 0.7f, 0.3f, 0.08f, 0.0f, 0.0f, 0.0f, fxRandom(0.0f, 6.0f), ParticleKind::Glow};
+        spark.sprite = Sprite::Star;
+        addParticle(spark);
         break;
+    }
     case net::NetEventType::SlamWarn:
         addEffect(Mesh::Cylinder, {pos.x, 0.08f, pos.z}, {1.0f, 0.15f, 0.1f, 0.35f}, 0.5f, value * 2.0f, 1.0f);
         addEffect(Mesh::Cylinder, {pos.x, 0.07f, pos.z}, {1.0f, 0.15f, 0.1f, 0.25f}, value * 2.0f, value * 2.0f, 1.0f);

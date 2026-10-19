@@ -10,6 +10,7 @@ bgfx::ProgramHandle createTerrainProgram();
 bgfx::ProgramHandle createShadowProgram();
 bgfx::ProgramHandle createShadowTexProgram();
 bgfx::ProgramHandle createPortalProgram();
+bgfx::ProgramHandle createSpriteProgram();
 bgfx::ProgramHandle createImguiProgram();
 
 }

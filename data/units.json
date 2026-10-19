@@ -620,7 +620,7 @@
         "projectileSpeed": 18,
         "splash": 1.6
       },
-      "visual": {
+      "visual": { "shot": "rocket",
         "shape": "cube",
         "height": 1.0,
         "model": {
@@ -659,7 +659,7 @@
         "projectileSpeed": 16,
         "splash": 2.4
       },
-      "visual": {
+      "visual": { "shot": "mortar",
         "shape": "cube",
         "height": 1.0,
         "model": {
@@ -700,7 +700,7 @@
         "splash": 1.0,
         "targets": "both"
       },
-      "visual": {
+      "visual": { "shot": "missile",
         "shape": "cube",
         "height": 1.0,
         "model": {
@@ -1192,7 +1192,7 @@
         "splash": 1.2,
         "targets": "ground"
       },
-      "visual": {
+      "visual": { "shot": "rocket",
         "shape": "cube",
         "height": 1.0,
         "model": {
@@ -1571,7 +1571,7 @@
         "splash": 1.6,
         "targets": "ground"
       },
-      "visual": {
+      "visual": { "shot": "mortar",
         "shape": "cylinder",
         "height": 0.8,
         "model": {
@@ -1783,7 +1783,7 @@
         "splash": 1.6,
         "targets": "ground"
       },
-      "visual": {
+      "visual": { "shot": "mortar",
         "shape": "cube",
         "height": 1.2,
         "tint": [
@@ -2037,6 +2037,12 @@
           "glb": "real_t26"
         }
       }
-    }
+    },
+    {"id": "grad", "name": "BM-21 Grad", "cost": 260, "maxHp": 380, "armor": 1, "armorType": "heavy", "radius": 0.75, "speed": 2.8, "sight": 18, "accel": 3.0, "turnRate": 2.2, "producedAt": ["tank_shop"], "produceTime": 18, "weapon": {"type": "explosive", "damage": 26, "range": 17, "cooldown": 11, "projectileSpeed": 15, "splash": 1.5, "burst": 12, "burstGap": 0.09, "spread": 2.6, "turnRate": 2.0, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.4, "shot": "rocket", "model": {"glb": "colony_grad"}}},
+    {"id": "atgm_uaz", "name": "UAZ Konkurs", "cost": 120, "maxHp": 200, "armor": 1, "armorType": "light", "radius": 0.5, "speed": 6.2, "sight": 11, "accel": 8.0, "turnRate": 5.0, "producedAt": ["workshop"], "produceTime": 9, "weapon": {"type": "piercing", "damage": 95, "range": 10, "cooldown": 4.5, "projectileSpeed": 13, "guided": 3.5, "targets": "ground"}, "visual": {"shape": "sphere", "height": 1.0, "shot": "missile", "model": {"glb": "real_uaz469", "turret": "colony_atgm"}}},
+    {"id": "fpv_drone", "name": "FPV Drone", "cost": 35, "maxHp": 30, "armor": 0, "armorType": "light", "radius": 0.32, "speed": 9.0, "sight": 9, "accel": 14.0, "turnRate": 8.0, "air": true, "producedAt": ["workshop"], "produceTime": 4, "priority": 1.5, "weapon": {"type": "explosive", "damage": 130, "range": 0.6, "cooldown": 1, "splash": 1.0, "suicide": true, "targets": "ground"}, "visual": {"shape": "sphere", "height": 0.5, "model": {"glb": "colony_fpv_drone"}, "fit": 1.6}},
+    {"id": "missile_silo", "name": "Missile Silo", "sight": 35, "structure": true, "buildable": true, "cost": 650, "maxHp": 2500, "armor": 6, "radius": 1.4, "buildTime": 40, "priority": 2.5, "weapon": {"type": "explosive", "damage": 420, "range": 34, "cooldown": 20, "projectileSpeed": 11, "splash": 3.2, "turnRate": 12, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.6, "shot": "ballistic", "model": {"glb": "colony_missile_silo"}}},
+    {"id": "raider_rocket", "name": "Rocket Technical", "maxHp": 300, "armor": 1, "armorType": "light", "radius": 0.65, "speed": 4.0, "sight": 12, "bounty": 30, "accel": 5.0, "turnRate": 3.0, "weapon": {"type": "explosive", "damage": 22, "range": 11, "cooldown": 7, "projectileSpeed": 14, "splash": 1.2, "burst": 4, "burstGap": 0.15, "spread": 1.4, "targets": "ground"}, "visual": {"shape": "cube", "height": 1.2, "tint": [0.86, 0.46, 0.16], "shot": "rocket", "model": {"glb": "real_jeep_gun", "turret": "raider_rocket_rack"}}},
+    {"id": "raider_drone", "name": "Marauder FPV", "maxHp": 25, "armor": 0, "armorType": "light", "radius": 0.3, "speed": 9.5, "sight": 9, "bounty": 6, "accel": 14.0, "turnRate": 8.0, "air": true, "priority": 1.5, "weapon": {"type": "explosive", "damage": 90, "range": 0.6, "cooldown": 1, "splash": 0.9, "suicide": true, "targets": "ground"}, "visual": {"shape": "sphere", "height": 0.5, "tint": [0.86, 0.46, 0.16], "model": {"glb": "colony_fpv_drone"}, "fit": 1.6}}
   ]
 }

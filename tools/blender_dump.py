@@ -1,7 +1,7 @@
 """Runs inside Blender: dumps triangles of a model file as JSON for tools/import_models.py.
 
 blender -b --factory-startup --disable-autoexec --python tools/blender_dump.py -- <job.json>
-job: {"file", "out", "keep": [substr], "drop": [substr], "decimate": {substr: ratio}}
+job: {"file", "out", "keep": [substr], "drop": [substr], "decimate": {substr: ratio}, "budget": max triangles}
 Output: {"objects": [{"name", "tris": [[x, y, z, nx, ny, nz, u, v] * 3], "mats": [index per tri]}], "materials": [{"name", "color", "image"}]}
 Coordinates are Blender world space (z up).
 """
@@ -19,6 +19,8 @@ if low.endswith(".obj"):
     bpy.ops.wm.obj_import(filepath=path)
 elif low.endswith(".fbx"):
     bpy.ops.import_scene.fbx(filepath=path)
+elif low.endswith(".gltf") or low.endswith(".glb"):
+    bpy.ops.import_scene.gltf(filepath=path)
 elif low.endswith(".blend"):
     with bpy.data.libraries.load(path) as (src, dst):
         dst.objects = src.objects
@@ -44,11 +46,18 @@ def material(m):
     if m:
         color = list(m.diffuse_color[:3])
         if m.node_tree:
+            images = []
             for n in m.node_tree.nodes:
                 if n.type == "BSDF_PRINCIPLED":
                     color = list(n.inputs["Base Color"].default_value[:3])
+                    for link in n.inputs["Base Color"].links:
+                        if link.from_node.type == "TEX_IMAGE" and link.from_node.image:
+                            images.insert(0, link.from_node.image)
                 if n.type == "TEX_IMAGE" and n.image:
-                    image = bpy.path.abspath(n.image.filepath) if n.image.filepath else n.image.name
+                    images.append(n.image)
+            if images:
+                img = images[0]
+                image = bpy.path.abspath(img.filepath) if img.filepath else img.name
     mat_index[key] = len(materials)
     materials.append({"name": key, "color": color, "image": os.path.basename(image)})
     return mat_index[key]
@@ -56,6 +65,10 @@ def material(m):
 
 objects = []
 meshes = [o for o in bpy.context.scene.objects if o.type == "MESH" and wanted(o.name)]
+if job.get("budget"):
+    total = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)
+    if total > job["budget"]:
+        job.setdefault("decimate", {})["*"] = job["budget"] / total
 for o in meshes:
     for k, ratio in job.get("decimate", {}).items():
         if k in o.name or k == "*":

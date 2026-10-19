@@ -1,6 +1,7 @@
 #include "Visuals.h"
 
 #include <algorithm>
+#include <iterator>
 #include <cmath>
 #include <map>
 #include <tuple>
@@ -225,6 +226,11 @@ std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const Game
         v.shape = parseShape(it->value("shape", "cube"));
         v.crystalShot = it->value("shot", "") == "crystal";
         v.frostShot = it->value("shot", "") == "frost";
+        {
+            const std::string shot = it->value("shot", "");
+            v.shot = shot == "bullet" ? ShotKind::Bullet : shot == "shell" ? ShotKind::Shell : shot == "rocket" ? ShotKind::Rocket
+                   : shot == "missile" ? ShotKind::Missile : shot == "mortar" ? ShotKind::Mortar : shot == "ballistic" ? ShotKind::Ballistic : ShotKind::Auto;
+        }
         if (const auto t = it->find("tint"); t != it->end() && t->is_array() && t->size() == 3)
             v.tint = glm::vec3((*t)[0].get<float>(), (*t)[1].get<float>(), (*t)[2].get<float>());
         v.height = it->value("height", v.height);
@@ -683,7 +689,13 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                                               {"prop_car_burnt2", 1.0f, false},  {"prop_bus", 2.0f, false},       {"prop_bus_burnt", 2.0f, false},
                                               {"prop_truck_wreck", 1.6f, false}, {"prop_tank_wreck1", 1.7f, false}, {"prop_tank_wreck2", 1.7f, false},
                                               {"prop_hedgehog", 0.55f, false},   {"prop_barricade", 1.5f, false}, {"prop_fence", 1.1f, false},
-                                              {"prop_crater", 2.6f, false}};
+                                              {"prop_crater", 2.6f, false},      {"prop_barrel", 0.5f, true},     {"prop_barrel_rust", 0.5f, true},
+                                              {"prop_tyre", 0.45f, false},       {"prop_trashcan", 0.45f, true},  {"prop_trashbag", 0.45f, false},
+                                              {"prop_utility1", 0.75f, true},    {"prop_utility2", 0.6f, true},   {"prop_barrier", 1.1f, false},
+                                              {"prop_covered_car", 1.0f, false}, {"prop_crate_mil", 0.6f, false}, {"prop_crate_old", 0.55f, false},
+                                              {"prop_propane", 0.45f, true},     {"prop_stove", 0.5f, true},      {"prop_firepit", 0.8f, false},
+                                              {"prop_stump", 0.55f, false},      {"prop_deadtree", 2.2f, false},  {"prop_rock_ph", 1.1f, false},
+                                              {"prop_jerrycan", 0.3f, true},     {"prop_generator", 0.6f, false}, {"prop_manhole", 0.5f, false}};
     auto placeProp = [&](const std::string& name, glm::vec2 at, float yaw) {
         for (const auto& look : kPropLooks)
             if (name == look.name) {
@@ -776,7 +788,21 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
             }
         }
     }
-    static constexpr const char* kClutter[] = {"prop_trash1", "prop_trash2", "prop_barrels", "prop_tires", "prop_blocks"};
+    static constexpr const char* kClutter[] = {"prop_trash1", "prop_trash2", "prop_barrels", "prop_tires", "prop_blocks", "prop_barrel_rust",
+                                               "prop_tyre", "prop_trashcan", "prop_trashbag", "prop_crate_old", "prop_propane", "prop_utility2"};
+    static constexpr const char* kYard[] = {"prop_crate_mil", "prop_crate_old", "prop_generator", "prop_jerrycan", "prop_propane", "prop_barrel"};
+    auto pick = [&](const auto& list) { return list[static_cast<std::size_t>(unit(rng) * static_cast<float>(std::size(list))) % std::size(list)]; };
+    for (const auto& u : map.units()) {
+        if (u.unit != "raider_camp" && u.unit != "raider_bunker")
+            continue;
+        const int n = u.unit == "raider_camp" ? 7 : 3;
+        for (int i = 0; i < n; ++i) {
+            const float a = unit(rng) * 6.283f;
+            const glm::vec2 q = u.pos + glm::vec2(std::cos(a), std::sin(a)) * (2.2f + unit(rng) * 2.0f);
+            if (freeCell(q))
+                placeProp(i == 0 ? "prop_firepit" : i == 1 ? "prop_stove" : pick(kYard), q, unit(rng) * 6.283f);
+        }
+    }
     for (std::size_t k = 0; k < map.buildings().size(); ++k) {
         const auto& b = map.buildings()[k];
         if (b.kind == "house" || b.poly.size() < 3)
@@ -814,18 +840,28 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                 const glm::vec2 q = e0 + along * t + outward * (1.9f + unit(rng) * 0.2f);
                 if (!freeCell(q) || roadPaint[static_cast<std::size_t>(static_cast<int>(q.y) * out.columns + static_cast<int>(q.x))] > 0.2f)
                     continue;
-                static constexpr const char* kParked[] = {"prop_car1", "prop_car2", "prop_car3", "prop_car4", "prop_car5", "prop_car_burnt1"};
-                placeProp(kParked[static_cast<std::size_t>(unit(rng) * 5.99f)], q, std::atan2(outward.y, outward.x) + kModelYaw + (unit(rng) - 0.5f) * 0.3f);
+                static constexpr const char* kParked[] = {"prop_car1", "prop_car2", "prop_car3", "prop_car4", "prop_car5", "prop_car_burnt1", "prop_covered_car"};
+                placeProp(pick(kParked), q, std::atan2(outward.y, outward.x) + kModelYaw + (unit(rng) - 0.5f) * 0.3f);
             }
         }
+        if (!b.ruin && (b.kind == "panel" || b.kind == "block") && unit(rng) < 0.5f) {
+            const glm::vec2 q = mid + outward * 1.3f + glm::vec2(-outward.y, outward.x) * ((unit(rng) - 0.5f) * 4.0f);
+            if (freeCell(q))
+                placeProp(unit(rng) < 0.5f ? "prop_utility1" : "prop_trashcan", q, std::atan2(outward.y, outward.x) + kModelYaw);
+        }
+        if (b.kind == "industrial")
+            for (int i = 0; i < 3; ++i) {
+                const glm::vec2 q = mid + outward * (1.4f + unit(rng) * 1.5f) + glm::vec2(-outward.y, outward.x) * ((unit(rng) - 0.5f) * 6.0f);
+                if (freeCell(q))
+                    placeProp(pick(kYard), q, unit(rng) * 6.283f);
+            }
         const int count = b.ruin ? 3 : unit(rng) < 0.45f ? 1 : 0;
         for (int i = 0; i < count; ++i) {
             const std::size_t e = static_cast<std::size_t>(unit(rng) * static_cast<float>(b.poly.size())) % b.poly.size();
             const glm::vec2 m2 = glm::mix(b.poly[e], b.poly[(e + 1) % b.poly.size()], 0.2f + unit(rng) * 0.6f);
             const glm::vec2 q = m2 + (glm::length(m2 - c) > 1e-3f ? glm::normalize(m2 - c) : outward) * (1.0f + unit(rng) * 0.8f);
             if (freeCell(q))
-                placeProp(b.ruin ? (unit(rng) < 0.6f ? "prop_blocks" : "prop_trash2") : kClutter[static_cast<std::size_t>(unit(rng) * 4.99f)], q,
-                          unit(rng) * 6.283f);
+                placeProp(b.ruin ? (unit(rng) < 0.6f ? "prop_blocks" : "prop_trash2") : pick(kClutter), q, unit(rng) * 6.283f);
         }
     }
     if (winter) {
@@ -916,10 +952,15 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                                                                   : (unit(rng) < 0.5f ? "prop_tank_wreck1" : "prop_tank_wreck2");
                             if (freeCell(car))
                                 placeProp(name, car, yaw + kModelYaw + (unit(rng) - 0.5f) * 0.9f);
+                        } else if (roll > 0.9f && roll < 0.93f) {
+                            const glm::vec2 m3 = a + dir * (t + 2.0f) + side * (unit(rng) - 0.5f) * path.width * 0.5f;
+                            placeProp("prop_manhole", m3, unit(rng) * 6.283f);
                         } else if (roll > 0.965f && path.width >= 1.5f) {
                             const glm::vec2 c = a + dir * (t + 4.0f);
                             if (freeCell(c + side * (path.width * 0.5f + 0.4f)))
                                 placeProp("prop_barricade", c + side * (path.width * 0.5f - 0.2f), yaw + kModelYaw + 1.5708f);
+                            for (const float s2 : {0.25f, 0.42f})
+                                placeProp("prop_barrier", c + dir * 1.2f + side * (path.width * s2), yaw + kModelYaw + 1.5708f);
                             for (int h2 = 0; h2 < 3; ++h2) {
                                 const glm::vec2 q = c - side * (path.width * (0.1f + 0.2f * static_cast<float>(h2))) + dir * (unit(rng) - 0.5f);
                                 placeProp("prop_hedgehog", q, unit(rng) * 6.283f);
@@ -1006,6 +1047,10 @@ MapVisuals buildMapVisuals(const Map& map, const GameData& data, Renderer& rende
                         place(firs[static_cast<std::size_t>(unit(rng) * 2.99f)], at, 3.0f + unit(rng) * 2.2f, true);
                     else if (roll < 0.7f)
                         place(birches[static_cast<std::size_t>(unit(rng) * 1.99f)], at, 2.8f + unit(rng) * 1.6f, true);
+                    else if (roll < 0.74f)
+                        placeProp(unit(rng) < 0.5f ? "prop_stump" : "prop_deadtree", at, unit(rng) * 6.283f);
+                    else if (roll < 0.76f)
+                        placeProp("prop_rock_ph", at, unit(rng) * 6.283f);
                 } else if (kind == CellKind::Open && roadPaint[vi] < 0.1f) {
                     const bool near = sparse[static_cast<std::size_t>(y * w + x)] != 0;
                     const float forest = fbm(static_cast<float>(x) * 0.06f, static_cast<float>(y) * 0.06f, seed + 7u);

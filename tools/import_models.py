@@ -66,7 +66,28 @@ MODELS = {
 }
 
 
+def ph(name, size, wear=0.3, budget=600, **kw):
+    return dict(src="ph:" + name, file=name + ".gltf", length=2.0, wear=wear, budget=budget, flip=False, **kw)
+
+
+PROPS = {
+    "prop_barrel": ph("barrel_03", 0.9), "prop_barrel_rust": ph("Barrel_01", 0.9, wear=0.6), "prop_tyre": ph("old_tyre", 1.0),
+    "prop_trashcan": ph("metal_trash_can", 0.8), "prop_trashbag": ph("trashbag", 0.8), "prop_utility1": ph("utility_box_01", 1.0),
+    "prop_utility2": ph("utility_box_02", 1.0), "prop_barrier": ph("concrete_road_barrier_02", 1.6, budget=500),
+    "prop_covered_car": ph("covered_car", 2.3, budget=800, wear=0.5), "prop_crate_mil": ph("wooden_military_crate", 1.0),
+    "prop_crate_old": ph("old_military_crate", 0.9), "prop_propane": ph("propane_tank", 0.7), "prop_stove": ph("barrel_stove", 0.9),
+    "prop_firepit": ph("stone_fire_pit", 1.2), "prop_stump": ph("tree_stump_01", 1.0, budget=400), "prop_deadtree": ph("dead_tree_trunk", 3.0, budget=900),
+    "prop_rock_ph": ph("rock_07", 1.6, budget=400), "prop_jerrycan": ph("metal_jerrycan_green", 0.5),
+    "prop_generator": ph("portable_generator", 1.0), "prop_manhole": ph("water_manhole_cover", 0.8, budget=200),
+}
+
+
 def fetch(key):
+    if key.startswith("ph:"):
+        root = os.path.join(HERE, "assets_src", "polyhaven", key[3:])
+        if not os.path.isdir(root):
+            raise FileNotFoundError(root + " (run tools/fetch_assets.py)")
+        return root
     root = os.path.join(CACHE, key)
     if os.path.isdir(root):
         return root
@@ -98,7 +119,7 @@ def dump(name, cfg):
     out = os.path.join(CACHE, "dump_" + name + ".json")
     job = os.path.join(CACHE, "job_" + name + ".json")
     with open(job, "w", encoding="utf-8") as f:
-        json.dump({"file": path, "out": out, "drop": cfg.get("drop", []), "decimate": cfg.get("decimate", {})}, f)
+        json.dump({"file": path, "out": out, "drop": cfg.get("drop", []), "decimate": cfg.get("decimate", {}), "budget": cfg.get("budget", 0)}, f)
     subprocess.run([BLENDER, "-b", "--factory-startup", "--disable-autoexec", "--python", os.path.join(HERE, "blender_dump.py"), "--", job],
                    check=True, stdout=subprocess.DEVNULL)
     with open(out, encoding="utf-8") as f:
@@ -218,7 +239,10 @@ def atlas(data, root, cfg):
         key = path or str(srgb(m["color"]))
         if key not in keys:
             keys.append(key)
-            tiles.append(Image.open(path).convert("RGB") if path else Image.new("RGB", (8, 8), srgb(m["color"])))
+            tile = Image.open(path).convert("RGB") if path else Image.new("RGB", (8, 8), srgb(m["color"]))
+            if tile.width > 256:
+                tile = tile.resize((256, max(1, tile.height * 256 // tile.width)), Image.LANCZOS)
+            tiles.append(tile)
     width = max(t.width for t in tiles)
     tiles = [t if t.width == width else t.resize((width, max(1, t.height * width // t.width)), Image.NEAREST) for t in tiles]
     height = sum(t.height for t in tiles)
@@ -329,9 +353,10 @@ def build(name, cfg):
 
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "data", "models")
-    only = sys.argv[2:] or list(MODELS)
+    every = {**MODELS, **PROPS}
+    only = sys.argv[2:] or list(every)
     for name in only:
-        parts, points, images = build(name, MODELS[name])
+        parts, points, images = build(name, every[name])
         gm.glb(os.path.join(out, name + ".glb"), parts, points, images)
         tri = sum(len(m.idx) // 3 for m, _ in parts.values())
         print(f"{name}: {tri} tris, parts {list(parts)}")

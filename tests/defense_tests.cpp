@@ -483,3 +483,46 @@ TEST_CASE("cheats work only when enabled") {
     world.apply(CheatCommand{0, CheatOp::Win});
     CHECK(world.defense().state == MatchState::Victory);
 }
+
+TEST_CASE("rocket salvos, guided missiles and kamikaze drones") {
+    const auto data = GameData::parse(R"({"units":[
+        {"id":"dummy","maxHp":5000,"radius":0.5,"speed":0},
+        {"id":"grad","maxHp":300,"radius":0.6,"speed":0,"sight":20,"weapon":{"type":"explosive","damage":10,"range":15,"cooldown":30,"projectileSpeed":20,
+          "splash":2,"burst":6,"burstGap":0.1,"spread":1.0,"turnRate":20}},
+        {"id":"atgm","maxHp":300,"radius":0.5,"speed":0,"sight":20,"weapon":{"type":"piercing","damage":80,"range":12,"cooldown":30,"projectileSpeed":12,"guided":3,"turnRate":20}},
+        {"id":"drone","maxHp":20,"radius":0.3,"speed":9,"air":true,"weapon":{"type":"explosive","damage":100,"range":0.6,"cooldown":1,"splash":1,"suicide":true}}
+    ]})");
+    const auto map = Map::parse(R"({"width":40,"height":40,"defense":{"startEnergy":0,"baseIncome":0,"waves":[]}})");
+    auto count = [](const World& w, const GameData& d, const char* id) { return countDef(w, d, id); };
+
+    World salvo(data, map);
+    salvo.spawn(data.find("grad"), 0, {5.5f, 20.5f});
+    const auto t1 = salvo.spawn(data.find("dummy"), 1, {17.5f, 20.5f});
+    int maxShells = 0;
+    for (int i = 0; i < 60; ++i) {
+        salvo.step();
+        maxShells = std::max(maxShells, static_cast<int>(salvo.registry().storage<Projectile>().size()));
+    }
+    CHECK(maxShells >= 4);
+    run(salvo, 2.0f);
+    CHECK(salvo.registry().get<Health>(t1).hp < 5000.0f - 30.0f);
+
+    World guided(data, map);
+    guided.spawn(data.find("atgm"), 0, {5.5f, 20.5f});
+    const auto t2 = guided.spawn(data.find("dummy"), 1, {15.5f, 20.5f});
+    bool curved = false;
+    for (int i = 0; i < 90; ++i) {
+        guided.step();
+        for (auto [e, pos, proj] : guided.registry().view<const Position, const Projectile>().each())
+            curved = curved || std::abs(pos.value.y - 20.5f) > 0.3f;
+    }
+    CHECK(curved);
+    CHECK(guided.registry().get<Health>(t2).hp < 5000.0f - 50.0f);
+
+    World kamikaze(data, map);
+    kamikaze.spawn(data.find("drone"), 0, {10.5f, 20.5f});
+    const auto t3 = kamikaze.spawn(data.find("dummy"), 1, {12.5f, 20.5f});
+    run(kamikaze, 3.0f);
+    CHECK(count(kamikaze, data, "drone") == 0);
+    CHECK(kamikaze.registry().get<Health>(t3).hp < 5000.0f - 50.0f);
+}

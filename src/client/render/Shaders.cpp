@@ -14,6 +14,8 @@
 #include "essl/fs_shadow_tex.sc.bin.h"
 #include "essl/vs_portal.sc.bin.h"
 #include "essl/fs_portal.sc.bin.h"
+#include "essl/vs_sprite.sc.bin.h"
+#include "essl/fs_sprite.sc.bin.h"
 #include "glsl/vs_mesh.sc.bin.h"
 #include "glsl/fs_mesh.sc.bin.h"
 #include "glsl/vs_tex.sc.bin.h"
@@ -26,6 +28,8 @@
 #include "glsl/fs_shadow_tex.sc.bin.h"
 #include "glsl/vs_portal.sc.bin.h"
 #include "glsl/fs_portal.sc.bin.h"
+#include "glsl/vs_sprite.sc.bin.h"
+#include "glsl/fs_sprite.sc.bin.h"
 #include "spirv/vs_mesh.sc.bin.h"
 #include "spirv/fs_mesh.sc.bin.h"
 #include "spirv/vs_tex.sc.bin.h"
@@ -38,6 +42,8 @@
 #include "spirv/fs_shadow_tex.sc.bin.h"
 #include "spirv/vs_portal.sc.bin.h"
 #include "spirv/fs_portal.sc.bin.h"
+#include "spirv/vs_sprite.sc.bin.h"
+#include "spirv/fs_sprite.sc.bin.h"
 #include "fs_ocornut_imgui.bin.h"
 #include "vs_ocornut_imgui.bin.h"
 #if defined(_WIN32)
@@ -53,6 +59,8 @@
 #include "dxbc/fs_shadow_tex.sc.bin.h"
 #include "dxbc/vs_portal.sc.bin.h"
 #include "dxbc/fs_portal.sc.bin.h"
+#include "dxbc/vs_sprite.sc.bin.h"
+#include "dxbc/fs_sprite.sc.bin.h"
 #include "dxil/vs_mesh.sc.bin.h"
 #include "dxil/fs_mesh.sc.bin.h"
 #include "dxil/vs_tex.sc.bin.h"
@@ -65,6 +73,8 @@
 #include "dxil/fs_shadow_tex.sc.bin.h"
 #include "dxil/vs_portal.sc.bin.h"
 #include "dxil/fs_portal.sc.bin.h"
+#include "dxil/vs_sprite.sc.bin.h"
+#include "dxil/fs_sprite.sc.bin.h"
 #endif
 
 namespace vw::client {
@@ -148,6 +158,10 @@ bgfx::ProgramHandle createShadowProgram() {
 
 bgfx::ProgramHandle createPortalProgram() {
     return VW_PROGRAM(vs_portal, fs_portal);
+}
+
+bgfx::ProgramHandle createSpriteProgram() {
+    return VW_PROGRAM(vs_sprite, fs_sprite);
 }
 
 bgfx::ProgramHandle createShadowTexProgram() {

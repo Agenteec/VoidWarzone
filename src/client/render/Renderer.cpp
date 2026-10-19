@@ -121,6 +121,13 @@ bool Renderer::init(SDL_Window* window, float scale, const std::string& backend)
         }
         portalDisc_ = createMesh(v, idx);
     }
+    spriteProgram_ = createSpriteProgram();
+    spriteQuad_ = createMesh({{-0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f},
+                              {0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f},
+                              {0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f},
+                              {-0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}},
+                             {0, 1, 2, 0, 2, 3});
+    spriteTexture_ = white_;
 
     terrainProgram_ = createTerrainProgram();
     shadowProgram_ = createShadowProgram();
@@ -207,6 +214,8 @@ void Renderer::shutdown() {
         bgfx::destroy(timeUniform_);
     if (bgfx::isValid(portalProgram_))
         bgfx::destroy(portalProgram_);
+    if (bgfx::isValid(spriteProgram_))
+        bgfx::destroy(spriteProgram_);
     if (bgfx::isValid(program_))
         bgfx::destroy(program_);
     bgfx::shutdown();
@@ -352,6 +361,8 @@ void Renderer::begin(const Camera& camera) {
     for (auto& g : glow_)
         g.clear();
     portals_.clear();
+    spritesAlpha_.clear();
+    spritesAdd_.clear();
 }
 
 TextureId Renderer::solidTexture(std::uint32_t abgr) {
@@ -467,6 +478,49 @@ void Renderer::drawPortal(const float* mtx, const glm::vec4& color) {
     portals_.push_back(inst);
 }
 
+void Renderer::pushSprite(Sprite sprite, glm::vec3 right, glm::vec3 up, glm::vec3 pos, const glm::vec4& color, SpriteBlend blend) {
+    constexpr float kCell = 1.0f / 8.0f;
+    const auto i = static_cast<int>(sprite);
+    const glm::vec3 n = glm::cross(right, up);
+    Instance inst;
+    const float m[16] = {right.x, right.y, right.z, static_cast<float>(i % 8) * kCell, up.x, up.y, up.z, static_cast<float>(i / 8) * kCell,
+                         n.x, n.y, n.z, kCell, pos.x, pos.y, pos.z, 1.0f};
+    std::memcpy(inst.mtx, m, sizeof(m));
+    std::memcpy(inst.color, &color.x, sizeof(inst.color));
+    (blend == SpriteBlend::Add ? spritesAdd_ : spritesAlpha_).push_back(inst);
+}
+
+void Renderer::drawSprite(Sprite sprite, glm::vec3 center, float size, float rotation, const glm::vec4& color, SpriteBlend blend) {
+    center.y += groundAt(center.x, center.z);
+    const glm::vec3 f = glm::normalize(eye_ - center);
+    const glm::vec3 r0 = glm::normalize(glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), f));
+    const glm::vec3 u0 = glm::cross(f, r0);
+    const float c = std::cos(rotation) * size;
+    const float s = std::sin(rotation) * size;
+    pushSprite(sprite, r0 * c + u0 * s, u0 * c - r0 * s, center, color, blend);
+}
+
+void Renderer::drawStreak(Sprite sprite, glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color, SpriteBlend blend) {
+    const glm::vec3 d = b - a;
+    if (glm::dot(d, d) < 1e-8f)
+        return;
+    glm::vec3 mid = (a + b) * 0.5f;
+    mid.y += groundAt(mid.x, mid.z);
+    const glm::vec3 f = glm::normalize(eye_ - mid);
+    glm::vec3 side = glm::cross(d, f);
+    if (glm::dot(side, side) < 1e-10f)
+        return;
+    side = glm::normalize(side) * width;
+    pushSprite(sprite, side, d, mid, color, blend);
+}
+
+void Renderer::drawDecal(Sprite sprite, glm::vec3 center, float size, float rotation, const glm::vec4& color, SpriteBlend blend) {
+    center.y += groundAt(center.x, center.z);
+    const float c = std::cos(rotation) * size;
+    const float s = std::sin(rotation) * size;
+    pushSprite(sprite, {c, 0.0f, s}, {-s, 0.0f, c}, center, color, blend);
+}
+
 void Renderer::drawScreenRect(glm::vec2 a, glm::vec2 b, const glm::vec4& color) {
     const glm::vec2 lo = glm::min(a, b);
     const glm::vec2 hi = glm::max(a, b);
@@ -513,6 +567,28 @@ void Renderer::end() {
     }
     for (std::size_t m = 0; m < meshes_.size(); ++m)
         submit(kWorldView, static_cast<Mesh>(m), Unlit, glow_[m], kGlowState);
+    if (bgfx::isValid(spriteProgram_) && spriteQuad_ < texMeshes_.size()) {
+        const auto& gpu = texMeshes_[spriteQuad_];
+        auto far = [&](const Instance& x, const Instance& y) {
+            const glm::vec3 a{x.mtx[12] - eye_.x, x.mtx[13] - eye_.y, x.mtx[14] - eye_.z};
+            const glm::vec3 b{y.mtx[12] - eye_.x, y.mtx[13] - eye_.y, y.mtx[14] - eye_.z};
+            return glm::dot(a, a) > glm::dot(b, b);
+        };
+        std::sort(spritesAlpha_.begin(), spritesAlpha_.end(), far);
+        constexpr std::uint64_t kSpriteAlpha = BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA | BGFX_STATE_BLEND_ALPHA;
+        constexpr std::uint64_t kSpriteAdd = BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA |
+                                             BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_ONE);
+        for (const bool add : {false, true}) {
+            const float params[4] = {add ? 1.0f : 0.0f, add ? 0.35f : 1.0f, 0.0f, 0.0f};
+            submitInstances(kWorldView, spriteProgram_, add ? kSpriteAdd : kSpriteAlpha, add ? spritesAdd_ : spritesAlpha_, [&] {
+                bgfx::setVertexBuffer(0, gpu.vbh);
+                bgfx::setIndexBuffer(gpu.ibh);
+                bgfx::setTexture(0, colorSampler_, textures_[spriteTexture_]);
+                bgfx::setUniform(params_, params);
+                bindLighting();
+            });
+        }
+    }
     submit(kOverlayView, Mesh::Cube, Alpha | Unlit, overlay_);
     bgfx::frame();
 }

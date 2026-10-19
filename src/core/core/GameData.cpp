@@ -37,6 +37,11 @@ WeaponDef parseWeapon(const json& w, bool structure) {
     wd.turnRate = w.value("turnRate", structure ? 3.5f : 6.0f);
     wd.type = parseDamage(w.value("type", "kinetic"));
     wd.splash = w.value("splash", wd.splash);
+    wd.burst = std::max(1, w.value("burst", wd.burst));
+    wd.burstGap = w.value("burstGap", wd.burstGap);
+    wd.spread = w.value("spread", wd.spread);
+    wd.guided = w.value("guided", wd.guided);
+    wd.suicide = w.value("suicide", wd.suicide);
     const std::string targets = w.value("targets", "ground");
     wd.targets = targets == "both" ? 3 : targets == "air" ? 2 : 1;
     if (const auto slow = w.find("slow"); slow != w.end()) {

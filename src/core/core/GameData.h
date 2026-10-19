@@ -56,6 +56,11 @@ struct WeaponDef {
     float cooldown = 1.0f;
     float projectileSpeed = 0.0f;
     float turnRate = 0.0f;
+    int burst = 1;
+    float burstGap = 0.1f;
+    float spread = 0.0f;
+    float guided = 0.0f;
+    bool suicide = false;
 };
 
 enum class AbilityType : std::uint8_t { Slam, Summon };

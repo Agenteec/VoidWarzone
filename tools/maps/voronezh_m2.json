@@ -234,10 +234,24 @@
       {
        "type": "spawn",
        "unit": "raider_mortar",
-       "count": 4,
+       "count": 3,
        "pos": [
         250,
         180
+       ],
+       "team": 1,
+       "target": [
+        112,
+        132
+       ]
+      },
+      {
+       "type": "spawn",
+       "unit": "raider_rocket",
+       "count": 1,
+       "pos": [
+        255,
+        175
        ],
        "team": 1,
        "target": [
@@ -269,7 +283,7 @@
      "do": [
       {
        "type": "message",
-       "text": "Their whole gang is coming!"
+       "text": "Their whole gang is coming! Drones in the air!"
       },
       {
        "type": "spawn",
@@ -288,10 +302,24 @@
       {
        "type": "spawn",
        "unit": "raider_buggy",
-       "count": 6,
+       "count": 5,
        "pos": [
         250,
         230
+       ],
+       "team": 1,
+       "target": [
+        106,
+        130
+       ]
+      },
+      {
+       "type": "spawn",
+       "unit": "raider_drone",
+       "count": 3,
+       "pos": [
+        240,
+        140
        ],
        "team": 1,
        "target": [

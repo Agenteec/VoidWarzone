@@ -162,6 +162,15 @@
      256
     ],
     "tag": "camp"
+   },
+   {
+    "unit": "raider_rocket",
+    "team": 1,
+    "pos": [
+     238,
+     250
+    ],
+    "tag": "camp"
    }
   ],
   "mission": {

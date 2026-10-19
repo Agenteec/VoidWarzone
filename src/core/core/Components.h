@@ -56,6 +56,10 @@ struct Health {
 struct Weapon {
     WeaponDef def;
     float cooldown = 0.0f;
+    int burstLeft = 0;
+    float burstTimer = 0.0f;
+    entt::entity burstTarget = entt::null;
+    glm::vec2 burstPos{};
 };
 
 struct Turret {
@@ -183,6 +187,9 @@ struct Projectile {
     std::uint8_t team = 0;
     int owner = -1;
     UnitDefId def = kInvalidUnitDef;
+    glm::vec2 dir{};
+    float guided = 0.0f;
+    float age = 0.0f;
 };
 
 struct BaseStats {

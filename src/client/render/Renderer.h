@@ -38,6 +38,15 @@ enum DrawFlags : std::uint8_t {
     Cutaway = 64,
 };
 
+enum class Sprite : std::uint8_t {
+    Smoke0, Smoke1, Smoke2, Smoke3, Fire0, Fire1, Flame0, Flame1,
+    Muzzle0, Muzzle1, Muzzle2, Muzzle3, Trace0, Trace1, Flare, Dot,
+    Star, Burst0, Burst1, Dirt0, Dirt1, SmokeRing, Lightning, Halo,
+    Spark, Crescent, Smoke4, Smoke5,
+};
+
+enum class SpriteBlend : std::uint8_t { Alpha, Add };
+
 struct TerrainVertex {
     float x, y, z;
     float nx, ny, nz;
@@ -79,6 +88,10 @@ public:
     void drawGlow(Mesh mesh, glm::vec3 center, glm::vec3 size, const glm::vec4& color);
     void drawBeam(glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color, bool solid = false);
     void drawPortal(const float* mtx, const glm::vec4& color);
+    void setSpriteTexture(TextureId texture) { spriteTexture_ = texture; }
+    void drawSprite(Sprite sprite, glm::vec3 center, float size, float rotation, const glm::vec4& color, SpriteBlend blend);
+    void drawStreak(Sprite sprite, glm::vec3 a, glm::vec3 b, float width, const glm::vec4& color, SpriteBlend blend);
+    void drawDecal(Sprite sprite, glm::vec3 center, float size, float rotation, const glm::vec4& color, SpriteBlend blend);
     void setTime(float seconds) { time_ = seconds; }
     void end();
 
@@ -149,6 +162,12 @@ private:
     std::vector<Instance> overlay_;
     std::array<std::vector<Instance>, static_cast<std::size_t>(Mesh::Count)> glow_;
     std::vector<Instance> portals_;
+    void pushSprite(Sprite sprite, glm::vec3 right, glm::vec3 up, glm::vec3 pos, const glm::vec4& color, SpriteBlend blend);
+    bgfx::ProgramHandle spriteProgram_ = BGFX_INVALID_HANDLE;
+    MeshId spriteQuad_ = 0;
+    TextureId spriteTexture_ = 0;
+    std::vector<Instance> spritesAlpha_;
+    std::vector<Instance> spritesAdd_;
     bgfx::ProgramHandle portalProgram_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle timeUniform_ = BGFX_INVALID_HANDLE;
     MeshId portalDisc_ = 0;
