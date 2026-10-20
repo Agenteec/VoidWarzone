@@ -178,6 +178,8 @@ void App::loadSettings() {
             fpsLimit_ = std::clamp(j.value("fpsLimit", fpsLimit_), 0, 1000);
             limitBackground_ = j.value("limitBackground", limitBackground_);
             volMaster_ = std::clamp(j.value("volume", volMaster_), 0.0f, 1.0f);
+            if (const auto d = j.find("designs"); d != j.end() && d->is_array())
+                designs_ = d->get<std::vector<std::string>>();
             volEffects_ = std::clamp(j.value("volumeEffects", volEffects_), 0.0f, 1.0f);
             volUi_ = std::clamp(j.value("volumeInterface", volUi_), 0.0f, 1.0f);
             volAmbient_ = std::clamp(j.value("volumeAmbient", volAmbient_), 0.0f, 1.0f);
@@ -218,6 +220,7 @@ void App::saveSettings() const {
                                             {"fpsLimit", fpsLimit_},
                                             {"limitBackground", limitBackground_},
                                             {"volume", volMaster_},
+                                            {"designs", designs_},
                                             {"volumeEffects", volEffects_},
                                             {"volumeInterface", volUi_},
                                             {"volumeAmbient", volAmbient_}}
@@ -1033,6 +1036,8 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         debugOpen_ = !debugOpen_;
     } else if (key == SDLK_F2) {
         researchOpen_ = !researchOpen_;
+    } else if (key == SDLK_F4) {
+        designerOpen_ = !designerOpen_;
     } else if (key == SDLK_F5) {
         cycleShadows();
     } else if (key == SDLK_F6) {
@@ -1052,7 +1057,7 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         std::vector<UnitDefId> list;
         if (factory) {
             for (const auto id : data_->recruitable())
-                if (const auto& at = data_->unit(id).producedAt; std::find(at.begin(), at.end(), factory->def) != at.end())
+                if (const auto& at = data_->unit(id).producedAt; std::find(at.begin(), at.end(), factory->def) != at.end() && !hiddenDesign(id))
                     list.push_back(id);
         } else {
             list = productionList();
@@ -1310,6 +1315,10 @@ void App::updateGame(float dt) {
                 options_.debug = false;
                 break;
             }
+    if (cameraPlaced_ && options_.designer) {
+        designerOpen_ = true;
+        options_.designer = false;
+    }
     if (cameraPlaced_ && options_.select.empty() && options_.researchTree) {
         researchOpen_ = true;
         options_.researchTree = false;

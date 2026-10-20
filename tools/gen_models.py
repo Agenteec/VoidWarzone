@@ -2085,6 +2085,41 @@ def sam_site():
     return {"hull": (hull, (0, 0, 0)), "turret": (tur, pivot), "barrel": (bar, pivot)}, {"pivot": (pivot, None), "muzzle": ((0.0, 0.55, -1.35), "barrel")}
 
 
+def design_hull(body, prop):
+    """Designer chassis: a body (light/medium/heavy) on a propulsion (wheels/halftrack/tracks); turret comes from the weapon."""
+    length, width, height, armour = {"light": (2.2, 1.15, 0.42, 0), "medium": (2.7, 1.4, 0.5, 1), "heavy": (3.0, 1.6, 0.58, 2)}[body]
+    hull = Mesh()
+    base = 0.62
+    if prop == "tracks":
+        soviet_tracks(hull, length * 1.02, width * 0.52, 5 + armour, 0.5)
+    elif prop == "halftrack":
+        for sx in (-1, 1):
+            hull.box((sx * width * 0.52, 0.27, length * 0.12), (0.3, 0.44, length * 0.62), MAT["track"], top=(1.0, 0.9))
+            for k in range(3):
+                hull.cyl((sx * (width * 0.52 + 0.16), 0.26, length * (-0.12 + k * 0.2)), 0.18, 0.03, MAT["graphite"], n=8, axis="x")
+            hull.cyl((sx * width * 0.5, 0.3, -length * 0.36), 0.3, 0.22, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
+    else:
+        count = 2 if body == "light" else 3
+        for sx in (-1, 1):
+            for k in range(count):
+                z = -length * 0.34 + length * 0.68 * k / (count - 1)
+                hull.cyl((sx * width * 0.5, 0.3, z), 0.3, 0.24, MAT["tire"], n=10, axis="x", capmat=MAT["graphite"])
+        base = 0.66
+    top = base + height
+    hull.box((0, base + height / 2, 0.05), (width, height, length), MAT["team_dark"], top=(0.92, 0.9), sides={"front": MAT["graphite"]})
+    hull.box((0, base + height * 0.35, -length * 0.5 - 0.1), (width * 0.94, height * 0.7, 0.3), MAT["team"], top=(1.0, 0.4), shift=(0, 0.1))
+    hull.box((0, top + 0.03, length * 0.32), (width * 0.7, 0.06, length * 0.25), MAT["graphite"])
+    hull.box((width * 0.3, top + 0.06, length * 0.38), (0.22, 0.08, 0.22), MAT["graphite_dark"])
+    for sx in (-1, 1):
+        hull.box((sx * width * 0.51, base + height * 0.6, 0.0), (0.05, height * 0.5, length * 0.7), MAT["team"])
+        if armour:
+            hull.box((sx * width * 0.56, base + height * 0.45, -length * 0.1), (0.06, height * 0.6, length * 0.4), MAT["container_green"])
+    hull.cyl((-width * 0.32, top + 0.05, length * 0.42), 0.05, 0.12, MAT["warn"], n=6)
+    hull.box((0, top + 0.02, length * 0.5), (width * 0.5, 0.18, 0.12), MAT["graphite_dark"])
+    pivot = (0.0, top, -0.05)
+    return {"hull": (hull, (0, 0, 0))}, {"pivot": (pivot, None)}
+
+
 def extractor():
     m = Mesh()
     m.cyl((0, 0.2, 0), 1.3, 0.4, MAT["concrete_dark"], n=8, capmat=MAT["concrete"])
@@ -2179,6 +2214,15 @@ MODELS = {
     "colony_gvozdika": gvozdika,
     "colony_tochka": tochka,
     "colony_crane_truck": crane_truck,
+    "design_light_wheels": lambda b="light", p="wheels": design_hull(b, p),
+    "design_light_halftrack": lambda b="light", p="halftrack": design_hull(b, p),
+    "design_light_tracks": lambda b="light", p="tracks": design_hull(b, p),
+    "design_medium_wheels": lambda b="medium", p="wheels": design_hull(b, p),
+    "design_medium_halftrack": lambda b="medium", p="halftrack": design_hull(b, p),
+    "design_medium_tracks": lambda b="medium", p="tracks": design_hull(b, p),
+    "design_heavy_wheels": lambda b="heavy", p="wheels": design_hull(b, p),
+    "design_heavy_halftrack": lambda b="heavy", p="halftrack": design_hull(b, p),
+    "design_heavy_tracks": lambda b="heavy", p="tracks": design_hull(b, p),
     "colony_brdm2": brdm2,
     "colony_orlan": orlan,
     "colony_t90": t90,
@@ -2264,7 +2308,7 @@ def main():
         f.write(mask)
     military = {"colony_t72", "colony_t90", "colony_bmp1", "colony_btr80", "colony_shilka", "colony_gvozdika", "colony_tos1", "colony_msta",
                 "colony_tunguska", "colony_buk", "colony_sprut", "colony_brem", "colony_brdm2", "colony_mtlb", "colony_tochka", "colony_grad",
-                "colony_mi24", "colony_mi8", "colony_kshm"}
+                "colony_mi24", "colony_mi8", "colony_kshm"} | {"design_%s_%s" % (b, p) for b in ("light", "medium", "heavy") for p in ("wheels", "halftrack", "tracks")}
     for name, build in MODELS.items():
         CAMO["active"] = name in military
         SPIN.clear()

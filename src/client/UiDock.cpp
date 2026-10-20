@@ -260,12 +260,12 @@ void App::drawDock() {
         if (factory) {
             ImGui::TextDisabled("%s", data_->unit(factory->def).name.c_str());
             for (const auto id : data_->recruitable())
-                if (const auto& at = data_->unit(id).producedAt; std::find(at.begin(), at.end(), factory->def) != at.end())
+                if (const auto& at = data_->unit(id).producedAt; std::find(at.begin(), at.end(), factory->def) != at.end() && !hiddenDesign(id))
                     list.push_back(id);
         } else {
             list = productionList();
         }
-        for (std::size_t i = 0; i < list.size() && i < 12; ++i) {
+        for (std::size_t i = 0; i < list.size() && i < 20; ++i) {
             const auto& def = data_->unit(list[i]);
             next();
             char cost[16];
@@ -284,6 +284,13 @@ void App::drawDock() {
                 ImGui::TextDisabled("build time %.0f s", def.produceTime);
                 ImGui::EndTooltip();
             }
+        }
+        if (!data_->designBodies().empty() && (factory || (map_ && map_->mission().enabled) ||
+                                               (latest && latest->game.mode == static_cast<std::uint8_t>(GameMode::Skirmish)))) {
+            next();
+            if (cardButton("designer", ICON_FA_WRENCH, "Design", "F4", true, designerOpen_, cell))
+                designerOpen_ = !designerOpen_;
+            ImGui::SetItemTooltip("Vehicle designer [F4]: combine a hull, running gear and weapon into your own designs");
         }
         if (queue) {
             column = 0;

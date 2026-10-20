@@ -57,7 +57,7 @@ void App::drawGuide() {
         ImGui::TableHeadersRow();
         for (std::size_t i = 0; i < units.size(); ++i) {
             const auto& u = units[i];
-            if (!filter(u))
+            if (u.design || !filter(u))
                 continue;
             ImGui::TableNextRow();
             ImGui::TableNextColumn();

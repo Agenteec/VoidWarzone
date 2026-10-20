@@ -102,6 +102,8 @@ int main(int argc, char** argv) {
             options.debug = true;
         else if (arg == "--bots" && hasValue)
             options.bots = std::stoi(argv[++i]);
+        else if (arg == "--designer")
+            options.designer = true;
         else if (arg == "--research-tree")
             options.researchTree = true;
         else if (arg == "--difficulty" && hasValue)

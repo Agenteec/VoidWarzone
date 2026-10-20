@@ -126,7 +126,7 @@ void World::thinkAi(std::uint8_t p) {
     }
 
     auto unlocked = [&](const UnitDef& def) {
-        if (def.research != kInvalidId && !researched(p, def.research))
+        if (!unlockedFor(p, def))
             return false;
         return def.needs == kInvalidUnitDef || counts[def.needs] > 0;
     };

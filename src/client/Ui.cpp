@@ -66,6 +66,7 @@ void App::drawHud() {
     if (guideOpen_)
         drawGuide();
     drawResearchTree();
+    drawDesigner();
     drawDebug();
 
     const float s = uiScale();

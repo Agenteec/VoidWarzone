@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -132,6 +133,9 @@ struct UnitDef {
     bool factory = false;
     bool lab = false;
     ResearchId research = 0xffff;
+    std::vector<ResearchId> researchAll;
+    // designer units: generated from units.json `design` (body + propulsion + weapon), id d_<body>_<prop>_<weapon>
+    bool design = false;
     std::vector<std::string> classes;
     float produceTime = 0.0f;
     float produceInterval = 20.0f;
@@ -227,6 +231,15 @@ struct ResearchDef {
     }
 };
 
+struct DesignPart {
+    std::string id;
+    std::string name;
+    ResearchId research = 0xffff;
+};
+
+// Expands the units.json `design` block into a JSON array of generated unit entries (shared by GameData and client visuals).
+std::string expandDesigns(std::string_view unitsText);
+
 class GameData {
 public:
     static GameData parse(std::string_view units, std::string_view skills = {}, std::string_view items = {}, std::string_view research = {});
@@ -236,6 +249,10 @@ public:
     const std::vector<UnitDef>& units() const { return units_; }
     const std::vector<UnitDefId>& recruitable() const { return recruitable_; }
     const std::vector<UnitDefId>& buildable() const { return buildable_; }
+    const std::vector<DesignPart>& designBodies() const { return designParts_[0]; }
+    const std::vector<DesignPart>& designPropulsion() const { return designParts_[1]; }
+    const std::vector<DesignPart>& designWeapons() const { return designParts_[2]; }
+    UnitDefId designOf(std::string_view body, std::string_view prop, std::string_view weapon) const;
     std::vector<UnitDefId> refits(UnitDefId base) const;
     UnitDefId baseOf(UnitDefId id) const { return units_[id].refitFrom != kInvalidUnitDef ? units_[id].refitFrom : id; }
     UnitDefId rootOf(UnitDefId id) const {
@@ -275,6 +292,7 @@ private:
     std::vector<ItemId> shop_;
     std::vector<ModuleDef> modules_;
     std::vector<ResearchDef> research_;
+    std::array<std::vector<DesignPart>, 3> designParts_;
     float maxRadius_ = 0.0f;
     CombatTable combat_;
     std::uint64_t hash_ = 0;

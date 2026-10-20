@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -135,6 +136,12 @@ public:
     void updateVisibility();
     bool cheats() const { return cheats_; }
     bool researched(std::uint8_t player, ResearchId topic) const;
+    // the unit's own topic plus every designer component topic
+    bool unlockedFor(std::uint8_t player, const UnitDef& def) const {
+        if (def.research != kInvalidId && !researched(player, def.research))
+            return false;
+        return std::all_of(def.researchAll.begin(), def.researchAll.end(), [&](ResearchId r) { return researched(player, r); });
+    }
     bool canResearch(std::uint8_t player, ResearchId topic) const;
     void grantResearch(std::uint8_t player, ResearchId topic);
     std::string exportResearch(std::uint8_t player) const;

@@ -40,6 +40,7 @@ struct EditorState;
 struct LaunchOptions {
     bool host = false;
     bool stayInLobby = false;
+    bool designer = false;
     std::optional<std::string> editor;
     bool editorTest = false;
     int mission = 0;
@@ -273,6 +274,14 @@ private:
     bool dbgLabels_ = false;
     bool dbgBars_ = false;
     bool researchOpen_ = false;
+    bool designerOpen_ = false;
+    int designBody_ = 0;
+    int designProp_ = 0;
+    int designWeapon_ = 0;
+    std::vector<std::string> designs_{"d_light_wheels_mg", "d_light_halftrack_hmg", "d_medium_tracks_cannon"};
+    void drawDesigner();
+    bool designSaved(UnitDefId id) const;
+    bool hiddenDesign(UnitDefId id) const;
     bool researchDot_ = false;
     bool hadLab_ = false;
     std::vector<std::uint8_t> knownResearch_;

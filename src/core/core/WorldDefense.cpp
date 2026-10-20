@@ -246,7 +246,7 @@ void World::handle(const RecruitCommand& cmd) {
         };
         if (def.needs != kInvalidUnitDef && !own(def.needs, nullptr, nullptr))
             return;
-        if (def.research != kInvalidId && !researched(cmd.player, def.research))
+        if (!unlockedFor(cmd.player, def))
             return;
         if (!def.producedAt.empty()) {
             entt::entity best = entt::null;

@@ -220,7 +220,9 @@ const Model* ModelLibrary::model(const std::string& name) {
 
 std::vector<UnitVisual> loadUnitVisuals(const std::string& unitsJson, const GameData& data, ModelLibrary& models) {
     std::vector<UnitVisual> visuals(data.units().size());
-    const auto units = nlohmann::json::parse(unitsJson);
+    auto units = nlohmann::json::parse(unitsJson);
+    for (auto& g : nlohmann::json::parse(expandDesigns(unitsJson)))
+        units.at("units").push_back(std::move(g));
     for (const auto& u : units.at("units")) {
         const auto it = u.find("visual");
         if (it == u.end())

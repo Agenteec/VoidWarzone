@@ -112,7 +112,7 @@ std::vector<UnitDefId> App::productionList() const {
     const bool mission = map_ && map_->mission().enabled;
     std::vector<UnitDefId> out;
     for (const auto id : data_->recruitable())
-        if (data_->unit(id).producedAt.empty() != mission)
+        if (data_->unit(id).producedAt.empty() != mission && !hiddenDesign(id))
             out.push_back(id);
     return out;
 }
@@ -124,6 +124,10 @@ const char* App::missingFor(const UnitDef& def) const {
         return data_->unit(def.needs).name.c_str();
     if (const auto* latest = net_.latest(); def.research != kInvalidId && latest && !latest->view.researched(def.research))
         return data_->research(def.research).name.c_str();
+    if (const auto* latest = net_.latest())
+        for (const auto r : def.researchAll)
+            if (!latest->view.researched(r))
+                return data_->research(r).name.c_str();
     if (!def.producedAt.empty()) {
         for (const auto at : def.producedAt)
             if (ownCompleted(at))

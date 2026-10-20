@@ -17,6 +17,7 @@ set(VW_CLIENT_SOURCES
     Fow.cpp
     Audio.cpp
     Sound.cpp
+    UiDesigner.cpp
     UiGroups.cpp
     UiFx.cpp
     City.cpp

@@ -164,6 +164,73 @@ const char* armorTypeName(ArmorType t) {
     return kArmorNames[std::min(static_cast<int>(t), static_cast<int>(ArmorType::Count) - 1)];
 }
 
+std::string expandDesigns(std::string_view unitsText) {
+    const json doc = json::parse(unitsText);
+    json out = json::array();
+    const auto d = doc.find("design");
+    if (d == doc.end())
+        return out.dump();
+    const json bodies = d->value("bodies", json::array());
+    const json props = d->value("propulsion", json::array());
+    const json weapons = d->value("weapons", json::array());
+    for (const auto& b : bodies)
+        for (const auto& p : props)
+            for (const auto& w : weapons) {
+                const std::string bid = b.at("id").get<std::string>();
+                const std::string pid = p.at("id").get<std::string>();
+                const std::string wid = w.at("id").get<std::string>();
+                json u;
+                u["id"] = "d_" + bid + "_" + pid + "_" + wid;
+                u["name"] = b.value("name", bid) + " " + p.value("name", pid) + " " + w.value("name", wid);
+                u["design"] = true;
+                const float cost = (b.value("cost", 0.0f) + w.value("cost", 0.0f)) * p.value("costMul", 1.0f);
+                u["cost"] = std::round(cost);
+                u["produceTime"] = std::round(std::max(6.0f, cost / 12.0f));
+                u["maxHp"] = std::round(b.value("maxHp", 300.0f) * p.value("hpMul", 1.0f));
+                u["armor"] = b.value("armor", 0.0f);
+                u["armorType"] = bid == "light" ? "light" : "heavy";
+                u["radius"] = b.value("radius", 0.6f);
+                u["speed"] = p.value("speed", 5.0f) * b.value("speed", 1.0f);
+                u["accel"] = p.value("accel", 5.0f) * b.value("speed", 1.0f);
+                u["turnRate"] = p.value("turnRate", 3.0f) * b.value("speed", 1.0f);
+                u["producedAt"] = b.value("factory", json::array());
+                json classes = json::array({"design"});
+                for (const json* part : {&b, &p, &w})
+                    for (const auto& c : part->value("classes", json::array()))
+                        classes.push_back(c);
+                u["classes"] = classes;
+                json research = json::array();
+                for (const json* part : {&b, &p, &w})
+                    if (part->contains("research") && part->at("research").is_string())
+                        research.push_back(part->at("research"));
+                u["researchAll"] = research;
+                float range = 0.0f;
+                if (const auto weapon = w.find("weapon"); weapon != w.end()) {
+                    u["weapon"] = *weapon;
+                    range = weapon->value("range", 0.0f);
+                }
+                if (w.contains("repair")) {
+                    u["repair"] = w.at("repair");
+                    u["repairRange"] = w.value("repairRange", 4.0f);
+                }
+                u["sight"] = std::max({w.value("sight", 0.0f), range + 1.0f, 9.0f});
+                json model = json::object();
+                model["glb"] = "design_" + bid + "_" + pid;
+                model["turret"] = w.value("turret", std::string("colony_uaz"));
+                json visual = json::object();
+                visual["shape"] = "cube";
+                visual["height"] = 1.2;
+                visual["model"] = model;
+                if (w.contains("shot"))
+                    visual["shot"] = w.at("shot");
+                if (w.value("spin", false))
+                    visual["spin"] = true;
+                u["visual"] = visual;
+                out.push_back(std::move(u));
+            }
+    return out.dump();
+}
+
 GameData GameData::parse(std::string_view unitsText, std::string_view skillsText, std::string_view itemsText, std::string_view researchText) {
     GameData d;
 
@@ -240,8 +307,15 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         std::vector<std::string> producedAt;
     };
     std::unordered_map<std::size_t, Links> links;
-    for (const auto& u : unitsJson.at("units")) {
+    json allUnits = unitsJson.at("units");
+    for (auto& g : json::parse(expandDesigns(unitsText)))
+        allUnits.push_back(std::move(g));
+    std::unordered_map<std::size_t, std::vector<std::string>> researchAllNames;
+    for (const auto& u : allUnits) {
+        if (u.contains("researchAll"))
+            researchAllNames[d.units_.size()] = u.at("researchAll").get<std::vector<std::string>>();
         UnitDef def;
+        def.design = u.value("design", false);
         def.id = u.at("id").get<std::string>();
         def.name = u.value("name", def.id);
         def.cost = u.value("cost", def.cost);
@@ -452,6 +526,26 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         }
         if (d.research_.size() > 255)
             throw std::runtime_error("too many research topics");
+        for (const auto& [unit, names] : researchAllNames)
+            for (const auto& name : names) {
+                const auto it = index.find(name);
+                if (it == index.end())
+                    throw std::runtime_error("unknown design research: " + name);
+                d.units_[unit].researchAll.push_back(it->second);
+            }
+        if (const auto design = unitsJson.find("design"); design != unitsJson.end()) {
+            const char* keys[] = {"bodies", "propulsion", "weapons"};
+            for (std::size_t k = 0; k < 3; ++k)
+                for (const auto& part : design->value(keys[k], json::array())) {
+                    DesignPart dp;
+                    dp.id = part.at("id").get<std::string>();
+                    dp.name = part.value("name", dp.id);
+                    if (part.contains("research") && part.at("research").is_string())
+                        if (const auto it = index.find(part.at("research").get<std::string>()); it != index.end())
+                            dp.research = it->second;
+                    d.designParts_[k].push_back(std::move(dp));
+                }
+        }
         for (std::size_t i = 0; i < d.research_.size(); ++i) {
             for (const auto& name : after[i]) {
                 const auto it = index.find(name);
@@ -465,6 +559,10 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
 
     d.hash_ = fnv1a(researchText, fnv1a(itemsText, fnv1a(skillsText, fnv1a(unitsText))));
     return d;
+}
+
+UnitDefId GameData::designOf(std::string_view body, std::string_view prop, std::string_view weapon) const {
+    return find("d_" + std::string(body) + "_" + std::string(prop) + "_" + std::string(weapon));
 }
 
 UnitDefId GameData::find(std::string_view id) const {

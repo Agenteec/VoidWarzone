@@ -3163,5 +3163,317 @@
         "shot": "missile"
       }
     }
-  ]
+  ],
+  "design": {
+    "bodies": [
+      {
+        "id": "light",
+        "name": "Light",
+        "cost": 40,
+        "maxHp": 300,
+        "armor": 1,
+        "radius": 0.62,
+        "speed": 1.12,
+        "factory": [
+          "workshop",
+          "tank_shop"
+        ],
+        "classes": [
+          "light"
+        ]
+      },
+      {
+        "id": "medium",
+        "name": "Medium",
+        "cost": 110,
+        "maxHp": 620,
+        "armor": 3,
+        "radius": 0.76,
+        "speed": 1.0,
+        "factory": [
+          "tank_shop"
+        ],
+        "research": "composite_armor",
+        "classes": [
+          "armor"
+        ]
+      },
+      {
+        "id": "heavy",
+        "name": "Heavy",
+        "cost": 220,
+        "maxHp": 1100,
+        "armor": 6,
+        "radius": 0.88,
+        "speed": 0.84,
+        "factory": [
+          "tank_shop"
+        ],
+        "research": "reactive_armor",
+        "classes": [
+          "armor",
+          "tank"
+        ]
+      }
+    ],
+    "propulsion": [
+      {
+        "id": "wheels",
+        "name": "Wheeled",
+        "speed": 6.0,
+        "accel": 7.0,
+        "turnRate": 3.6,
+        "hpMul": 0.9,
+        "costMul": 1.0
+      },
+      {
+        "id": "halftrack",
+        "name": "Half-track",
+        "speed": 5.0,
+        "accel": 5.5,
+        "turnRate": 3.0,
+        "hpMul": 1.05,
+        "costMul": 1.15,
+        "research": "engine_tuning"
+      },
+      {
+        "id": "tracks",
+        "name": "Tracked",
+        "speed": 4.1,
+        "accel": 4.0,
+        "turnRate": 2.2,
+        "hpMul": 1.25,
+        "costMul": 1.3,
+        "research": "t26_restoration"
+      }
+    ],
+    "weapons": [
+      {
+        "id": "mg",
+        "name": "MG",
+        "cost": 20,
+        "turret": "colony_uaz",
+        "weapon": {
+          "type": "kinetic",
+          "damage": 9,
+          "range": 6,
+          "cooldown": 0.2,
+          "projectileSpeed": 60,
+          "turnRate": 4,
+          "targets": "both"
+        }
+      },
+      {
+        "id": "hmg",
+        "name": "HMG",
+        "cost": 45,
+        "turret": "colony_brdm2",
+        "research": "hmg_rounds",
+        "weapon": {
+          "type": "kinetic",
+          "damage": 14,
+          "range": 7,
+          "cooldown": 0.28,
+          "projectileSpeed": 60,
+          "turnRate": 4,
+          "targets": "both"
+        }
+      },
+      {
+        "id": "rotary",
+        "name": "Rotary MG",
+        "cost": 80,
+        "turret": "colony_btr80",
+        "research": "rotary_guns",
+        "spin": true,
+        "weapon": {
+          "type": "kinetic",
+          "damage": 8,
+          "range": 7,
+          "cooldown": 0.08,
+          "projectileSpeed": 64,
+          "turnRate": 4.5,
+          "targets": "both"
+        }
+      },
+      {
+        "id": "autocannon",
+        "name": "Autocannon",
+        "cost": 70,
+        "turret": "colony_mtlb",
+        "research": "belt_feed",
+        "weapon": {
+          "type": "piercing",
+          "damage": 15,
+          "range": 7,
+          "cooldown": 0.3,
+          "projectileSpeed": 52,
+          "turnRate": 3.5,
+          "targets": "both"
+        }
+      },
+      {
+        "id": "cannon",
+        "name": "Cannon",
+        "cost": 110,
+        "turret": "colony_sprut",
+        "research": "tank_guns",
+        "classes": [
+          "tank"
+        ],
+        "weapon": {
+          "type": "piercing",
+          "damage": 70,
+          "range": 8,
+          "cooldown": 2.5,
+          "projectileSpeed": 34,
+          "turnRate": 2.0,
+          "targets": "ground"
+        }
+      },
+      {
+        "id": "heavy_cannon",
+        "name": "Heavy Cannon",
+        "cost": 180,
+        "turret": "colony_t72",
+        "research": "mbt",
+        "classes": [
+          "tank"
+        ],
+        "weapon": {
+          "type": "piercing",
+          "damage": 100,
+          "range": 8.5,
+          "cooldown": 2.6,
+          "projectileSpeed": 36,
+          "turnRate": 1.6,
+          "targets": "ground"
+        }
+      },
+      {
+        "id": "atgm",
+        "name": "ATGM",
+        "cost": 110,
+        "turret": "colony_atgm",
+        "research": "atgm",
+        "shot": "missile",
+        "classes": [
+          "missile"
+        ],
+        "weapon": {
+          "type": "piercing",
+          "damage": 95,
+          "range": 10,
+          "cooldown": 4.5,
+          "projectileSpeed": 13,
+          "guided": 3.5,
+          "targets": "ground"
+        }
+      },
+      {
+        "id": "rockets",
+        "name": "MRL",
+        "cost": 200,
+        "turret": "colony_grad",
+        "research": "rocketry",
+        "shot": "rocket",
+        "classes": [
+          "artillery",
+          "missile"
+        ],
+        "sight": 19,
+        "weapon": {
+          "type": "explosive",
+          "damage": 34,
+          "range": 18,
+          "cooldown": 10,
+          "projectileSpeed": 16,
+          "splash": 1.4,
+          "burst": 8,
+          "burstGap": 0.15,
+          "spread": 1.8,
+          "turnRate": 1.5,
+          "targets": "ground"
+        }
+      },
+      {
+        "id": "howitzer",
+        "name": "Howitzer",
+        "cost": 200,
+        "turret": "colony_gvozdika",
+        "research": "heavy_artillery",
+        "shot": "artillery",
+        "classes": [
+          "artillery"
+        ],
+        "sight": 21,
+        "weapon": {
+          "type": "explosive",
+          "damage": 75,
+          "range": 20,
+          "cooldown": 5,
+          "projectileSpeed": 14,
+          "splash": 1.8,
+          "turnRate": 1.5,
+          "targets": "ground"
+        }
+      },
+      {
+        "id": "aa",
+        "name": "AA Guns",
+        "cost": 120,
+        "turret": "colony_shilka",
+        "research": "air_defense",
+        "spin": true,
+        "classes": [
+          "aa"
+        ],
+        "weapon": {
+          "type": "kinetic",
+          "damage": 10,
+          "range": 10,
+          "cooldown": 0.08,
+          "projectileSpeed": 64,
+          "turnRate": 4,
+          "targets": "both"
+        }
+      },
+      {
+        "id": "sam",
+        "name": "SAM",
+        "cost": 220,
+        "turret": "colony_buk",
+        "research": "sam",
+        "shot": "missile",
+        "classes": [
+          "aa",
+          "missile"
+        ],
+        "sight": 22,
+        "weapon": {
+          "type": "explosive",
+          "damage": 150,
+          "range": 20,
+          "cooldown": 5,
+          "projectileSpeed": 18,
+          "splash": 0.8,
+          "guided": 4.0,
+          "turnRate": 2.0,
+          "targets": "air"
+        }
+      },
+      {
+        "id": "repair",
+        "name": "Repair Kit",
+        "cost": 60,
+        "turret": "colony_tank_repair",
+        "research": "field_repair",
+        "classes": [
+          "support"
+        ],
+        "repair": 18,
+        "repairRange": 4
+      }
+    ]
+  }
 }

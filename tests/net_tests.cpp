@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -207,6 +208,36 @@ TEST_CASE("server and client over loopback") {
     client.disconnect();
     pump(0.2);
     CHECK(server.playerCount() == 0);
+}
+
+TEST_CASE("designer combinations expand into units") {
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
+    const auto& bodies = data.designBodies();
+    const auto& props = data.designPropulsion();
+    const auto& weapons = data.designWeapons();
+    REQUIRE(bodies.size() == 3);
+    REQUIRE(props.size() == 3);
+    REQUIRE(weapons.size() >= 10);
+    const auto light = data.designOf("light", "wheels", "mg");
+    const auto heavy = data.designOf("heavy", "tracks", "heavy_cannon");
+    REQUIRE(light != kInvalidUnitDef);
+    REQUIRE(heavy != kInvalidUnitDef);
+    const auto& l = data.unit(light);
+    const auto& h = data.unit(heavy);
+    CHECK(l.design);
+    CHECK(l.researchAll.empty());
+    CHECK(h.researchAll.size() == 3);
+    CHECK(h.maxHp > l.maxHp * 3.0f);
+    CHECK(h.speed < l.speed);
+    CHECK(h.cost > l.cost);
+    REQUIRE(h.weapon);
+    CHECK(h.weapon->damage > l.weapon->damage);
+    CHECK(std::find(h.producedAt.begin(), h.producedAt.end(), data.find("tank_shop")) != h.producedAt.end());
+    CHECK(std::find(l.producedAt.begin(), l.producedAt.end(), data.find("workshop")) != l.producedAt.end());
+    const auto repair = data.designOf("medium", "halftrack", "repair");
+    REQUIRE(repair != kInvalidUnitDef);
+    CHECK(data.unit(repair).repair > 0.0f);
+    CHECK_FALSE(data.unit(repair).weapon);
 }
 
 TEST_CASE("fog of war hides unseen enemies from snapshots") {
