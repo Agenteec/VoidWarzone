@@ -31,6 +31,8 @@ struct ServerConfig {
     std::string saveDir = "saves";
     std::string roster;
     std::string research;
+    std::string base;
+    float energy = -1.0f;
 };
 
 class Server {

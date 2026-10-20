@@ -32,13 +32,15 @@ void App::loadCampaign() {
         for (const auto& ch : doc.at("chapters"))
             for (const auto& m : ch.at("missions"))
                 campaign_.push_back({m.at("id").get<std::string>(), m.at("map").get<std::string>(), m.value("name", ""), m.value("place", ""),
-                                     ch.value("name", ""), ch.value("intro", "")});
+                                     ch.value("name", ""), ch.value("intro", ""), m.value("kind", "base") == "sortie", m.value("transport", 8)});
     } catch (const std::exception& e) {
         spdlog::warn("campaign: {}", e.what());
     }
     campaignDone_.clear();
     campaignRoster_.clear();
     campaignResearch_.clear();
+    campaignBase_.clear();
+    campaignEnergy_ = -1.0f;
     try {
         std::ifstream f(progressPath(), std::ios::binary);
         if (f) {
@@ -46,6 +48,10 @@ void App::loadCampaign() {
             campaignDone_ = p.value("completed", std::vector<std::string>{});
             campaignRoster_ = p.value("roster", std::string{});
             campaignResearch_ = p.value("research", std::string{});
+            campaignBase_ = p.value("base", std::string{});
+            campaignEnergy_ = p.value("energy", -1.0f);
+            if (campaignBase_.empty() && !campaignRoster_.empty())
+                campaignBase_ = campaignRoster_;
         }
     } catch (const std::exception& e) {
         spdlog::warn("campaign progress: {}", e.what());
@@ -53,7 +59,7 @@ void App::loadCampaign() {
 }
 
 void App::saveCampaign() {
-    const json p = {{"completed", campaignDone_}, {"roster", campaignRoster_}, {"research", campaignResearch_}};
+    const json p = {{"completed", campaignDone_}, {"research", campaignResearch_}, {"base", campaignBase_}, {"energy", campaignEnergy_}};
     std::ofstream f(progressPath(), std::ios::binary);
     f << p.dump(1);
 }
@@ -65,11 +71,23 @@ bool App::campaignUnlocked(std::size_t index) const {
 }
 
 int App::rosterSize() const {
+    return static_cast<int>(baseUnitIndices().size());
+}
+
+std::vector<int> App::baseUnitIndices() const {
+    std::vector<int> out;
     try {
-        return campaignRoster_.empty() ? 0 : static_cast<int>(json::parse(campaignRoster_).size());
+        if (campaignBase_.empty())
+            return out;
+        const json base = json::parse(campaignBase_);
+        for (std::size_t i = 0; i < base.size(); ++i) {
+            const UnitDefId def = data_->find(base[i].value("def", ""));
+            if (def != kInvalidUnitDef && !data_->unit(def).structure)
+                out.push_back(static_cast<int>(i));
+        }
     } catch (const std::exception&) {
-        return 0;
     }
+    return out;
 }
 
 void App::startMission(std::size_t index, bool coop) {
@@ -77,6 +95,32 @@ void App::startMission(std::size_t index, bool coop) {
         return;
     campaignMission_ = campaign_[index].id;
     campaignRecorded_ = false;
+    matchBase_.clear();
+    matchEnergy_ = -1.0f;
+    sortieSent_.clear();
+    preSortieBase_ = campaignBase_;
+    if (campaign_[index].sortie) {
+        // the strike group: picked units from the base, placed at the sortie start
+        try {
+            const json base = campaignBase_.empty() ? json::array() : json::parse(campaignBase_);
+            json team = json::array();
+            for (const int i : sortieTeam_)
+                if (i >= 0 && static_cast<std::size_t>(i) < base.size()) {
+                    json u = base[static_cast<std::size_t>(i)];
+                    u.erase("pos");
+                    u.erase("tag");
+                    team.push_back(std::move(u));
+                    sortieSent_.push_back(i);
+                }
+            if (!team.empty())
+                matchBase_ = team.dump();
+        } catch (const std::exception& e) {
+            spdlog::warn("sortie team: {}", e.what());
+        }
+    } else {
+        matchBase_ = campaignBase_;
+        matchEnergy_ = campaignEnergy_;
+    }
     options_.map = campaign_[index].map;
     options_.mode = GameMode::Defense;
     autoStart_ = !coop;
@@ -91,14 +135,39 @@ void App::recordMission(bool victory) {
         return;
     if (std::find(campaignDone_.begin(), campaignDone_.end(), campaignMission_) == campaignDone_.end())
         campaignDone_.push_back(campaignMission_);
+    storeCampaignBase();
+}
+
+void App::storeCampaignBase() {
+    if (campaignMission_.empty() || !host_ || !host_->world() || host_->world()->defense().state != MatchState::Victory)
+        return;
+    const auto it = std::find_if(campaign_.begin(), campaign_.end(), [&](const auto& m) { return m.id == campaignMission_; });
+    if (it == campaign_.end())
+        return;
+    const World& world = *host_->world();
     try {
-        campaignRoster_ = host_->world()->exportRoster(net_.player(), 12);
-        campaignResearch_ = host_->world()->exportResearch(net_.player());
+        campaignResearch_ = world.exportResearch(net_.player());
+        if (it->sortie) {
+            // survivors come home: the base minus the units sent out, plus whoever made it back (placed by the HQ)
+            json base = preSortieBase_.empty() ? json::array() : json::parse(preSortieBase_);
+            json kept = json::array();
+            for (std::size_t i = 0; i < base.size(); ++i)
+                if (std::find(sortieSent_.begin(), sortieSent_.end(), static_cast<int>(i)) == sortieSent_.end())
+                    kept.push_back(base[i]);
+            for (auto u : json::parse(world.exportRoster(net_.player(), 64))) {
+                u.erase("pos");
+                kept.push_back(std::move(u));
+            }
+            campaignBase_ = kept.dump();
+        } else {
+            campaignBase_ = world.exportBase(net_.player());
+            campaignEnergy_ = world.player(net_.player()).energy;
+        }
     } catch (const std::exception& e) {
-        spdlog::warn("roster export: {}", e.what());
+        spdlog::warn("campaign base export: {}", e.what());
     }
     saveCampaign();
-    spdlog::info("mission {} complete, roster {}", campaignMission_, rosterSize());
+    spdlog::info("mission {} recorded, base units {}", campaignMission_, rosterSize());
 }
 
 void App::drawCampaign() {
@@ -126,7 +195,8 @@ void App::drawCampaign() {
         const bool done = std::find(campaignDone_.begin(), campaignDone_.end(), m.id) != campaignDone_.end();
         const bool open = campaignUnlocked(i);
         char label[96];
-        std::snprintf(label, sizeof(label), "%s  %d. %s", done ? ICON_FA_CHECK : open ? ICON_FA_PLAY : ICON_FA_LOCK, static_cast<int>(i + 1), m.name.c_str());
+        std::snprintf(label, sizeof(label), "%s  %d. %s%s", done ? ICON_FA_CHECK : open ? ICON_FA_PLAY : ICON_FA_LOCK, static_cast<int>(i + 1), m.name.c_str(),
+                      m.sortie ? "  " ICON_FA_TRUCK : "  " ICON_FA_HOME);
         ImGui::BeginDisabled(!open);
         if (ImGui::Selectable(label, campaignChoice_ == static_cast<int>(i), 0, {0.0f, 28.0f * s}))
             campaignChoice_ = static_cast<int>(i);
@@ -164,11 +234,67 @@ void App::drawCampaign() {
             ImGui::TextColored(toVec(kBad), "%s", e.what());
         }
         ImGui::Spacing();
-        const int roster = rosterSize();
-        if (roster > 0)
-            ImGui::TextColored(toVec(kGood), ICON_FA_USERS "  %d veterans from the last mission join the column", roster);
-        else
-            ImGui::TextDisabled(ICON_FA_USERS "  Surviving units carry over to the next mission (up to 12)");
+        const auto units = baseUnitIndices();
+        int structures = 0;
+        json base = json::array();
+        try {
+            if (!campaignBase_.empty())
+                base = json::parse(campaignBase_);
+        } catch (const std::exception&) {
+        }
+        structures = static_cast<int>(base.size()) - static_cast<int>(units.size());
+        if (!m.sortie) {
+            if (!base.empty())
+                ImGui::TextColored(toVec(kGood), ICON_FA_HOME "  Base mission: your base returns - %d buildings, %d vehicles", structures,
+                                   static_cast<int>(units.size()));
+            else
+                ImGui::TextDisabled(ICON_FA_HOME "  Base mission: the base you build here stays for the next missions");
+        } else {
+            ImGui::TextColored(toVec(kAccent), ICON_FA_TRUCK "  Sortie: pick up to %d vehicles from the base", m.transport);
+            if (sortieFor_ != campaignChoice_) {
+                // default team: the most experienced units first
+                sortieFor_ = campaignChoice_;
+                sortieTeam_.clear();
+                std::vector<int> sorted = units;
+                auto score = [&](int i) {
+                    const auto& u = base[static_cast<std::size_t>(i)];
+                    const auto p = u.find("progression");
+                    return p == u.end() ? 0.0f : static_cast<float>(p->value("rank", 0)) * 10000.0f + p->value("xp", 0.0f);
+                };
+                std::stable_sort(sorted.begin(), sorted.end(), [&](int a, int b) { return score(a) > score(b); });
+                for (const int i : sorted) {
+                    const UnitDefId def = data_->find(base[static_cast<std::size_t>(i)].value("def", ""));
+                    if (static_cast<int>(sortieTeam_.size()) < m.transport && def != kInvalidUnitDef && !data_->unit(def).builder &&
+                        data_->unit(def).deploy == kInvalidUnitDef)
+                        sortieTeam_.push_back(i);
+                }
+            }
+            if (units.empty()) {
+                ImGui::TextDisabled("No vehicles at the base yet - a default column will go.");
+            } else {
+                ImGui::TextDisabled("%d / %d selected. Units left behind stay at the base.", static_cast<int>(sortieTeam_.size()), m.transport);
+                ImGui::BeginChild("##team", {0.0f, 150.0f * s}, ImGuiChildFlags_Borders);
+                for (const int i : units) {
+                    const auto& u = base[static_cast<std::size_t>(i)];
+                    const UnitDefId def = data_->find(u.value("def", ""));
+                    bool picked = std::find(sortieTeam_.begin(), sortieTeam_.end(), i) != sortieTeam_.end();
+                    const auto p = u.find("progression");
+                    static constexpr const char* kRanks[] = {"Recruit", "Veteran", "Elite", "Hero"};
+                    const int rank = p == u.end() ? 0 : std::clamp(p->value("rank", 0), 0, 3);
+                    char label[96];
+                    std::snprintf(label, sizeof(label), "%s  (%s)##%d", data_->unit(def).name.c_str(), kRanks[rank], i);
+                    ImGui::BeginDisabled(!picked && static_cast<int>(sortieTeam_.size()) >= m.transport);
+                    if (ImGui::Checkbox(label, &picked)) {
+                        if (picked)
+                            sortieTeam_.push_back(i);
+                        else
+                            std::erase(sortieTeam_, i);
+                    }
+                    ImGui::EndDisabled();
+                }
+                ImGui::EndChild();
+            }
+        }
         ImGui::PopTextWrapPos();
     }
     ImGui::EndChild();
@@ -183,6 +309,9 @@ void App::drawCampaign() {
         if (ImGui::Button("Reset")) {
             campaignDone_.clear();
             campaignRoster_.clear();
+            campaignBase_.clear();
+            campaignEnergy_ = -1.0f;
+            sortieFor_ = -1;
             saveCampaign();
             campaignChoice_ = 0;
             ImGui::CloseCurrentPopup();

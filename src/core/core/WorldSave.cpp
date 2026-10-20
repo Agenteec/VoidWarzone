@@ -337,6 +337,61 @@ std::vector<entt::entity> World::spawnRoster(std::uint8_t player, std::string_vi
     return out;
 }
 
+std::string World::exportBase(std::uint8_t player) const {
+    const json all = json::parse(saveState());
+    json out = json::array();
+    for (const auto& u : all.at("units")) {
+        if (u.value("owner", -1) != player || u.contains("construction"))
+            continue;
+        json copy = u;
+        for (const char* key : {"lane", "hp", "shield", "factory", "lab", "producer", "order", "carrier"})
+            copy.erase(key);
+        if (copy.value("tag", "") != "hq")
+            copy.erase("tag");
+        out.push_back(std::move(copy));
+    }
+    return out.dump();
+}
+
+void World::spawnBase(std::uint8_t player, std::string_view base) {
+    if (base.empty() || !map_ || player >= kMaxPlayers)
+        return;
+    std::vector<entt::entity> old;
+    for (auto [e, owner] : registry_.view<const Owner>().each())
+        if (owner.player == player)
+            old.push_back(e);
+    for (const auto e : old)
+        registry_.destroy(e);
+    const json list = json::parse(base);
+    glm::vec2 home = playerBase(player);
+    for (const auto& u : list) {
+        const UnitDefId def = data_->find(u.value("def", ""));
+        if (def != kInvalidUnitDef && data_->unit(def).undeploy != kInvalidUnitDef && u.contains("pos"))
+            home = {u.at("pos")[0].get<float>(), u.at("pos")[1].get<float>()};
+    }
+    int i = 0;
+    for (auto u : list) {
+        const UnitDefId def = data_->find(u.value("def", ""));
+        if (def == kInvalidUnitDef)
+            continue;
+        if (!u.contains("pos")) {
+            const glm::vec2 offset{static_cast<float>(i % 5) * 1.8f - 3.6f, static_cast<float>(i / 5) * 1.8f + 4.0f};
+            const glm::vec2 pos = Map::center(nearestFree(navMap(), Map::cellOf(home + offset)));
+            u["pos"] = {pos.x, pos.y};
+            ++i;
+        }
+        u["owner"] = player;
+        u["team"] = players_[player].team;
+        u.erase("hp");
+        if (data_->unit(def).undeploy != kInvalidUnitDef)
+            u["tag"] = "hq";
+        loadUnit(u);
+    }
+    navDirty_ = true;
+    ++builtVersion_;
+    refreshOwned(player);
+}
+
 bool World::resumePlayer(std::uint8_t player) {
     if (player >= kMaxPlayers || !saved_[player])
         return false;

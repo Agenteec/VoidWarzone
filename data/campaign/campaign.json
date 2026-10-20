@@ -4,9 +4,36 @@
       "name": "Chapter 1: Voronezh",
       "intro": "Third winter after the Breach. The southern edge of Voronezh: empty panel blocks, frozen garages and the ruins of the nuclear heating plant where it all began. The colony needs fuel, roads and answers.",
       "missions": [
-        {"id": "c1m1", "map": "voronezh_m1", "name": "Cold Start", "place": "Shilovo, the gas station and the garages"},
-        {"id": "c1m2", "map": "voronezh_m2", "name": "Holdout", "place": "Shilovo blocks, forward HQ"},
-        {"id": "c1m3", "map": "voronezh_m3", "name": "Glow over the Plant", "place": "Ruins of the Voronezh nuclear heating plant"}
+        {
+          "id": "c1m1",
+          "map": "voronezh_m1",
+          "name": "Cold Start",
+          "place": "Shilovo, the gas station and the garages",
+          "kind": "base"
+        },
+        {
+          "id": "c1m2",
+          "map": "voronezh_m2",
+          "name": "Holdout",
+          "place": "Shilovo blocks, our base",
+          "kind": "base"
+        },
+        {
+          "id": "c1s1",
+          "map": "voronezh_s1",
+          "name": "Rail Depot",
+          "place": "Sortie: the frozen rail yard east of the city",
+          "kind": "sortie",
+          "transport": 8
+        },
+        {
+          "id": "c1m3",
+          "map": "voronezh_m3",
+          "name": "Glow over the Plant",
+          "place": "Sortie: ruins of the Voronezh nuclear heating plant",
+          "kind": "sortie",
+          "transport": 12
+        }
       ]
     }
   ]

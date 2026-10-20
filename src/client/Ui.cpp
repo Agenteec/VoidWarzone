@@ -692,7 +692,13 @@ void App::drawEndScreen() {
     centeredText(campaign ? (victory ? "MISSION COMPLETE" : "MISSION FAILED") : victory ? "VICTORY" : "DEFEAT", victory ? kGood : kBad);
     ImGui::PopFont();
     if (campaign) {
-        centeredText(victory ? "Surviving units will join the next mission" : "The column is lost", kText);
+        bool sortie = false;
+        for (const auto& m : campaign_)
+            if (m.id == campaignMission_)
+                sortie = m.sortie;
+        centeredText(victory ? (sortie ? "Survivors return to the base with their experience" : "The base is saved for the next missions")
+                             : (sortie ? "The strike group is lost - the base is unchanged" : "The base has fallen"),
+                     kText);
         ImGui::Spacing();
         const float w = ImGui::GetContentRegionAvail().x;
         const std::string mission = campaignMission_;
@@ -701,6 +707,7 @@ void App::drawEndScreen() {
             if (campaign_[i].id == mission)
                 index = i;
         if (victory && accentButton(ICON_FA_PLAY "  Continue campaign", {w, 44.0f * s})) {
+            storeCampaignBase();
             leaveGame("");
         } else if (!victory && accentButton(ICON_FA_REFRESH "  Retry mission", {w, 44.0f * s})) {
             leaveGame("");

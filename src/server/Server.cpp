@@ -251,12 +251,15 @@ void Server::startMatch(const std::string* save) {
         if (save && world_->resumePlayer(c->player))
             continue;
         world_->spawnPlayer(c->player, matchTeam(c->player, c->team));
-        if (c->player == leader() && !config_.roster.empty()) {
+        if (c->player == leader() && (!config_.roster.empty() || !config_.base.empty() || !config_.research.empty())) {
             try {
-                world_->spawnRoster(c->player, config_.roster);
                 world_->importResearch(c->player, config_.research);
+                world_->spawnBase(c->player, config_.base);
+                world_->spawnRoster(c->player, config_.roster);
+                if (config_.energy >= 0.0f)
+                    world_->setEnergy(c->player, config_.energy);
             } catch (const std::exception& e) {
-                spdlog::warn("roster: {}", e.what());
+                spdlog::warn("campaign state: {}", e.what());
             }
         }
         if (config_.cheats)

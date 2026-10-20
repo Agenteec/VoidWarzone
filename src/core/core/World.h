@@ -155,6 +155,11 @@ public:
     float missionTime() const { return static_cast<float>(tick_) * kTickDt; }
     std::vector<entt::entity> spawnRoster(std::uint8_t player, std::string_view roster);
     std::string exportRoster(std::uint8_t player, std::size_t limit) const;
+    // Campaign base: every completed own structure and unit (save format, positions kept); spawnBase replaces the
+    // player's map-placed and starting entities with it. Entries without "pos" are placed next to the HQ.
+    std::string exportBase(std::uint8_t player) const;
+    void setEnergy(std::uint8_t player, float energy) { players_[player].energy = energy; }
+    void spawnBase(std::uint8_t player, std::string_view base);
     void loadState(std::string_view text);
     bool resumePlayer(std::uint8_t player);
     void devBoost(std::uint8_t player);

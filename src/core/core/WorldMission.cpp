@@ -46,6 +46,15 @@ void World::runAction(const MissionAction& a) {
         const UnitDefId def = data_->find(a.unit);
         if (def == kInvalidUnitDef)
             return;
+        std::optional<glm::vec2> target = a.target;
+        if (!a.targetTag.empty())
+            for (auto [e, tag, pos] : registry_.view<const Tag, const Position>().each())
+                if (tag.name == a.targetTag && alive(e)) {
+                    // only redirect when the tagged building stands away from the authored target (a base built elsewhere)
+                    if (!target || glm::distance(*target, pos.value) > 20.0f)
+                        target = pos.value;
+                    break;
+                }
         int owner = -1;
         if (a.player)
             for (std::size_t p = 0; p < players_.size(); ++p)
@@ -62,10 +71,22 @@ void World::runAction(const MissionAction& a) {
             const auto e = spawn(def, a.player ? std::uint8_t{0} : a.team, pos, owner);
             if (!a.tag.empty())
                 registry_.emplace_or_replace<Tag>(e, Tag{a.tag});
-            if (a.target && registry_.all_of<Order>(e))
-                registry_.get<Order>(e) = {OrderType::AttackMove, *a.target + offset, entt::null, pos};
+            if (target && registry_.all_of<Order>(e))
+                registry_.get<Order>(e) = {OrderType::AttackMove, *target + offset, entt::null, pos};
             events_.push_back({EventType::Summon, e, entt::null, pos, pos, 0.0f});
         }
+    } else if (a.type == "research") {
+        // artifact: grants a topic to every player
+        for (std::size_t t = 0; t < data_->research().size(); ++t)
+            if (data_->research(static_cast<ResearchId>(t)).id == a.topic)
+                for (std::size_t p = 0; p < players_.size(); ++p)
+                    if (players_[p].active) {
+                        auto& r = players_[p].researched;
+                        if (r.size() <= t)
+                            r.resize(data_->research().size(), 0);
+                        r[t] = 1;
+                        refreshOwned(static_cast<std::uint8_t>(p));
+                    }
     } else if (a.type == "energy") {
         grantTeamEnergy(a.amount);
     } else if (a.type == "complete") {

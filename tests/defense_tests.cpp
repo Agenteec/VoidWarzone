@@ -350,6 +350,59 @@ TEST_CASE("mission objectives and triggers drive the match") {
     CHECK(countDef(next, data, "soldier") == 2);
 }
 
+TEST_CASE("campaign base carries over between missions") {
+    const auto data = GameData::parse(R"({"units":[
+        {"id":"kshm","maxHp":1000,"radius":0.8,"speed":3,"deploy":"hq"},
+        {"id":"hq","structure":true,"buildable":true,"deployOnly":true,"maxHp":4000,"radius":2,"undeploy":"kshm"},
+        {"id":"truck","cost":50,"maxHp":200,"radius":0.5,"speed":4,"builder":true},
+        {"id":"workshop","structure":true,"buildable":true,"cost":100,"maxHp":2000,"radius":2,"buildTime":2},
+        {"id":"raider","maxHp":100,"radius":0.5,"speed":4,"weapon":{"damage":5,"range":4,"cooldown":1}}
+    ]})", {}, {}, R"({"topics":[{"id":"loot","cost":100,"time":10}]})");
+    const auto first = Map::parse(R"({"width":60,"height":60,"playerStart":{"pos":[10,10],"units":["kshm","truck"]},
+        "defense":{"startEnergy":500,"baseIncome":0,"waves":[]},
+        "mission":{"objectives":[{"id":"x","type":"survive","time":9999}]},
+        "units":[{"unit":"workshop","team":0,"owner":0,"pos":[20,20]}]})");
+    World world(data, first);
+    world.spawnPlayer(0);
+    run(world, 0.2f);
+    for (auto [e, unit] : world.registry().view<const Unit>().each())
+        if (unit.def == data.find("kshm")) {
+            world.apply(DeployCommand{0, {e}});
+            break;
+        }
+    run(world, 0.2f);
+    REQUIRE(countDef(world, data, "hq") == 1);
+    const std::string base = world.exportBase(0);
+
+    const auto second = Map::parse(R"({"width":60,"height":60,"playerStart":{"pos":[40,40],"units":["kshm","truck","truck"]},
+        "defense":{"startEnergy":500,"baseIncome":0,"waves":[]},
+        "mission":{"objectives":[{"id":"x","type":"survive","time":9999}],
+            "triggers":[{"when":"start","do":[{"type":"research","topic":"loot"},
+                {"type":"spawn","unit":"raider","count":1,"pos":[50,50],"team":1,"target":[50,1],"targetTag":"hq"}]}]},
+        "units":[{"unit":"workshop","team":0,"owner":0,"pos":[45,45]}]})");
+    World next(data, second);
+    next.spawnPlayer(0);
+    next.spawnBase(0, base);
+    CHECK(countDef(next, data, "kshm") == 0);
+    CHECK(countDef(next, data, "hq") == 1);
+    CHECK(countDef(next, data, "truck") == 1);
+    CHECK(countDef(next, data, "workshop") == 1);
+    for (auto [e, unit, pos] : next.registry().view<const Unit, const Position>().each())
+        if (unit.def == data.find("workshop"))
+            CHECK(glm::distance(pos.value, glm::vec2(20.0f, 20.0f)) < 1.0f);
+    glm::vec2 hq{};
+    for (auto [e, unit, pos, tag] : next.registry().view<const Unit, const Position, const Tag>().each())
+        if (unit.def == data.find("hq")) {
+            hq = pos.value;
+            CHECK(tag.name == "hq");
+        }
+    run(next, 0.5f);
+    CHECK(next.researched(0, 0));
+    for (auto [e, unit, order] : next.registry().view<const Unit, const Order>().each())
+        if (unit.def == data.find("raider"))
+            CHECK(glm::distance(order.point, hq) < 2.0f);
+}
+
 TEST_CASE("mobile hq deploys, packs up and gates production") {
     const auto data = GameData::parse(R"({"units":[
         {"id":"kshm","maxHp":1000,"radius":0.8,"speed":3,"deploy":"hq"},

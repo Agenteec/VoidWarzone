@@ -41,6 +41,7 @@ struct LaunchOptions {
     bool host = false;
     bool stayInLobby = false;
     bool designer = false;
+    int campaign = 0;
     std::optional<std::string> editor;
     bool editorTest = false;
     int mission = 0;
@@ -450,11 +451,21 @@ private:
         std::string place;
         std::string chapter;
         std::string intro;
+        bool sortie = false;
+        int transport = 0;
     };
     std::vector<CampaignMission> campaign_;
     std::vector<std::string> campaignDone_;
     std::string campaignRoster_;
     std::string campaignResearch_;
+    std::string campaignBase_;
+    float campaignEnergy_ = -1.0f;
+    std::string matchBase_;
+    float matchEnergy_ = -1.0f;
+    std::vector<int> sortieTeam_;
+    std::vector<int> sortieSent_;
+    std::string preSortieBase_;
+    int sortieFor_ = -1;
     std::string campaignMission_;
     bool campaignRecorded_ = false;
     int campaignChoice_ = 0;
@@ -464,6 +475,8 @@ private:
     int rosterSize() const;
     void startMission(std::size_t index, bool coop);
     void recordMission(bool victory);
+    void storeCampaignBase();
+    std::vector<int> baseUnitIndices() const;
     void drawCampaign();
     bool drawObjectives();
     char saveName_[49] = "";

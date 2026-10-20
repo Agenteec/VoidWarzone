@@ -31,10 +31,12 @@ def say(text):
     return {"type": "message", "text": text}
 
 
-def spawn(u, count, pos, target=None, team=1, tag=None, player=False):
+def spawn(u, count, pos, target=None, team=1, tag=None, player=False, target_tag=None):
     d = {"type": "spawn", "unit": u, "count": count, "pos": pos, "team": team}
     if target:
         d["target"] = target
+    if target_tag:
+        d["targetTag"] = target_tag
     if tag:
         d["tag"] = tag
     if player:
@@ -106,14 +108,14 @@ M2 = {
         "triggers": [
             {"when": "start", "do": [say("HQ is up. Build defences, the first raid is a minute out.")]},
             {"when": "time", "time": 60, "repeat": 45, "times": 7, "do": [
-                spawn("raider_buggy", 5, [260, 120], [110, 130]), spawn("raider_technical", 3, [270, 190], [110, 135]),
-                spawn("raider_mortar", 1, [265, 160], [112, 130])]},
+                spawn("raider_buggy", 5, [260, 120], [110, 130], target_tag="hq"), spawn("raider_technical", 3, [270, 190], [110, 135], target_tag="hq"),
+                spawn("raider_mortar", 1, [265, 160], [112, 130], target_tag="hq")]},
             {"when": "time", "time": 150, "repeat": 60, "times": 4, "do": [
-                say("Mortar trucks on the main road!"), spawn("raider_mortar", 3, [250, 180], [112, 132]), spawn("raider_rocket", 1, [255, 175], [112, 132]),
-                spawn("raider_technical", 3, [240, 90], [110, 125])]},
+                say("Mortar trucks on the main road!"), spawn("raider_mortar", 3, [250, 180], [112, 132], target_tag="hq"), spawn("raider_rocket", 1, [255, 175], [112, 132], target_tag="hq"),
+                spawn("raider_technical", 3, [240, 90], [110, 125], target_tag="hq")]},
             {"when": "time", "time": 240, "repeat": 40, "times": 3, "do": [
-                say("Their whole gang is coming! Drones in the air!"), spawn("raider_technical", 5, [280, 150], [106, 130]), spawn("raider_buggy", 5, [250, 230], [106, 130]),
-                spawn("raider_drone", 3, [240, 140], [106, 130])]},
+                say("Their whole gang is coming! Drones in the air!"), spawn("raider_technical", 5, [280, 150], [106, 130], target_tag="hq"), spawn("raider_buggy", 5, [250, 230], [106, 130], target_tag="hq"),
+                spawn("raider_drone", 3, [240, 140], [106, 130], target_tag="hq")]},
             {"when": "time", "time": 300, "do": [say("Convoy is a minute away. Hold on!")]},
             {"when": "objective", "objective": "hold", "do": [say("The convoy is here. Shilovo is ours.")]},
         ],

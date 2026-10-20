@@ -98,6 +98,8 @@ struct MissionAction {
     bool player = false;
     glm::vec2 pos{};
     std::optional<glm::vec2> target;
+    std::string targetTag;
+    std::string topic;
     float amount = 0.0f;
 };
 

@@ -312,6 +312,8 @@ Map Map::parse(std::string_view text) {
                     act.pos = toVec2(a.at("pos"));
                 if (a.contains("target"))
                     act.target = toVec2(a.at("target"));
+                act.targetTag = a.value("targetTag", "");
+                act.topic = a.value("topic", "");
                 act.amount = a.value("amount", 0.0f);
                 trig.actions.push_back(std::move(act));
             }

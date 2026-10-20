@@ -351,7 +351,10 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
         guideOpen_ = true;
         guideTab_ = options_.guide;
     }
-    if (options_.mission > 0) {
+    if (options_.campaign > 0) {
+        campaignChoice_ = options_.campaign - 1;
+        setScreen(Screen::Campaign);
+    } else if (options_.mission > 0) {
         loadCampaign();
         startMission(static_cast<std::size_t>(options_.mission - 1), false);
     } else if (options_.editor) {
@@ -510,7 +513,8 @@ void App::startHost(bool multiplayer) {
     config.loadMap = [](const std::string& name) { return readMap(name); };
     config.saveDir = savesDir();
     if (!campaignMission_.empty()) {
-        config.roster = campaignRoster_;
+        config.base = matchBase_;
+        config.energy = matchEnergy_;
         config.research = campaignResearch_;
     }
     host_ = std::make_unique<server::Server>(*data_, *hostMap_, config);
