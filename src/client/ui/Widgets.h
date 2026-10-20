@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstdio>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <imgui.h>
 
@@ -74,6 +76,60 @@ inline bool accentButton(const char* label, ImVec2 size, ImU32 color = kAccent) 
     const bool pressed = ImGui::Button(label, size);
     ImGui::PopStyleColor(3);
     return pressed;
+}
+
+// Draws `text` centred in the box [a, b]: one line if it fits, otherwise two lines and/or a smaller font, an ellipsis as the last resort.
+inline void fitText(ImDrawList* dl, std::string_view text, ImVec2 a, ImVec2 b, ImU32 color, float maxScale = 1.0f) {
+    ImFont* font = ImGui::GetFont();
+    const float base = ImGui::GetFontSize() * maxScale;
+    const float w = b.x - a.x - 4.0f;
+    const float h = b.y - a.y;
+    const std::string s(text);
+    auto width = [&](const std::string& t, float size) { return font->CalcTextSizeA(size, FLT_MAX, 0.0f, t.c_str()).x; };
+    std::vector<std::string> lines{s};
+    float size = base;
+    for (float k = 1.0f; k >= 0.62f; k -= 0.06f) {
+        size = base * k;
+        if (width(s, size) <= w) {
+            lines = {s};
+            break;
+        }
+        // best two-line split at a space
+        std::string bestA, bestB;
+        float best = 1e9f;
+        for (std::size_t i = s.find(' '); i != std::string::npos; i = s.find(' ', i + 1)) {
+            const std::string l = s.substr(0, i);
+            const std::string r = s.substr(i + 1);
+            const float m = std::max(width(l, size), width(r, size));
+            if (m < best) {
+                best = m;
+                bestA = l;
+                bestB = r;
+            }
+        }
+        if (best <= w && size * 2.1f <= h) {
+            lines = {bestA, bestB};
+            break;
+        }
+        lines = {s};
+    }
+    if (lines.size() == 1 && width(lines[0], size) > w) {
+        std::string t = lines[0];
+        while (t.size() > 1 && width(t + "..", size) > w) {
+            // drop one whole UTF-8 code point: its continuation bytes, then the lead byte
+            while (!t.empty() && (static_cast<unsigned char>(t.back()) & 0xC0) == 0x80)
+                t.pop_back();
+            if (!t.empty())
+                t.pop_back();
+        }
+        lines = {t + ".."};
+    }
+    const float total = size * static_cast<float>(lines.size());
+    float y = a.y + (h - total) * 0.5f;
+    for (const auto& l : lines) {
+        dl->AddText(font, size, {a.x + (b.x - a.x - width(l, size)) * 0.5f, y}, color, l.c_str());
+        y += size;
+    }
 }
 
 inline bool toggleButton(const char* label, bool active, ImVec2 size) {

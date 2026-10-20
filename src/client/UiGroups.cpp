@@ -402,9 +402,9 @@ void App::drawGroupBar() {
                 controlGroup(i, false, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
         }
         if (touch)
-            ImGui::SetItemTooltip("Tap: select, hold: assign the selection");
+            ImGui::SetItemTooltip(tr("Tap: select, hold: assign the selection"));
         else
-            ImGui::SetItemTooltip("%d select, Ctrl+%d assign, Shift+%d add", i, i, i);
+            ImGui::SetItemTooltip(tr("%d select, Ctrl+%d assign, Shift+%d add"), i, i, i);
     }
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
         groupHeld_ = false;
@@ -517,21 +517,21 @@ void App::drawInspect() {
     std::snprintf(label, sizeof(label), "%u / %u", e->hp, e->maxHp);
     bar(frac, {w, 16.0f * s}, hpColor(frac), label);
     if (def.weapon)
-        ImGui::TextDisabled("%s damage %.0f%s  range %.1f  every %.1fs", damageTypeName(def.weapon->type), def.weapon->damage,
+        ImGui::TextDisabled(tr("%s damage %.0f%s  range %.1f  every %.1fs"), damageTypeName(def.weapon->type), def.weapon->damage,
                                 def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown);
-    ImGui::TextDisabled("%s armor %.0f", armorTypeName(def.armorType), def.armor);
+    ImGui::TextDisabled(tr("%s armor %.0f"), armorTypeName(def.armorType), def.armor);
     if (def.shield > 0.0f) {
         ImGui::SameLine();
-        ImGui::TextColored({0.35f, 0.85f, 1.0f, 1.0f}, "shield %u / %.0f", e->shield, def.shield);
+        ImGui::TextColored({0.35f, 0.85f, 1.0f, 1.0f}, tr("shield %u / %.0f"), e->shield, def.shield);
     }
     if (e->flags & net::kStateBuilding)
-        ImGui::TextColored(toVec(kEnergy), "under construction - right click with an engineer to help");
+        ImGui::TextColored(toVec(kEnergy), tr("under construction - right click with an engineer to help"));
     if (def.speed > 0.0f) {
         ImGui::SameLine();
-        ImGui::TextDisabled("speed %.1f", def.speed);
+        ImGui::TextDisabled(tr("speed %.1f"), def.speed);
     }
     if (def.income > 0.0f)
-        ImGui::TextDisabled("+%.1f energy/s", def.income);
+        ImGui::TextDisabled(tr("+%.1f energy/s"), def.income);
     trackWindow();
     ImGui::End();
 }
@@ -636,7 +636,7 @@ void App::trackLevelUps() {
         if (it != known_.end() && (u.rank > it->second.rank || (u.rank == it->second.rank && u.level > it->second.level))) {
             if (const auto* e = findEntity(u.id)) {
                 static constexpr const char* kRanks[] = {"RECRUIT", "VETERAN", "ELITE", "HERO"};
-                const std::string label = u.rank > it->second.rank ? kRanks[std::min<int>(u.rank, 3)] : "LEVEL " + std::to_string(u.level);
+                const std::string label = u.rank > it->second.rank ? std::string(tr(kRanks[std::min<int>(u.rank, 3)])) : std::string(tr("LEVEL")) + " " + std::to_string(u.level);
                 levelUpEffect(e->pos, ICON_FA_ARROW_UP " " + label);
             }
             if (std::find(selected_.begin(), selected_.end(), u.id) == selected_.end())
@@ -677,7 +677,7 @@ void App::drawLevelUps() {
     ImGui::SetNextWindowBgAlpha(0.8f);
     ImGui::Begin("##levelups", nullptr, kHudFlags);
     char label[64];
-    std::snprintf(label, sizeof(label), ICON_FA_ARROW_UP "  %d unit%s promoted", static_cast<int>(unseen_.size()), unseen_.size() > 1 ? "s" : "");
+    std::snprintf(label, sizeof(label), tr(ICON_FA_ARROW_UP "  Promoted units: %d"), static_cast<int>(unseen_.size()));
     if (ImGui::Button(label)) {
         const std::uint32_t id = *unseen_.begin();
         selected_ = {id};
@@ -685,7 +685,7 @@ void App::drawLevelUps() {
             camera_.target = e->pos;
     }
     redDot(ImGui::GetWindowDrawList(), {ImGui::GetItemRectMax().x - 3.0f * s, ImGui::GetItemRectMin().y + 3.0f * s}, 5.0f * s);
-    ImGui::SetItemTooltip("Click to select it - new modules, refits or skills may be available");
+    ImGui::SetItemTooltip(tr("Click to select it - new modules, refits or skills may be available"));
     trackWindow();
     ImGui::End();
 }

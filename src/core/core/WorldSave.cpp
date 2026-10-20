@@ -356,14 +356,22 @@ std::string World::exportBase(std::uint8_t player) const {
 void World::spawnBase(std::uint8_t player, std::string_view base) {
     if (base.empty() || !map_ || player >= kMaxPlayers)
         return;
+    const json list = json::parse(base);
+    // a real base (with buildings) replaces the map's own setup; a vehicles-only list (sortie team, old roster) is added to it
+    const bool buildings = std::any_of(list.begin(), list.end(), [&](const json& u) {
+        const UnitDefId def = data_->find(u.value("def", ""));
+        return def != kInvalidUnitDef && data_->unit(def).structure;
+    });
     std::vector<entt::entity> old;
     for (auto [e, owner] : registry_.view<const Owner>().each())
-        if (owner.player == player)
+        if (owner.player == player && (buildings || !registry_.all_of<Structure>(e)))
             old.push_back(e);
     for (const auto e : old)
         registry_.destroy(e);
-    const json list = json::parse(base);
     glm::vec2 home = playerBase(player);
+    for (auto [e, unit, owner, pos] : registry_.view<const Unit, const Owner, const Position>().each())
+        if (owner.player == player && data_->unit(unit.def).undeploy != kInvalidUnitDef)
+            home = pos.value;
     for (const auto& u : list) {
         const UnitDefId def = data_->find(u.value("def", ""));
         if (def != kInvalidUnitDef && data_->unit(def).undeploy != kInvalidUnitDef && u.contains("pos"))
@@ -383,7 +391,7 @@ void World::spawnBase(std::uint8_t player, std::string_view base) {
         u["owner"] = player;
         u["team"] = players_[player].team;
         u.erase("hp");
-        if (data_->unit(def).undeploy != kInvalidUnitDef)
+        if (data_->unit(def).undeploy != kInvalidUnitDef || data_->unit(def).deploy != kInvalidUnitDef)
             u["tag"] = "hq";
         loadUnit(u);
     }

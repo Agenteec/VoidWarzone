@@ -175,17 +175,25 @@
   ],
   "mission": {
    "title": "Cold Start",
-   "briefing": "Shilovo, southern edge of Voronezh. Third winter after the Breach. A marauder gang has taken the gas station and the garage cooperative by the main road and is robbing every convoy that tries to reach the city. Take your column through the blocks, clear the outpost and burn their camp.",
+   "briefing": "Shilovo, southern edge of Voronezh. Third winter after the Breach. Our column has come from the north with the last mobile HQ of the colony. The empty panel blocks of Shilovo are the best place for a new base - but a marauder gang holds the gas station and the garage cooperative by the main road and robs every convoy. Set up the base in the blocks, then drive the gang out.",
    "objectives": [
     {
-     "id": "blocks",
-     "text": "Reach the Shilovo blocks",
-     "type": "reach",
+     "id": "hq",
+     "text": "Deploy the KShM as a field HQ in the Shilovo blocks",
+     "type": "build",
+     "unit": "hq",
      "pos": [
       105,
       112
      ],
-     "radius": 12
+     "radius": 18
+    },
+    {
+     "id": "workshop",
+     "text": "Build a workshop",
+     "type": "build",
+     "unit": "workshop",
+     "hidden": true
     },
     {
      "id": "outpost",
@@ -200,13 +208,6 @@
      "type": "destroy",
      "tag": "camp",
      "hidden": true
-    },
-    {
-     "id": "alive",
-     "text": "Keep the column alive",
-     "type": "survive",
-     "time": 99999,
-     "optional": true
     }
    ],
    "triggers": [
@@ -215,17 +216,35 @@
      "do": [
       {
        "type": "message",
-       "text": "Column, this is Command. Deploy the KShM into a field HQ (Y), build a workshop, then move east into the blocks."
+       "text": "Column, this is Command. Drive east into the Shilovo blocks and deploy the KShM there (select it, press Y). That is our new home."
       }
      ]
     },
     {
      "when": "objective",
-     "objective": "blocks",
+     "objective": "hq",
      "do": [
       {
        "type": "message",
-       "text": "Smoke over the gas station. Marauders. They've dug in with sandbags - take them out."
+       "text": "The HQ is up. Now a workshop - the crane trucks can build it. We need trucks and armour."
+      },
+      {
+       "type": "reveal",
+       "objective": "workshop"
+      },
+      {
+       "type": "energy",
+       "amount": 100
+      }
+     ]
+    },
+    {
+     "when": "objective",
+     "objective": "workshop",
+     "do": [
+      {
+       "type": "message",
+       "text": "Smoke over the gas station east of the blocks. Marauders, dug in behind sandbags. Take them out."
       },
       {
        "type": "reveal",
@@ -235,8 +254,12 @@
     },
     {
      "when": "time",
-     "time": 75,
+     "time": 150,
      "do": [
+      {
+       "type": "message",
+       "text": "Buggies on the main road - they have noticed us."
+      },
       {
        "type": "spawn",
        "unit": "raider_buggy",
@@ -249,7 +272,8 @@
        "target": [
         105,
         112
-       ]
+       ],
+       "targetTag": "hq"
       }
      ]
     },
@@ -259,7 +283,7 @@
      "do": [
       {
        "type": "message",
-       "text": "Outpost is clear. Fuel trucks are yours. Their main camp is in the garages south-east of the road."
+       "text": "Outpost is clear and the fuel trucks are ours. Their main camp is in the garages south-east of the road."
       },
       {
        "type": "energy",
@@ -282,7 +306,7 @@
       },
       {
        "type": "message",
-       "text": "Two MT-LBs from the depot are joining you."
+       "text": "Two MT-LBs from the old depot are joining you."
       }
      ]
     },
@@ -334,7 +358,7 @@
      "do": [
       {
        "type": "message",
-       "text": "Camp is burning. The road to the city is open. Good work, column."
+       "text": "The camp is burning. Shilovo is ours - dig in, they will come back for it."
       }
      ]
     }

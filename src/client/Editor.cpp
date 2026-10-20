@@ -583,21 +583,21 @@ void App::drawEditor() {
     const float s = uiScale();
     ImGui::SetNextWindowPos({10.0f * s, 10.0f * s}, ImGuiCond_Always);
     ImGui::SetNextWindowSizeConstraints({320.0f * s, 0.0f}, {320.0f * s, ImGui::GetIO().DisplaySize.y - 20.0f * s});
-    ImGui::Begin("Map editor", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::Begin(tr("Map editor"), nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
     const float full = ImGui::GetContentRegionAvail().x;
 
-    if (ImGui::CollapsingHeader(ICON_FA_FILE "  File", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader(tr(ICON_FA_FILE "  File"), ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::SetNextItemWidth(full * 0.6f);
-        ImGui::InputText("Name", es.name, sizeof(es.name));
+        ImGui::InputText(tr("Name"), es.name, sizeof(es.name));
         ImGui::SetNextItemWidth(full * 0.6f);
-        ImGui::InputText("Id", es.saveId, sizeof(es.saveId), ImGuiInputTextFlags_CharsNoBlank);
-        if (ImGui::Button(ICON_FA_FLOPPY_O "  Save", {full * 0.32f, 0.0f}))
+        ImGui::InputText(tr("Id"), es.saveId, sizeof(es.saveId), ImGuiInputTextFlags_CharsNoBlank);
+        if (ImGui::Button(tr(ICON_FA_FLOPPY_O "  Save"), {full * 0.32f, 0.0f}))
             editorSave();
         ImGui::SameLine();
-        if (ImGui::Button(ICON_FA_PLAY "  Play", {full * 0.32f, 0.0f}))
+        if (ImGui::Button(tr(ICON_FA_PLAY "  Play"), {full * 0.32f, 0.0f}))
             editorPlay();
         ImGui::SameLine();
-        if (ImGui::Button(ICON_FA_SIGN_OUT "  Exit", {-1.0f, 0.0f})) {
+        if (ImGui::Button(tr(ICON_FA_SIGN_OUT "  Exit"), {-1.0f, 0.0f})) {
             closeEditor();
             ImGui::End();
             return;
@@ -615,7 +615,7 @@ void App::drawEditor() {
                 ImGui::EndCombo();
             }
             ImGui::SameLine();
-            if (ImGui::Button(ICON_FA_FOLDER_OPEN "  Open", {-1.0f, 0.0f})) {
+            if (ImGui::Button(tr(ICON_FA_FOLDER_OPEN "  Open"), {-1.0f, 0.0f})) {
                 const std::string id = es.maps[static_cast<std::size_t>(es.openChoice)];
                 openEditor(id);
                 ImGui::End();
@@ -628,61 +628,61 @@ void App::drawEditor() {
         ImGui::SetNextItemWidth(full * 0.25f);
         ImGui::InputInt("##h", &es.newHeight, 0);
         ImGui::SameLine();
-        ImGui::Checkbox("Winter", &es.newWinter);
+        ImGui::Checkbox(tr("Winter"), &es.newWinter);
         ImGui::SameLine();
-        if (ImGui::Button("New", {-1.0f, 0.0f})) {
+        if (ImGui::Button(tr("New"), {-1.0f, 0.0f})) {
             newEditorMap(es.newWidth, es.newHeight, es.newWinter);
             ImGui::End();
             return;
         }
     }
 
-    if (ImGui::CollapsingHeader(ICON_FA_WRENCH "  Tools  [1-6]", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader(tr(ICON_FA_WRENCH "  Tools  [1-6]"), ImGuiTreeNodeFlags_DefaultOpen)) {
         for (int i = 0; i < static_cast<int>(EditorTool::Count); ++i) {
             if (i % 2)
                 ImGui::SameLine();
-            if (menuButton(kToolNames[i], es.tool == static_cast<EditorTool>(i), full * 0.49f, 30.0f * s))
+            if (menuButton(tr(kToolNames[i]), es.tool == static_cast<EditorTool>(i), full * 0.49f, 30.0f * s))
                 es.tool = static_cast<EditorTool>(i);
         }
         ImGui::Separator();
         switch (es.tool) {
         case EditorTool::Select:
-            ImGui::TextWrapped("Click a unit or building. Drag units to move. Del removes, Ctrl+Z undoes, middle mouse pans.");
+            ImGui::TextWrapped(tr("Click a unit or building. Drag units to move. Del removes, Ctrl+Z undoes, middle mouse pans."));
             break;
         case EditorTool::Units: {
             const auto& units = data_->units();
             es.unitDef = std::clamp(es.unitDef, 0, static_cast<int>(units.size()) - 1);
             ImGui::SetNextItemWidth(full * 0.6f);
-            if (ImGui::BeginCombo("Unit", units[static_cast<std::size_t>(es.unitDef)].id.c_str(), ImGuiComboFlags_HeightLarge)) {
+            if (ImGui::BeginCombo(tr("Unit"), units[static_cast<std::size_t>(es.unitDef)].id.c_str(), ImGuiComboFlags_HeightLarge)) {
                 for (int i = 0; i < static_cast<int>(units.size()); ++i)
                     if (ImGui::Selectable(units[static_cast<std::size_t>(i)].id.c_str(), i == es.unitDef))
                         es.unitDef = i;
                 ImGui::EndCombo();
             }
-            ImGui::RadioButton("Colony", &es.team, 0);
+            ImGui::RadioButton(tr("Colony"), &es.team, 0);
             ImGui::SameLine();
-            ImGui::RadioButton("Enemy", &es.team, 1);
+            ImGui::RadioButton(tr("Enemy"), &es.team, 1);
             ImGui::SetNextItemWidth(full * 0.6f);
-            ImGui::Combo("Role", &es.role, "none\0core\0portal\0");
+            ImGui::Combo(tr("Role"), &es.role, tr("none\0core\0portal\0"));
             break;
         }
         case EditorTool::Terrain:
             ImGui::SetNextItemWidth(full * 0.6f);
-            ImGui::SliderInt("Brush", &es.brush, 0, 10);
-            ImGui::RadioButton("Open", &es.brushKind, 0);
+            ImGui::SliderInt(tr("Brush"), &es.brush, 0, 10);
+            ImGui::RadioButton(tr("Open"), &es.brushKind, 0);
             ImGui::SameLine();
-            ImGui::RadioButton("Rock", &es.brushKind, 1);
+            ImGui::RadioButton(tr("Rock"), &es.brushKind, 1);
             ImGui::SameLine();
-            ImGui::RadioButton("Forest", &es.brushKind, 3);
-            ImGui::TextDisabled("Rock is raised and impassable, forest is impassable.");
+            ImGui::RadioButton(tr("Forest"), &es.brushKind, 3);
+            ImGui::TextDisabled(tr("Rock is raised and impassable, forest is impassable."));
             break;
         case EditorTool::Buildings:
             ImGui::SetNextItemWidth(full * 0.6f);
-            ImGui::SliderInt("Storeys", &es.levels, 1, 25);
+            ImGui::SliderInt(tr("Storeys"), &es.levels, 1, 25);
             ImGui::SetNextItemWidth(full * 0.6f);
-            ImGui::Combo("Kind", &es.buildingKind, "panel\0block\0public\0industrial\0house\0garage\0");
-            ImGui::Checkbox("Ruin", &es.ruin);
-            ImGui::TextDisabled("Drag a rectangle on the ground.");
+            ImGui::Combo(tr("Kind"), &es.buildingKind, tr("panel\0block\0public\0industrial\0house\0garage\0"));
+            ImGui::Checkbox(tr("Ruin"), &es.ruin);
+            ImGui::TextDisabled(tr("Drag a rectangle on the ground."));
             break;
         case EditorTool::Lanes: {
             auto& lanes = es.doc["lanes"];
@@ -696,7 +696,7 @@ void App::drawEditor() {
             ImGui::SetNextItemWidth(full * 0.5f);
             ImGui::InputText("##lane", es.laneName, sizeof(es.laneName), ImGuiInputTextFlags_CharsNoBlank);
             ImGui::SameLine();
-            if (ImGui::Button("Add lane", {-1.0f, 0.0f}) && es.laneName[0]) {
+            if (ImGui::Button(tr("Add lane"), {-1.0f, 0.0f}) && es.laneName[0]) {
                 editorChange();
                 const auto& core = map_->units();
                 glm::vec2 a{8.0f}, b{static_cast<float>(map_->width()) - 8.0f};
@@ -711,11 +711,11 @@ void App::drawEditor() {
                 es.laneName[0] = 0;
                 editorReparse(false);
             }
-            ImGui::TextWrapped("Click to insert a point before the end, drag points to move, Del removes the selected point.");
+            ImGui::TextWrapped(tr("Click to insert a point before the end, drag points to move, Del removes the selected point."));
             break;
         }
         case EditorTool::Points:
-            ImGui::Checkbox("Player start", &es.pointIsStart);
+            ImGui::Checkbox(tr("Player start"), &es.pointIsStart);
             ImGui::TextDisabled(es.pointIsStart ? "Click to move the player start." : "Click to add a resource point.");
             break;
         default:
@@ -724,17 +724,17 @@ void App::drawEditor() {
     }
 
     if (es.selectedUnit >= 0 && es.selectedUnit < static_cast<int>(es.doc["units"].size()) &&
-        ImGui::CollapsingHeader(ICON_FA_INFO "  Selected unit", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::CollapsingHeader(tr(ICON_FA_INFO "  Selected unit"), ImGuiTreeNodeFlags_DefaultOpen)) {
         auto& u = es.doc["units"][static_cast<std::size_t>(es.selectedUnit)];
-        ImGui::Text("%s  at %.1f, %.1f", u.value("unit", "?").c_str(), jvec(u["pos"]).x, jvec(u["pos"]).y);
+        ImGui::Text(tr("%s  at %.1f, %.1f"), u.value("unit", "?").c_str(), jvec(u["pos"]).x, jvec(u["pos"]).y);
         int team = u.value("team", 0);
-        if (ImGui::RadioButton("Colony##u", team == 0) && team != 0) {
+        if (ImGui::RadioButton(tr("Colony##u"), team == 0) && team != 0) {
             editorChange();
             u["team"] = 0;
             editorReparse(false);
         }
         ImGui::SameLine();
-        if (ImGui::RadioButton("Enemy##u", team == 1) && team != 1) {
+        if (ImGui::RadioButton(tr("Enemy##u"), team == 1) && team != 1) {
             editorChange();
             u["team"] = 1;
             editorReparse(false);
@@ -742,45 +742,45 @@ void App::drawEditor() {
         char tag[32];
         std::snprintf(tag, sizeof(tag), "%s", u.value("tag", "").c_str());
         ImGui::SetNextItemWidth(full * 0.6f);
-        if (ImGui::InputText("Tag", tag, sizeof(tag), ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (ImGui::InputText(tr("Tag"), tag, sizeof(tag), ImGuiInputTextFlags_EnterReturnsTrue)) {
             editorChange();
             u["tag"] = std::string(tag);
             editorReparse(false);
         }
     }
     if (es.selectedBuilding >= 0 && es.doc.contains("buildings") && es.selectedBuilding < static_cast<int>(es.doc["buildings"].size()) &&
-        ImGui::CollapsingHeader(ICON_FA_BUILDING "  Selected building", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::CollapsingHeader(tr(ICON_FA_BUILDING "  Selected building"), ImGuiTreeNodeFlags_DefaultOpen)) {
         auto& b = es.doc["buildings"][static_cast<std::size_t>(es.selectedBuilding)];
         int levels = b.value("levels", 5);
         ImGui::SetNextItemWidth(full * 0.6f);
-        if (ImGui::SliderInt("Storeys##b", &levels, 1, 25))
+        if (ImGui::SliderInt(tr("Storeys##b"), &levels, 1, 25))
             b["levels"] = levels;
         if (ImGui::IsItemActivated())
             editorChange();
         if (ImGui::IsItemDeactivatedAfterEdit())
             editorReparse(true);
         bool ruin = b.value("ruin", false);
-        if (ImGui::Checkbox("Ruin##b", &ruin)) {
+        if (ImGui::Checkbox(tr("Ruin##b"), &ruin)) {
             editorChange();
             b["ruin"] = ruin;
             editorReparse(true);
         }
-        ImGui::TextDisabled("%s, %d corners", b.value("kind", "").c_str(), static_cast<int>(b["poly"].size()));
+        ImGui::TextDisabled(tr("%s, %d corners"), b.value("kind", "").c_str(), static_cast<int>(b["poly"].size()));
     }
 
-    if (ImGui::CollapsingHeader(ICON_FA_GLOBE "  Map")) {
+    if (ImGui::CollapsingHeader(tr(ICON_FA_GLOBE "  Map"))) {
         bool winter = es.doc.value("theme", "") == "winter";
-        if (ImGui::Checkbox("Winter theme", &winter)) {
+        if (ImGui::Checkbox(tr("Winter theme"), &winter)) {
             editorChange();
             es.doc["theme"] = winter ? "winter" : "";
             editorReparse(true);
         }
-        ImGui::Text("%d x %d cells, %d units, %d buildings", map_->width(), map_->height(), static_cast<int>(map_->units().size()),
+        ImGui::Text(tr("%d x %d cells, %d units, %d buildings"), map_->width(), map_->height(), static_cast<int>(map_->units().size()),
                     static_cast<int>(map_->buildings().size()));
-        ImGui::Text("%d lanes, %d waves, %d resource points", static_cast<int>(map_->lanes().size()), static_cast<int>(map_->defense().waves.size()),
+        ImGui::Text(tr("%d lanes, %d waves, %d resource points"), static_cast<int>(map_->lanes().size()), static_cast<int>(map_->defense().waves.size()),
                     static_cast<int>(map_->resourcePoints().size()));
         if (const auto g = camera_.screenToGround(mouse_.x, mouse_.y))
-            ImGui::TextDisabled("cursor %.1f, %.1f  %s", g->x, g->y, kCellNames[static_cast<int>(map_->cellKind(static_cast<int>(g->x), static_cast<int>(g->y)))]);
+            ImGui::TextDisabled(tr("cursor %.1f, %.1f  %s"), g->x, g->y, tr(kCellNames[static_cast<int>(map_->cellKind(static_cast<int>(g->x), static_cast<int>(g->y)))]));
     }
     if (!es.status.empty()) {
         ImGui::PushTextWrapPos(0.0f);
@@ -788,7 +788,7 @@ void App::drawEditor() {
         ImGui::PopTextWrapPos();
     }
     if (es.changed)
-        ImGui::TextDisabled("unsaved changes");
+        ImGui::TextDisabled(tr("unsaved changes"));
     trackWindow();
     ImGui::End();
 }

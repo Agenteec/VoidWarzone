@@ -39,6 +39,7 @@ private:
     ImFont* regular_ = nullptr;
     ImFont* bold_ = nullptr;
     std::string boldData_;
+    std::string emojiData_;
     bool textInput_ = false;
     float styleScale_ = 0.0f;
     bool initialized_ = false;

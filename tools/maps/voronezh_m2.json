@@ -139,7 +139,7 @@
   ],
   "mission": {
    "title": "Holdout",
-   "briefing": "We set up a forward HQ in the Shilovo blocks. The marauders want it back and are gathering every truck they have. Hold the HQ for six minutes until the convoy from the city arrives. Engineers can build towers and walls.",
+   "briefing": "Two days later. The gang that lost the garages ran to its staging camp in the east and called in every crew along the highway. They will hit our base in the Shilovo blocks. A convoy from the city is on its way with fuel and people - hold the base until it arrives. Crane trucks can build towers and walls.",
    "objectives": [
     {
      "id": "hold",
@@ -167,7 +167,7 @@
      "do": [
       {
        "type": "message",
-       "text": "HQ is up. Build defences, the first raid is a minute out."
+       "text": "Command here. Build defences around the HQ - the first raid is a minute out."
       }
      ]
     },
@@ -189,7 +189,8 @@
        "target": [
         110,
         130
-       ]
+       ],
+       "targetTag": "hq"
       },
       {
        "type": "spawn",
@@ -203,7 +204,8 @@
        "target": [
         110,
         135
-       ]
+       ],
+       "targetTag": "hq"
       },
       {
        "type": "spawn",
@@ -217,7 +219,8 @@
        "target": [
         112,
         130
-       ]
+       ],
+       "targetTag": "hq"
       }
      ]
     },
@@ -243,7 +246,8 @@
        "target": [
         112,
         132
-       ]
+       ],
+       "targetTag": "hq"
       },
       {
        "type": "spawn",
@@ -257,7 +261,8 @@
        "target": [
         112,
         132
-       ]
+       ],
+       "targetTag": "hq"
       },
       {
        "type": "spawn",
@@ -271,7 +276,8 @@
        "target": [
         110,
         125
-       ]
+       ],
+       "targetTag": "hq"
       }
      ]
     },
@@ -297,7 +303,8 @@
        "target": [
         106,
         130
-       ]
+       ],
+       "targetTag": "hq"
       },
       {
        "type": "spawn",
@@ -311,7 +318,8 @@
        "target": [
         106,
         130
-       ]
+       ],
+       "targetTag": "hq"
       },
       {
        "type": "spawn",
@@ -325,7 +333,8 @@
        "target": [
         106,
         130
-       ]
+       ],
+       "targetTag": "hq"
       }
      ]
     },
@@ -335,7 +344,17 @@
      "do": [
       {
        "type": "message",
-       "text": "Convoy is a minute away. Hold on!"
+       "text": "The convoy is a minute away. Hold on!"
+      }
+     ]
+    },
+    {
+     "when": "destroyed",
+     "tag": "nest",
+     "do": [
+      {
+       "type": "message",
+       "text": "Their staging camp is gone. The raids will thin out."
       }
      ]
     },
@@ -345,7 +364,7 @@
      "do": [
       {
        "type": "message",
-       "text": "The convoy is here. Shilovo is ours."
+       "text": "The convoy is here. The drivers say the gangs get their fuel from the old rail depot east of the city."
       }
      ]
     }

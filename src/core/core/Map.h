@@ -85,6 +85,10 @@ struct MissionObjective {
     std::uint8_t team = 1;
     bool hidden = false;
     bool optional = false;
+    // build: own `count` completed units/structures of def `unit` (inside pos/radius when `area`)
+    std::string unit;
+    int count = 1;
+    bool area = false;
 };
 
 struct MissionAction {

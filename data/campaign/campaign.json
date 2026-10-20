@@ -9,14 +9,16 @@
           "map": "voronezh_m1",
           "name": "Cold Start",
           "place": "Shilovo, the gas station and the garages",
-          "kind": "base"
+          "kind": "base",
+          "debrief": "Shilovo is ours: the gas station, the garages and the empty blocks. The HQ stands in the yards - this is where the colony starts again."
         },
         {
           "id": "c1m2",
           "map": "voronezh_m2",
           "name": "Holdout",
           "place": "Shilovo blocks, our base",
-          "kind": "base"
+          "kind": "base",
+          "debrief": "The base held. The convoy brought fuel, people and a rumour: the gangs' fuel comes from the rail depot east of the city."
         },
         {
           "id": "c1s1",
@@ -24,15 +26,16 @@
           "name": "Rail Depot",
           "place": "Sortie: the frozen rail yard east of the city",
           "kind": "sortie",
-          "transport": 8
+          "transport": 8,
+          "debrief": "The depot burned, and the signal box gave us the Grad papers. The prisoners all say the same thing: they fled from a violet glow in the south."
         },
         {
           "id": "c1m3",
           "map": "voronezh_m3",
           "name": "Glow over the Plant",
-          "place": "Sortie: ruins of the Voronezh nuclear heating plant",
-          "kind": "sortie",
-          "transport": 12
+          "place": "From the base to the ruins of the Voronezh nuclear heating plant",
+          "kind": "base",
+          "debrief": "The rift at the plant is closed, but the crystals are still growing in the ruins. Whatever came through the Breach is not done with us."
         }
       ]
     }

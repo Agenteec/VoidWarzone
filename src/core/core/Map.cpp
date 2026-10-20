@@ -285,6 +285,9 @@ Map Map::parse(std::string_view text) {
             obj.team = o.value("team", std::uint8_t{1});
             obj.hidden = o.value("hidden", false);
             obj.optional = o.value("optional", false);
+            obj.unit = o.value("unit", "");
+            obj.count = o.value("count", 1);
+            obj.area = o.contains("pos") && obj.type == "build";
             mission.objectives.push_back(std::move(obj));
         }
         for (const auto& t : ms->value("triggers", json::array())) {

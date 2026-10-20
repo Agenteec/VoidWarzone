@@ -20,6 +20,7 @@
 
 #include "Prediction.h"
 #include "Audio.h"
+#include "Lang.h"
 #include "Visuals.h"
 #include "core/GameData.h"
 #include "core/Map.h"
@@ -42,6 +43,7 @@ struct LaunchOptions {
     bool stayInLobby = false;
     bool designer = false;
     int campaign = 0;
+    std::string lang;
     std::optional<std::string> editor;
     bool editorTest = false;
     int mission = 0;
@@ -147,6 +149,8 @@ private:
     static void redDot(ImDrawList* dl, ImVec2 at, float radius);
 
     void loadContent();
+    void applyLanguage();
+    std::string language_;
     void setScreen(Screen screen);
     void startHost(bool multiplayer);
     void enterGame();
@@ -275,6 +279,7 @@ private:
     bool dbgLabels_ = false;
     bool dbgBars_ = false;
     bool researchOpen_ = false;
+    int hoveredTopic_ = -1;
     bool designerOpen_ = false;
     int designBody_ = 0;
     int designProp_ = 0;
@@ -453,6 +458,7 @@ private:
         std::string intro;
         bool sortie = false;
         int transport = 0;
+        std::string debrief;
     };
     std::vector<CampaignMission> campaign_;
     std::vector<std::string> campaignDone_;

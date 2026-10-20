@@ -102,6 +102,8 @@ int main(int argc, char** argv) {
             options.debug = true;
         else if (arg == "--bots" && hasValue)
             options.bots = std::stoi(argv[++i]);
+        else if (arg == "--lang" && hasValue)
+            options.lang = argv[++i];
         else if (arg == "--campaign" && hasValue)
             options.campaign = std::atoi(argv[++i]);
         else if (arg == "--designer")

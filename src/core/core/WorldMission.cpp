@@ -150,6 +150,15 @@ void World::updateMission() {
             done = now >= o.time;
         else if (o.type == "protect")
             failed = !tagAlive(o.tag);
+        else if (o.type == "build") {
+            const UnitDefId def = data_->find(o.unit);
+            int have = 0;
+            for (auto [e, unit, owner, pos] : registry_.view<const Unit, const Owner, const Position>(entt::exclude<Construction>).each())
+                if (unit.def == def && owner.player < players_.size() && players_[owner.player].active && alive(e) &&
+                    (!o.area || glm::distance(pos.value, o.pos) <= o.radius))
+                    ++have;
+            done = have >= o.count;
+        }
         if (done || failed)
             finishObjective(o.id, done ? kDone : kFailed);
     }

@@ -39,7 +39,7 @@ void App::drawGuide() {
     ImGui::SetNextWindowSize({std::min(display.x - 20.0f * s, 1180.0f * s), std::min(display.y - 20.0f * s, 760.0f * s)});
     ImGui::SetNextWindowBgAlpha(0.96f);
     bool open = true;
-    ImGui::Begin(ICON_FA_BOOK "  Guide###guide", &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
+    ImGui::Begin(tr(ICON_FA_BOOK "  Guide###guide"), &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
                                                          ImGuiWindowFlags_NoResize);
     if (!open)
         guideOpen_ = false;
@@ -70,7 +70,7 @@ void App::drawGuide() {
             if (u.cost > 0.0f)
                 ImGui::Text("%.0f", u.cost);
             else if (u.refitFrom != kInvalidUnitDef)
-                ImGui::TextDisabled("refit %.0f", u.refitCost);
+                ImGui::TextDisabled(tr("refit %.0f"), u.refitCost);
             ImGui::TableNextColumn();
             ImGui::Text("%.0f", u.maxHp);
             ImGui::TableNextColumn();
@@ -85,7 +85,7 @@ void App::drawGuide() {
             if (u.weapon) {
                 ImGui::Text("%s%s", damageTypeName(u.weapon->type), u.weapon->splash > 0.0f ? " area" : "");
                 ImGui::TableNextColumn();
-                ImGui::Text("%.0f / %.1fs", u.weapon->damage, u.weapon->cooldown);
+                ImGui::Text(tr("%.0f / %.1fs"), u.weapon->damage, u.weapon->cooldown);
                 ImGui::TableNextColumn();
                 ImGui::Text("%.0f", u.weapon->damage / std::max(u.weapon->cooldown, 0.05f));
                 ImGui::TableNextColumn();
@@ -108,7 +108,7 @@ void App::drawGuide() {
                 add("aura: " + data_->skill(a).name);
             if (u.income > 0.0f) {
                 char buf[32];
-                std::snprintf(buf, sizeof(buf), "+%.1f energy/s", u.income);
+                std::snprintf(buf, sizeof(buf), tr("+%.1f energy/s"), u.income);
                 add(buf);
             }
             if (u.produces != kInvalidUnitDef)
@@ -127,30 +127,30 @@ void App::drawGuide() {
             return ImGui::BeginTabItem(name, nullptr, select ? ImGuiTabItemFlags_SetSelected : 0);
         };
         if (item("Vehicles")) {
-            ImGui::TextDisabled("Your units and their refit classes. DPS = damage per second before armor. T1/T2 = refit tier.");
+            ImGui::TextDisabled(tr("Your units and their refit classes. DPS = damage per second before armor. T1/T2 = refit tier."));
             unitTable("##vehicles", [](const UnitDef& u) { return !u.structure && u.id.rfind("void_", 0) != 0 && u.id.rfind("creep_", 0) != 0; });
             ImGui::EndTabItem();
         }
         if (item("The Void")) {
-            ImGui::TextDisabled("Enemy units and allied lane creeps. Crystal armor resists energy; shields regenerate after 3 s without damage.");
+            ImGui::TextDisabled(tr("Enemy units and allied lane creeps. Crystal armor resists energy; shields regenerate after 3 s without damage."));
             unitTable("##void", [](const UnitDef& u) { return !u.structure && (u.id.rfind("void_", 0) == 0 || u.id.rfind("creep_", 0) == 0); });
             ImGui::EndTabItem();
         }
         if (item("Structures")) {
-            ImGui::TextDisabled("Buildable structures need an engineer; others belong to the map.");
+            ImGui::TextDisabled(tr("Buildable structures need an engineer; others belong to the map."));
             unitTable("##structures", [](const UnitDef& u) { return u.structure; });
             ImGui::EndTabItem();
         }
         if (item("Damage & armor")) {
-            ImGui::TextWrapped("Damage is first taken by the energy shield (shield column), then by the hull: the hull multiplier for the armor "
+            ImGui::TextWrapped(tr("Damage is first taken by the energy shield (shield column), then by the hull: the hull multiplier for the armor "
                                "type is applied and flat armor is subtracted (at least 1 damage, except EMP). Area weapons also hit everything "
-                               "nearby on the same layer (ground or air).");
+                               "nearby on the same layer (ground or air)."));
             ImGui::Spacing();
             if (ImGui::BeginTable("##combat", static_cast<int>(ArmorType::Count) + 2, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingFixedFit)) {
-                ImGui::TableSetupColumn("Damage \\ armor");
+                ImGui::TableSetupColumn(tr("Damage \\ armor"));
                 for (int a = 0; a < static_cast<int>(ArmorType::Count); ++a)
                     ImGui::TableSetupColumn(armorTypeName(static_cast<ArmorType>(a)));
-                ImGui::TableSetupColumn("shield");
+                ImGui::TableSetupColumn(tr("shield"));
                 ImGui::TableHeadersRow();
                 for (int dmg = 0; dmg < static_cast<int>(DamageType::Count); ++dmg) {
                     ImGui::TableNextRow();
@@ -168,17 +168,17 @@ void App::drawGuide() {
                 ImGui::EndTable();
             }
             ImGui::Spacing();
-            ImGui::TextDisabled("kinetic: machine guns - shreds light vehicles, weak against tanks and buildings");
-            ImGui::TextDisabled("piercing: cannons - the answer to heavy armor");
-            ImGui::TextDisabled("explosive: rockets, mortars, artillery - area damage, best against buildings");
-            ImGui::TextDisabled("energy: Void plasma - strong against shields, weak against crystal armor");
-            ImGui::TextDisabled("emp: almost no hull damage, but strips shields three times faster");
-            ImGui::TextDisabled("Most guns hit only ground targets; aircraft need machine-gun towers, scouts, missiles or flak.");
+            ImGui::TextDisabled(tr("kinetic: machine guns - shreds light vehicles, weak against tanks and buildings"));
+            ImGui::TextDisabled(tr("piercing: cannons - the answer to heavy armor"));
+            ImGui::TextDisabled(tr("explosive: rockets, mortars, artillery - area damage, best against buildings"));
+            ImGui::TextDisabled(tr("energy: Void plasma - strong against shields, weak against crystal armor"));
+            ImGui::TextDisabled(tr("emp: almost no hull damage, but strips shields three times faster"));
+            ImGui::TextDisabled(tr("Most guns hit only ground targets; aircraft need machine-gun towers, scouts, missiles or flak."));
             ImGui::EndTabItem();
         }
         if (item("Modules")) {
-            ImGui::TextWrapped("Each vehicle has three module slots. Armor opens at Veteran, system and weapon at Elite. A new module replaces "
-                               "the old one in its slot. Modules are visible on the vehicle.");
+            ImGui::TextWrapped(tr("Each vehicle has three module slots. Armor opens at Veteran, system and weapon at Elite. A new module replaces "
+                               "the old one in its slot. Modules are visible on the vehicle."));
             for (int slot = 0; slot < kModuleSlots; ++slot) {
                 ImGui::SeparatorText(moduleSlotName(static_cast<ModuleSlot>(slot)));
                 for (const auto& m : data_->modules()) {
@@ -193,7 +193,7 @@ void App::drawGuide() {
                         effect += (effect.empty() ? "" : ", ") + std::string("+") + std::to_string(static_cast<int>(m.shield)) + " shield";
                     if (m.weapon) {
                         char buf[128];
-                        std::snprintf(buf, sizeof(buf), "%s%s gun: %.0f dmg / %.2fs, range %.1f, %s", effect.empty() ? "" : ", ",
+                        std::snprintf(buf, sizeof(buf), tr("%s%s gun: %.0f dmg / %.2fs, range %.1f, %s"), effect.empty() ? "" : ", ",
                                       damageTypeName(m.weapon->type), m.weapon->damage, m.weapon->cooldown, m.weapon->range,
                                       targetsName(m.weapon->targets));
                         effect += buf;
@@ -204,8 +204,8 @@ void App::drawGuide() {
             ImGui::EndTabItem();
         }
         if (item("Branches")) {
-            ImGui::TextWrapped("Refits change a vehicle's class and keep its rank, experience, items and modules. Tier 1 needs Elite, tier 2 "
-                               "needs Hero. You can switch between classes of the same tier or move down the branch.");
+            ImGui::TextWrapped(tr("Refits change a vehicle's class and keep its rank, experience, items and modules. Tier 1 needs Elite, tier 2 "
+                               "needs Hero. You can switch between classes of the same tier or move down the branch."));
             std::function<void(UnitDefId)> node = [&](UnitDefId id) {
                 const auto& u = data_->unit(id);
                 const auto children = data_->refits(id);
@@ -213,18 +213,18 @@ void App::drawGuide() {
                 if (u.refitFrom == kInvalidUnitDef)
                     std::snprintf(label, sizeof(label), "%s", u.name.c_str());
                 else
-                    std::snprintf(label, sizeof(label), "%s   [%s, %.0f energy]", u.name.c_str(), u.refitRank >= 3 ? "Hero" : "Elite", u.refitCost);
+                    std::snprintf(label, sizeof(label), tr("%s   [%s, %.0f energy]"), u.name.c_str(), u.refitRank >= 3 ? "Hero" : "Elite", u.refitCost);
                 ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
                 if (children.empty())
                     flags |= ImGuiTreeNodeFlags_Leaf;
                 const bool openNode = ImGui::TreeNodeEx(u.id.c_str(), flags, "%s", label);
                 ImGui::SameLine(460.0f * s);
                 if (u.weapon)
-                    ImGui::TextDisabled("HP %.0f  %s %.0f  %s %.0f dps, range %.1f, %s", u.maxHp, armorTypeName(u.armorType), u.armor,
+                    ImGui::TextDisabled(tr("HP %.0f  %s %.0f  %s %.0f dps, range %.1f, %s"), u.maxHp, armorTypeName(u.armorType), u.armor,
                                         damageTypeName(u.weapon->type), u.weapon->damage / std::max(u.weapon->cooldown, 0.05f), u.weapon->range,
                                         targetsName(u.weapon->targets));
                 else
-                    ImGui::TextDisabled("HP %.0f  %s %.0f", u.maxHp, armorTypeName(u.armorType), u.armor);
+                    ImGui::TextDisabled(tr("HP %.0f  %s %.0f"), u.maxHp, armorTypeName(u.armorType), u.armor);
                 if (openNode) {
                     for (const auto c : children)
                         node(c);
@@ -234,17 +234,17 @@ void App::drawGuide() {
             for (std::size_t i = 0; i < data_->units().size(); ++i)
                 if (data_->unit(static_cast<UnitDefId>(i)).refitFrom == kInvalidUnitDef && !data_->refits(static_cast<UnitDefId>(i)).empty())
                     node(static_cast<UnitDefId>(i));
-            ImGui::SeparatorText("Hero ultimates");
+            ImGui::SeparatorText(tr("Hero ultimates"));
             for (const auto& sk : data_->skills())
                 if (sk.ultimate)
-                    ImGui::BulletText("%s  (hero level %d, cooldown %.0fs)", sk.name.c_str(), sk.minLevel, sk.cooldown);
+                    ImGui::BulletText(tr("%s  (hero level %d, cooldown %.0fs)"), sk.name.c_str(), sk.minLevel, sk.cooldown);
             ImGui::EndTabItem();
         }
         if (item("Ranks")) {
             if (ImGui::BeginTable("##ranks", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
-                ImGui::TableSetupColumn("Rank", ImGuiTableColumnFlags_WidthFixed, 110.0f * s);
-                ImGui::TableSetupColumn("How", ImGuiTableColumnFlags_WidthFixed, 260.0f * s);
-                ImGui::TableSetupColumn("Gives");
+                ImGui::TableSetupColumn(tr("Rank"), ImGuiTableColumnFlags_WidthFixed, 110.0f * s);
+                ImGui::TableSetupColumn(tr("How"), ImGuiTableColumnFlags_WidthFixed, 260.0f * s);
+                ImGui::TableSetupColumn(tr("Gives"));
                 ImGui::TableHeadersRow();
                 auto row = [&](const char* rank, const std::string& how, const char* gives) {
                     ImGui::TableNextRow();
@@ -264,7 +264,7 @@ void App::drawGuide() {
                     "+50% HP, +40% damage and more per level, 6 item slots, skill points, 4 skills, ultimate from level 3, tier 2 refits");
                 ImGui::EndTable();
             }
-            ImGui::TextDisabled("XP comes from damage dealt and kills nearby. Hero levels go up to %d.", kMaxHeroLevel);
+            ImGui::TextDisabled(tr("XP comes from damage dealt and kills nearby. Hero levels go up to %d."), kMaxHeroLevel);
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();

@@ -83,9 +83,9 @@ void App::drawHud() {
         const bool victory = wonMatch();
         ImGui::TextColored(toVec(victory ? kGood : kBad), "%s", victory ? "VICTORY" : "DEFEAT");
         ImGui::SameLine();
-        ImGui::TextDisabled("free play");
+        ImGui::TextDisabled(tr("free play"));
         ImGui::SameLine();
-        if (ImGui::SmallButton("Results"))
+        if (ImGui::SmallButton(tr("Results")))
             endDismissed_ = false;
         trackWindow();
         ImGui::End();
@@ -103,9 +103,9 @@ void App::drawHud() {
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.7f}, ImGuiCond_Always, {0.5f, 0.5f});
         ImGui::SetNextWindowBgAlpha(0.8f);
         ImGui::Begin("##armedBuild", nullptr, kHudFlags);
-        ImGui::TextColored(toVec(kEnergy), ICON_FA_WRENCH "  Place %s", data_->unit(static_cast<UnitDefId>(buildArmed_)).name.c_str());
+        ImGui::TextColored(toVec(kEnergy), tr(ICON_FA_WRENCH "  Place %s"), data_->unit(static_cast<UnitDefId>(buildArmed_)).name.c_str());
         ImGui::SameLine();
-        if (ImGui::SmallButton("Cancel"))
+        if (ImGui::SmallButton(tr("Cancel")))
             buildArmed_ = -1;
         trackWindow();
         ImGui::End();
@@ -118,7 +118,7 @@ void App::drawHud() {
                            : orderArm_ == Arm::Move   ? "Pick a point to move"
                                                       : "Pick the skill target");
         ImGui::SameLine();
-        if (ImGui::SmallButton("Cancel")) {
+        if (ImGui::SmallButton(tr("Cancel"))) {
             orderArm_ = Arm::None;
             armedSkill_ = -1;
         }
@@ -161,25 +161,25 @@ void App::drawTopBar() {
     } else {
     ImGui::PushFont(ui_.bold(), 0.0f);
     if (game.totalWaves == 0)
-        ImGui::Text(ICON_FA_FLAG "  WAVE %d", game.wave);
+        ImGui::Text(tr(ICON_FA_FLAG "  WAVE %d"), game.wave);
     else if (game.wave < game.totalWaves)
-        ImGui::Text(ICON_FA_FLAG "  WAVE %d / %d", game.wave, game.totalWaves);
+        ImGui::Text(tr(ICON_FA_FLAG "  WAVE %d / %d"), game.wave, game.totalWaves);
     else
-        ImGui::TextColored(toVec(kVoid), ICON_FA_FLAG "  FINAL WAVE");
+        ImGui::TextColored(toVec(kVoid), tr(ICON_FA_FLAG "  FINAL WAVE"));
     ImGui::PopFont();
     if ((game.totalWaves == 0 || game.wave < game.totalWaves) && !defense.waves.empty()) {
         const auto& next = defense.waves[static_cast<std::size_t>(game.wave) % defense.waves.size()];
         const float interval = game.wave == 0 ? defense.firstWaveDelay : (next.delay > 0.0f ? next.delay : defense.waveInterval);
         const float left = static_cast<float>(game.nextWaveIn) / 10.0f;
         char label[32];
-        std::snprintf(label, sizeof(label), "next in %.0fs", left);
+        std::snprintf(label, sizeof(label), tr("next in %.0fs"), left);
         bar(1.0f - left / std::max(interval, 1.0f), {150.0f * s, 14.0f * s}, IM_COL32(255, 170, 60, 220), label);
     } else {
         const int anchors = anchorsAlive();
         if (anchors > 0)
-            ImGui::TextColored({0.8f, 0.5f, 1.0f, 1.0f}, "destroy the pylons (%d)", anchors);
+            ImGui::TextColored({0.8f, 0.5f, 1.0f, 1.0f}, tr("destroy the pylons (%d)"), anchors);
         else
-            ImGui::TextDisabled("destroy the portal");
+            ImGui::TextDisabled(tr("destroy the portal"));
     }
     }
     ImGui::EndGroup();
@@ -208,7 +208,7 @@ void App::drawTopBar() {
                               2.0f);
         ImGui::Dummy(size);
         if (ImGui::BeginItemTooltip()) {
-            ImGui::Text("Point %s  +%.0f energy/s", points[i].name.c_str(), points[i].income);
+            ImGui::Text(tr("Point %s  +%.0f energy/s"), points[i].name.c_str(), points[i].income);
             ImGui::TextDisabled("%s", info.owner == myTeam() ? "held by your team" : info.owner == 1 ? "held by the enemy" : info.owner == 0xff ? "neutral - stand on it to capture" : "held by another team");
             ImGui::EndTooltip();
         }
@@ -243,7 +243,7 @@ void App::drawTopBar() {
         ImGui::SetCursorPosY(y + 4.0f * s);
         if (ImGui::SmallButton(room.c_str()))
             SDL_SetClipboardText(lobby_.code().c_str());
-        ImGui::SetItemTooltip("Room code - click to copy. Friends join via \"Join by room code\".");
+        ImGui::SetItemTooltip(tr("Room code - click to copy. Friends join via \"Join by room code\"."));
         ImGui::SameLine(0.0f, spacing * 2.0f);
     }
     ImGui::SetCursorPosY(y + 6.0f * s);
@@ -258,7 +258,7 @@ void App::drawTopBar() {
     ImGui::PushFont(ui_.bold(), 0.0f);
     ImGui::TextColored(toVec(kShard), "%s", shards);
     ImGui::PopFont();
-    ImGui::SetItemTooltip("Shards - drop from bosses, used to raise heroes and buy rare items");
+    ImGui::SetItemTooltip(tr("Shards - drop from bosses, used to raise heroes and buy rare items"));
     ImGui::SameLine(0.0f, spacing * 2.0f);
     ImGui::SetCursorPosY(y);
     if (ImGui::Button(ICON_FA_BARS, {menuW, 36.0f * s}))
@@ -315,7 +315,7 @@ void App::drawUnitPanel() {
     ImGui::TextColored(toVec(kRankColors[static_cast<int>(rank)]), ICON_FA_STAR " %s", kRankNames[static_cast<int>(rank)]);
     if (rank == Rank::Hero) {
         ImGui::SameLine();
-        ImGui::TextDisabled("lvl %d", own->level);
+        ImGui::TextDisabled(tr("lvl %d"), own->level);
     }
     const float w = ImGui::GetContentRegionAvail().x;
     if (selected_.size() > 1)
@@ -340,20 +340,20 @@ void App::drawUnitPanel() {
     const float energy = static_cast<float>(latest->view.energy);
     if (rank == Rank::Recruit || rank == Rank::Veteran) {
         ImGui::BeginDisabled(static_cast<float>(own->xp) < kEliteXp || energy < kEliteCost);
-        std::snprintf(label, sizeof(label), ICON_FA_ARROW_UP "  Promote to Elite   " ICON_FA_BOLT "%.0f", kEliteCost);
+        std::snprintf(label, sizeof(label), tr(ICON_FA_ARROW_UP "  Promote to Elite   " ICON_FA_BOLT "%.0f"), kEliteCost);
         if (ImGui::Button(label, {w, 0.0f}))
             pressKey(SDLK_P, false);
         ImGui::EndDisabled();
-        ImGui::SetItemTooltip("Needs %.0f XP and %.0f energy. Elites get item slots and more power. [P]", kEliteXp, kEliteCost);
+        ImGui::SetItemTooltip(tr("Needs %.0f XP and %.0f energy. Elites get item slots and more power. [P]"), kEliteXp, kEliteCost);
     } else if (rank == Rank::Elite && def.skills.empty()) {
-        ImGui::TextDisabled("This unit cannot become a hero");
+        ImGui::TextDisabled(tr("This unit cannot become a hero"));
     } else if (rank == Rank::Elite) {
         ImGui::BeginDisabled(static_cast<float>(own->xp) < kHeroXp || latest->view.shards < kHeroShards);
-        std::snprintf(label, sizeof(label), ICON_FA_TROPHY "  Raise a Hero   " ICON_FA_DIAMOND "%d", kHeroShards);
+        std::snprintf(label, sizeof(label), tr(ICON_FA_TROPHY "  Raise a Hero   " ICON_FA_DIAMOND "%d"), kHeroShards);
         if (accentButton(label, {w, 0.0f}, IM_COL32(255, 190, 60, 255)))
             pressKey(SDLK_P, false);
         ImGui::EndDisabled();
-        ImGui::SetItemTooltip("Needs %.0f XP and %d shards, max %d heroes. Heroes learn skills. [P]", kHeroXp, kHeroShards, kMaxHeroes);
+        ImGui::SetItemTooltip(tr("Needs %.0f XP and %d shards, max %d heroes. Heroes learn skills. [P]"), kHeroXp, kHeroShards, kMaxHeroes);
     }
 
     if (rank == Rank::Hero) {
@@ -366,7 +366,7 @@ void App::drawUnitPanel() {
                 ImGui::BeginDisabled();
                 ImGui::Button(kSkillKeys[i], {box, box * 0.8f});
                 ImGui::EndDisabled();
-                ImGui::SetItemTooltip("Empty slot - learn a skill");
+                ImGui::SetItemTooltip(tr("Empty slot - learn a skill"));
                 ImGui::PopID();
                 continue;
             }
@@ -374,7 +374,7 @@ void App::drawUnitPanel() {
             const auto& skill = data_->skill(slot.skill);
             const ImVec2 p = ImGui::GetCursorScreenPos();
             const bool armed = armedSkill_ == static_cast<int>(i);
-            std::string name = skill.name.substr(0, 9);
+            const std::string name = skill.name;
             if (armed)
                 ImGui::PushStyleColor(ImGuiCol_Button, toVec(IM_COL32(170, 120, 20, 255)));
             ImGui::BeginDisabled(skill.passive);
@@ -387,8 +387,7 @@ void App::drawUnitPanel() {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             const ImVec2 q{p.x + box, p.y + box * 0.8f};
             dl->AddText({p.x + 5.0f * s, p.y + 3.0f * s}, kEnergy, kSkillKeys[i]);
-            const ImVec2 ns = ImGui::CalcTextSize(name.c_str());
-            dl->AddText({p.x + (box - ns.x) * 0.5f, q.y - ns.y - 4.0f * s}, skill.passive ? kDim : IM_COL32(235, 240, 250, 255), name.c_str());
+            fitText(dl, name, {p.x + 2.0f, p.y + 14.0f * s}, {q.x - 2.0f, q.y - 2.0f}, skill.passive ? kDim : IM_COL32(235, 240, 250, 255), 0.85f);
             char lvl[8];
             std::snprintf(lvl, sizeof(lvl), "%d", slot.level);
             dl->AddText({q.x - ImGui::CalcTextSize(lvl).x - 5.0f * s, p.y + 3.0f * s}, kDim, lvl);
@@ -403,7 +402,7 @@ void App::drawUnitPanel() {
             ImGui::PopID();
         }
         if (own->skillPoints > 0) {
-            std::snprintf(label, sizeof(label), ICON_FA_BOOK "  %d skill point%s - learn", own->skillPoints, own->skillPoints > 1 ? "s" : "");
+            std::snprintf(label, sizeof(label), tr(ICON_FA_BOOK "  Skill points: %d - learn"), own->skillPoints);
             if (accentButton(label, {w, 0.0f}, kGood))
                 panel_ = Panel::Learn;
         }
@@ -427,14 +426,14 @@ void App::drawUnitPanel() {
                 if (ImGui::BeginItemTooltip()) {
                     ImGui::TextColored(c, "%s", item.name.c_str());
                     ImGui::TextUnformatted(modsText(item.mods).c_str());
-                    ImGui::TextDisabled("click to move back to the stash");
+                    ImGui::TextDisabled(tr("click to move back to the stash"));
                     ImGui::EndTooltip();
                 }
             } else {
                 ImGui::BeginDisabled();
                 ImGui::Button(ICON_FA_CUBE, {box, box});
                 ImGui::EndDisabled();
-                ImGui::SetItemTooltip("Empty item slot - equip from the stash");
+                ImGui::SetItemTooltip(tr("Empty item slot - equip from the stash"));
             }
             ImGui::PopID();
         }
@@ -482,7 +481,7 @@ void App::drawSidePanel() {
     };
 
     if (panel_ == Panel::Shop) {
-        ImGui::TextDisabled("Bought items go to the stash (%d/%d)", static_cast<int>(latest->view.stash.size()), static_cast<int>(kStashSize));
+        ImGui::TextDisabled(tr("Bought items go to the stash (%d/%d)"), static_cast<int>(latest->view.stash.size()), static_cast<int>(kStashSize));
         ImGui::Separator();
         const auto& shop = data_->shop();
         for (std::size_t i = 0; i < shop.size(); ++i) {
@@ -506,9 +505,9 @@ void App::drawSidePanel() {
     } else if (panel_ == Panel::Stash) {
         const bool canEquip = own && static_cast<int>(own->items.size()) < itemSlots(static_cast<Rank>(std::min<int>(own->rank, 3)));
         if (!own)
-            ImGui::TextDisabled("Select one of your units to equip items");
+            ImGui::TextDisabled(tr("Select one of your units to equip items"));
         else if (itemSlots(static_cast<Rank>(std::min<int>(own->rank, 3))) == 0)
-            ImGui::TextDisabled("Only Elites and Heroes can carry items");
+            ImGui::TextDisabled(tr("Only Elites and Heroes can carry items"));
         ImGui::Separator();
         for (std::size_t i = 0; i < latest->view.stash.size(); ++i) {
             const auto& item = data_->item(latest->view.stash[i]);
@@ -522,9 +521,9 @@ void App::drawSidePanel() {
             ImGui::PopID();
         }
         if (latest->view.stash.empty())
-            ImGui::TextDisabled("Empty - buy items in the shop or defeat bosses");
+            ImGui::TextDisabled(tr("Empty - buy items in the shop or defeat bosses"));
         if (own && !own->items.empty()) {
-            ImGui::SeparatorText("Equipped");
+            ImGui::SeparatorText(tr("Equipped"));
             for (std::size_t i = 0; i < own->items.size(); ++i) {
                 ImGui::PushID(200 + static_cast<int>(i));
                 ImGui::BeginGroup();
@@ -538,10 +537,10 @@ void App::drawSidePanel() {
     } else if (panel_ == Panel::Learn) {
         const auto* entity = selected_.empty() ? nullptr : findEntity(selected_.front());
         if (!own || !entity || own->rank != static_cast<std::uint8_t>(Rank::Hero)) {
-            ImGui::TextWrapped("Select a hero. Promote an Elite with shards to raise one.");
+            ImGui::TextWrapped(tr("Select a hero. Promote an Elite with shards to raise one."));
         } else {
-            ImGui::Text("Skill points: %d", own->skillPoints);
-            ImGui::TextDisabled("Up to %d skills, each up to level %d", static_cast<int>(kMaxSkills), static_cast<int>(kMaxSkillLevel));
+            ImGui::Text(tr("Skill points: %d"), own->skillPoints);
+            ImGui::TextDisabled(tr("Up to %d skills, each up to level %d"), static_cast<int>(kMaxSkills), static_cast<int>(kMaxSkillLevel));
             ImGui::Separator();
             const auto& pool = data_->unit(entity->def).skills;
             for (std::size_t i = 0; i < pool.size(); ++i) {
@@ -554,7 +553,7 @@ void App::drawSidePanel() {
                 ImGui::BeginGroup();
                 ImGui::TextColored(toVec(level > 0 ? kGood : kAccent), "%s", skill.name.c_str());
                 ImGui::SameLine();
-                ImGui::TextDisabled("%s lvl %d/%d", skill.passive ? "passive" : "active", level, skill.ultimate ? 1 : static_cast<int>(kMaxSkillLevel));
+                ImGui::TextDisabled(tr("%s lvl %d/%d"), skill.passive ? "passive" : "active", level, skill.ultimate ? 1 : static_cast<int>(kMaxSkillLevel));
                 ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x - buttonW);
                 for (const auto& fx : skill.effects)
                     ImGui::TextUnformatted(effectText(fx, std::max(level, 1)).c_str());
@@ -564,7 +563,7 @@ void App::drawSidePanel() {
                 const bool can = own->skillPoints > 0 && level < maxLevel && own->level >= skill.minLevel &&
                                  (level > 0 || own->skills.size() < kMaxSkills);
                 if (skill.ultimate)
-                    ImGui::TextColored(toVec(own->level >= skill.minLevel ? kEnergy : kDim), ICON_FA_STAR " ultimate - hero level %d", skill.minLevel);
+                    ImGui::TextColored(toVec(own->level >= skill.minLevel ? kEnergy : kDim), tr(ICON_FA_STAR " ultimate - hero level %d"), skill.minLevel);
                 if (rightButton(level > 0 ? "Upgrade" : "Learn", can))
                     net_.sendCommand(LearnCommand{0, focused, pool[i]});
                 ImGui::Separator();
@@ -602,14 +601,14 @@ void App::drawStats() {
     ImGui::SetNextWindowBgAlpha(0.6f);
     ImGui::Begin("##stats", nullptr, kHudFlags | ImGuiWindowFlags_NoInputs);
     ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 0.85f);
-    ImGui::Text("%.0f fps  %.1f ms  %s", fps_, frameMs_, renderer_.name());
-    ImGui::Text("render cpu %.1f gpu %.1f ms  draws %u", cpu, gpu, st->numDraw);
+    ImGui::Text(tr("%.0f fps  %.1f ms  %s"), fps_, frameMs_, renderer_.name());
+    ImGui::Text(tr("render cpu %.1f gpu %.1f ms  draws %u"), cpu, gpu, st->numDraw);
     if (host_)
-        ImGui::Text("sim %.2f ms/tick  entities %d", simMs_, static_cast<int>(entities_.size()));
-    ImGui::Text("ui %.0f%%  layout %s", uiScale() * 100.0f, touchLayout() ? "touch" : "desktop");
-    ImGui::Text("rtt %.0f ms  loss %.1f%%  %s", stats.rtt, stats.packetLoss, net_.path().c_str());
-    ImGui::Text("in %.1f out %.1f kbps  snap %d B", stats.receivedKbps, stats.sentKbps, static_cast<int>(net_.lastSnapshotBytes()));
-    ImGui::Text("interp %.0f ms  jitter %.1f ms  predicted %d", net_.interpDelay() * 1000.0, net_.jitter() * 1000.0, static_cast<int>(prediction_.active()));
+        ImGui::Text(tr("sim %.2f ms/tick  entities %d"), simMs_, static_cast<int>(entities_.size()));
+    ImGui::Text(tr("ui %.0f%%  layout %s"), uiScale() * 100.0f, touchLayout() ? "touch" : "desktop");
+    ImGui::Text(tr("rtt %.0f ms  loss %.1f%%  %s"), stats.rtt, stats.packetLoss, net_.path().c_str());
+    ImGui::Text(tr("in %.1f out %.1f kbps  snap %d B"), stats.receivedKbps, stats.sentKbps, static_cast<int>(net_.lastSnapshotBytes()));
+    ImGui::Text(tr("interp %.0f ms  jitter %.1f ms  predicted %d"), net_.interpDelay() * 1000.0, net_.jitter() * 1000.0, static_cast<int>(prediction_.active()));
     ImGui::PopFont();
     ImGui::End();
 }
@@ -623,27 +622,27 @@ void App::drawPauseMenu() {
     ImGui::Begin("##pause", nullptr, kHudFlags);
     const float full = ImGui::GetContentRegionAvail().x;
     ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.5f);
-    centeredText("MENU", kAccent);
+    centeredText(tr("MENU"), kAccent);
     ImGui::PopFont();
-    ImGui::TextDisabled("The match keeps running while this menu is open");
+    ImGui::TextDisabled(tr("The match keeps running while this menu is open"));
     if (host_ && lobby_.state() == net::MasterClient::State::Hosting) {
-        ImGui::Text("Room code:");
+        ImGui::Text(tr("Room code:"));
         ImGui::SameLine();
         ImGui::TextColored(toVec(kAccent), "%s", lobby_.code().c_str());
         ImGui::SameLine();
-        if (ImGui::SmallButton("Copy"))
+        if (ImGui::SmallButton(tr("Copy")))
             SDL_SetClipboardText(lobby_.code().c_str());
     } else if (host_ && lobby_.state() == net::MasterClient::State::Failed) {
-        ImGui::TextColored(toVec(kBad), "Online unavailable: %s", lobby_.error().c_str());
+        ImGui::TextColored(toVec(kBad), tr("Online unavailable: %s"), lobby_.error().c_str());
     }
     ImGui::Spacing();
-    if (accentButton(ICON_FA_PLAY "  Resume", {full, 44.0f * s}))
+    if (accentButton(tr(ICON_FA_PLAY "  Resume"), {full, 44.0f * s}))
         pauseOpen_ = false;
-    if (ImGui::Button(ICON_FA_BOOK "  Guide  [F1]", {full, 36.0f * s})) {
+    if (ImGui::Button(tr(ICON_FA_BOOK "  Guide  [F1]"), {full, 36.0f * s})) {
         pauseOpen_ = false;
         guideOpen_ = true;
     }
-    if (ImGui::Button(ICON_FA_BUG "  Debug & cheats  [F9]", {full, 32.0f * s})) {
+    if (ImGui::Button(tr(ICON_FA_BUG "  Debug & cheats  [F9]"), {full, 32.0f * s})) {
         pauseOpen_ = false;
         debugOpen_ = true;
     }
@@ -658,17 +657,17 @@ void App::drawPauseMenu() {
         ImGui::SetNextItemWidth(full - 130.0f * s);
         ImGui::InputText("##savename", saveName_, sizeof(saveName_), ImGuiInputTextFlags_CharsNoBlank);
         ImGui::SameLine();
-        if (ImGui::Button(ICON_FA_FLOPPY_O "  Save", {-1.0f, 0.0f})) {
+        if (ImGui::Button(tr(ICON_FA_FLOPPY_O "  Save"), {-1.0f, 0.0f})) {
             net_.sendSaveGame(saveName_);
             saveName_[0] = 0;
         }
-        ImGui::TextDisabled("Saves are written on the host (%s)", host_ ? "this PC" : "server");
+        ImGui::TextDisabled(tr("Saves are written on the host (%s)"), host_ ? "this PC" : "server");
     }
-    if (net_.lobby().leader == net_.player() && ImGui::Button(ICON_FA_USERS "  Return to lobby", {full, 40.0f * s})) {
+    if (net_.lobby().leader == net_.player() && ImGui::Button(tr(ICON_FA_USERS "  Return to lobby"), {full, 40.0f * s})) {
         pauseOpen_ = false;
         net_.sendReturnToLobby();
     }
-    if (ImGui::Button(ICON_FA_SIGN_OUT "  Leave match", {full, 40.0f * s})) {
+    if (ImGui::Button(tr(ICON_FA_SIGN_OUT "  Leave match"), {full, 40.0f * s})) {
         pauseOpen_ = false;
         leaveGame("");
     }
@@ -693,9 +692,18 @@ void App::drawEndScreen() {
     ImGui::PopFont();
     if (campaign) {
         bool sortie = false;
+        std::string debrief;
         for (const auto& m : campaign_)
-            if (m.id == campaignMission_)
+            if (m.id == campaignMission_) {
                 sortie = m.sortie;
+                debrief = m.debrief;
+            }
+        if (victory && !debrief.empty()) {
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+            ImGui::TextColored(toVec(kDim), "%s", tr(debrief));
+            ImGui::PopTextWrapPos();
+            ImGui::Spacing();
+        }
         centeredText(victory ? (sortie ? "Survivors return to the base with their experience" : "The base is saved for the next missions")
                              : (sortie ? "The strike group is lost - the base is unchanged" : "The base has fallen"),
                      kText);
@@ -706,15 +714,15 @@ void App::drawEndScreen() {
         for (std::size_t i = 0; i < campaign_.size(); ++i)
             if (campaign_[i].id == mission)
                 index = i;
-        if (victory && accentButton(ICON_FA_PLAY "  Continue campaign", {w, 44.0f * s})) {
+        if (victory && accentButton(tr(ICON_FA_PLAY "  Continue campaign"), {w, 44.0f * s})) {
             storeCampaignBase();
             leaveGame("");
-        } else if (!victory && accentButton(ICON_FA_REFRESH "  Retry mission", {w, 44.0f * s})) {
+        } else if (!victory && accentButton(tr(ICON_FA_REFRESH "  Retry mission"), {w, 44.0f * s})) {
             leaveGame("");
             startMission(index, false);
-        } else if (ImGui::Button(ICON_FA_PLAY "  Keep playing", {w, 38.0f * s})) {
+        } else if (ImGui::Button(tr(ICON_FA_PLAY "  Keep playing"), {w, 38.0f * s})) {
             endDismissed_ = true;
-        } else if (ImGui::Button(ICON_FA_SIGN_OUT "  Back to campaign", {w, 38.0f * s})) {
+        } else if (ImGui::Button(tr(ICON_FA_SIGN_OUT "  Back to campaign"), {w, 38.0f * s})) {
             leaveGame("");
         }
         trackWindow();
@@ -724,24 +732,24 @@ void App::drawEndScreen() {
     centeredText(victory ? "The Void portal is sealed" : "The core has fallen", kText);
     char line[64];
     if (game.totalWaves == 0)
-        std::snprintf(line, sizeof(line), "Survived %d waves   |   %s", std::max(0, game.wave - 1),
+        std::snprintf(line, sizeof(line), tr("Survived %d waves   |   %s"), std::max(0, game.wave - 1),
                       difficultyName(static_cast<Difficulty>(std::min<int>(game.difficulty, 3))));
     else
-        std::snprintf(line, sizeof(line), "Waves: %d / %d   |   %s", game.wave, game.totalWaves,
+        std::snprintf(line, sizeof(line), tr("Waves: %d / %d   |   %s"), game.wave, game.totalWaves,
                       difficultyName(static_cast<Difficulty>(std::min<int>(game.difficulty, 3))));
     centeredText(line, kDim);
     ImGui::Spacing();
     const float full = ImGui::GetContentRegionAvail().x;
-    if (ImGui::Button(ICON_FA_PLAY "  Keep playing", {full, 40.0f * s}))
+    if (ImGui::Button(tr(ICON_FA_PLAY "  Keep playing"), {full, 40.0f * s}))
         endDismissed_ = true;
-    ImGui::SetItemTooltip("Stay on the map: units, energy, recruiting and building keep working");
+    ImGui::SetItemTooltip(tr("Stay on the map: units, energy, recruiting and building keep working"));
     if (net_.lobby().leader == net_.player()) {
-        if (accentButton(ICON_FA_USERS "  Return to lobby", {full, 44.0f * s}))
+        if (accentButton(tr(ICON_FA_USERS "  Return to lobby"), {full, 44.0f * s}))
             net_.sendReturnToLobby();
     } else {
-        centeredText("Waiting for the host...", kDim);
+        centeredText(tr("Waiting for the host..."), kDim);
     }
-    if (ImGui::Button(ICON_FA_SIGN_OUT "  Leave", {full, 38.0f * s}))
+    if (ImGui::Button(tr(ICON_FA_SIGN_OUT "  Leave"), {full, 38.0f * s}))
         leaveGame("");
     trackWindow();
     ImGui::End();

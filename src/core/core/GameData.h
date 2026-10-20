@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -218,6 +219,7 @@ struct ResearchDef {
     int weapon = -1;
     int tier = 0;
     std::vector<std::string> classes;
+    std::string branch;
 
     bool applies(const UnitDef& def) const {
         if (scope == ResearchScope::Vehicles && def.structure)
@@ -253,6 +255,9 @@ public:
     const std::vector<DesignPart>& designPropulsion() const { return designParts_[1]; }
     const std::vector<DesignPart>& designWeapons() const { return designParts_[2]; }
     UnitDefId designOf(std::string_view body, std::string_view prop, std::string_view weapon) const;
+    // Client only: rewrites display names/descriptions through `translate`, keeping the English originals so it can be re-applied.
+    // Doesn't touch ids or the data hash.
+    void localize(const std::function<std::string(std::string_view)>& translate);
     std::vector<UnitDefId> refits(UnitDefId base) const;
     UnitDefId baseOf(UnitDefId id) const { return units_[id].refitFrom != kInvalidUnitDef ? units_[id].refitFrom : id; }
     UnitDefId rootOf(UnitDefId id) const {
@@ -293,6 +298,7 @@ private:
     std::vector<ModuleDef> modules_;
     std::vector<ResearchDef> research_;
     std::array<std::vector<DesignPart>, 3> designParts_;
+    std::vector<std::string> sourceText_;
     float maxRadius_ = 0.0f;
     CombatTable combat_;
     std::uint64_t hash_ = 0;

@@ -18,6 +18,7 @@ set(VW_CLIENT_SOURCES
     Audio.cpp
     Sound.cpp
     UiDesigner.cpp
+    Lang.cpp
     UiGroups.cpp
     UiFx.cpp
     City.cpp
@@ -38,6 +39,7 @@ foreach(file vs_ocornut_imgui.bin.h fs_ocornut_imgui.bin.h roboto_regular.ttf.h 
 endforeach()
 file(CONFIGURE OUTPUT ${VW_IMGUI_DIR}/imconfig.h CONTENT "#pragma once
 #define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+#define IMGUI_USE_WCHAR32
 ")
 add_library(vw_imgui STATIC ${VW_IMGUI_DIR}/imgui.cpp ${VW_IMGUI_DIR}/imgui_draw.cpp ${VW_IMGUI_DIR}/imgui_tables.cpp ${VW_IMGUI_DIR}/imgui_widgets.cpp)
 target_include_directories(vw_imgui PUBLIC ${VW_IMGUI_DIR} PRIVATE ${bgfx_SOURCE_DIR}/bgfx/3rdparty)

@@ -26,9 +26,9 @@ bool cardButton(const char* id, const char* label, const char* sub, const char* 
     const ImVec2 a = ImGui::GetItemRectMin();
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImU32 text = enabled ? kText : kDim;
-    const ImVec2 ls = ImGui::CalcTextSize(label);
-    const float labelY = sub && *sub ? a.y + size.y * 0.42f - ls.y * 0.5f : a.y + (size.y - ls.y) * 0.5f;
-    dl->AddText({a.x + (size.x - ls.x) * 0.5f, labelY}, text, label);
+    const float top = key && *key ? ImGui::GetFontSize() * 0.55f : 2.0f;
+    const float bottom = sub && *sub ? ImGui::GetFontSize() * 0.95f : 2.0f;
+    fitText(dl, label, {a.x + 1.0f, a.y + top}, {a.x + size.x - 1.0f, a.y + size.y - bottom}, text);
     if (sub && *sub) {
         ImFont* font = ImGui::GetFont();
         const float fs = ImGui::GetFontSize() * 0.78f;
@@ -50,14 +50,14 @@ void unitTooltip(const UnitDef& def, const char* action, const char* key) {
         ImGui::Text("%s %s  [%s]", action, def.name.c_str(), key);
     else
         ImGui::Text("%s %s", action, def.name.c_str());
-    ImGui::TextDisabled("HP %.0f  %s armor %.0f", def.maxHp, armorTypeName(def.armorType), def.armor);
+    ImGui::TextDisabled(tr("HP %.0f  %s armor %.0f"), def.maxHp, armorTypeName(def.armorType), def.armor);
     if (def.speed > 0.0f)
-        ImGui::TextDisabled("speed %.1f", def.speed);
+        ImGui::TextDisabled(tr("speed %.1f"), def.speed);
     if (def.weapon)
-        ImGui::TextDisabled("%s damage %.0f%s  range %.1f  every %.1fs", damageTypeName(def.weapon->type), def.weapon->damage,
+        ImGui::TextDisabled(tr("%s damage %.0f%s  range %.1f  every %.1fs"), damageTypeName(def.weapon->type), def.weapon->damage,
                                 def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown);
     if (def.income > 0.0f)
-        ImGui::TextDisabled("+%.1f energy/s", def.income);
+        ImGui::TextDisabled(tr("+%.1f energy/s"), def.income);
     ImGui::EndTooltip();
 }
 
@@ -110,26 +110,26 @@ void App::drawDock() {
         ImGui::TextDisabled("%s%s", first ? data_->unit(first->def).name.c_str() : "", selected_.size() > 1 ? "  (+ more)" : "");
         if (factory) {
             next();
-            if (cardButton("rally", ICON_FA_FLAG, "Rally", "", true, orderArm_ == Arm::Rally, cell))
+            if (cardButton(tr("rally"), ICON_FA_FLAG, tr("Rally"), "", true, orderArm_ == Arm::Rally, cell))
                 armOrder(Arm::Rally);
-            ImGui::SetItemTooltip("Set where new vehicles drive to (or right click the ground)");
+            ImGui::SetItemTooltip(tr("Set where new vehicles drive to (or right click the ground)"));
         }
         if (const auto deployable = selectedDeployable(); !deployable.empty()) {
             next();
-            if (cardButton("deploy", ICON_FA_TRUCK, "Pack up", "Y", true, false, cell))
+            if (cardButton(tr("deploy"), ICON_FA_TRUCK, tr("Pack up"), "Y", true, false, cell))
                 pressKey(SDLK_Y, false);
-            ImGui::SetItemTooltip("Pack the HQ back into the KShM to move it [Y]");
+            ImGui::SetItemTooltip(tr("Pack the HQ back into the KShM to move it [Y]"));
         }
         if (lab) {
             next();
-            if (cardButton("tree", ICON_FA_SITEMAP, "Tree", "F2", true, researchOpen_, cell))
+            if (cardButton(tr("tree"), ICON_FA_SITEMAP, tr("Tree"), "F2", true, researchOpen_, cell))
                 researchOpen_ = !researchOpen_;
-            ImGui::SetItemTooltip("Open the research tree [F2]");
+            ImGui::SetItemTooltip(tr("Open the research tree [F2]"));
         }
         const bool canDemolish = first && !data_->unit(first->def).deployOnly;
         const bool confirm = now_ - demolishArmed_ < 3.0;
         next();
-        if (cardButton("demolish", ICON_FA_TRASH, confirm ? "Confirm" : "Demolish", "", canDemolish, confirm, cell)) {
+        if (cardButton(tr("demolish"), ICON_FA_TRASH, confirm ? "Confirm" : "Demolish", "", canDemolish, confirm, cell)) {
             if (confirm) {
                 for (const auto e : selectedOwnStructures())
                     net_.sendCommand(StructureCommand{0, e, StructureOp::Demolish, 0, {}});
@@ -139,37 +139,37 @@ void App::drawDock() {
                 demolishArmed_ = now_;
             }
         }
-        ImGui::SetItemTooltip("Demolish the selected buildings, refunds half of their cost (click twice)");
+        ImGui::SetItemTooltip(tr("Demolish the selected buildings, refunds half of their cost (click twice)"));
     } else if (dock_ == Dock::Orders) {
         const auto* own = focusedOwn();
         const auto* entity = hasSelection ? findEntity(selected_.front()) : nullptr;
         next();
-        if (cardButton("move", ICON_FA_ARROWS, "Move", "M", hasSelection, orderArm_ == Arm::Move, cell))
+        if (cardButton(tr("move"), ICON_FA_ARROWS, tr("Move"), "M", hasSelection, orderArm_ == Arm::Move, cell))
             armOrder(Arm::Move);
-        ImGui::SetItemTooltip("Move, ignoring enemies [M]. Shift queues orders.");
+        ImGui::SetItemTooltip(tr("Move, ignoring enemies [M]. Shift queues orders."));
         next();
-        if (cardButton("attack", ICON_FA_CROSSHAIRS, "Attack", "A", hasSelection, orderArm_ == Arm::Attack, cell))
+        if (cardButton(tr("attack"), ICON_FA_CROSSHAIRS, tr("Attack"), "A", hasSelection, orderArm_ == Arm::Attack, cell))
             armOrder(Arm::Attack);
-        ImGui::SetItemTooltip("Attack-move: fight everything on the way [A]");
+        ImGui::SetItemTooltip(tr("Attack-move: fight everything on the way [A]"));
         next();
-        if (cardButton("patrol", ICON_FA_RETWEET, "Patrol", "T", hasSelection, orderArm_ == Arm::Patrol, cell))
+        if (cardButton(tr("patrol"), ICON_FA_RETWEET, tr("Patrol"), "T", hasSelection, orderArm_ == Arm::Patrol, cell))
             armOrder(Arm::Patrol);
-        ImGui::SetItemTooltip("Patrol between here and the point, fighting on the way [T]");
+        ImGui::SetItemTooltip(tr("Patrol between here and the point, fighting on the way [T]"));
         next();
-        if (cardButton("hold", ICON_FA_HAND_PAPER_O, "Hold", "H", hasSelection, false, cell))
+        if (cardButton(tr("hold"), ICON_FA_HAND_PAPER_O, tr("Hold"), "H", hasSelection, false, cell))
             pressKey(SDLK_H, false);
-        ImGui::SetItemTooltip("Hold position: shoot only what is in range [H]");
+        ImGui::SetItemTooltip(tr("Hold position: shoot only what is in range [H]"));
         if (!selectedTransports().empty()) {
             next();
-            if (cardButton("unload", ICON_FA_ARROW_DOWN, "Unload", "U", true, orderArm_ == Arm::Unload, cell))
+            if (cardButton(tr("unload"), ICON_FA_ARROW_DOWN, tr("Unload"), "U", true, orderArm_ == Arm::Unload, cell))
                 armOrder(Arm::Unload);
-            ImGui::SetItemTooltip("Unload passengers at a point [U]. Right click a transport with ground units to board it.");
+            ImGui::SetItemTooltip(tr("Unload passengers at a point [U]. Right click a transport with ground units to board it."));
         }
         if (const auto deployable = selectedDeployable(); !deployable.empty()) {
             const auto* first = findEntity(entt::to_integral(deployable.front()));
             const bool pack = first && data_->unit(first->def).undeploy != kInvalidUnitDef;
             next();
-            if (cardButton("deploy", pack ? ICON_FA_TRUCK : ICON_FA_HOME, pack ? "Pack up" : "Deploy", "Y", true, false, cell))
+            if (cardButton(tr("deploy"), pack ? ICON_FA_TRUCK : ICON_FA_HOME, pack ? "Pack up" : "Deploy", "Y", true, false, cell))
                 pressKey(SDLK_Y, false);
             ImGui::SetItemTooltip(pack ? "Pack the HQ back into the KShM to move it [Y]" : "Deploy the KShM into a field HQ here [Y]. New buildings must stand near your base.");
         }
@@ -178,7 +178,7 @@ void App::drawDock() {
             const bool canDemolish = first && !data_->unit(first->def).deployOnly;
             const bool confirm = now_ - demolishArmed_ < 3.0;
             next();
-            if (cardButton("demolish", ICON_FA_TRASH, confirm ? "Confirm" : "Demolish", "", canDemolish, confirm, cell)) {
+            if (cardButton(tr("demolish"), ICON_FA_TRASH, confirm ? "Confirm" : "Demolish", "", canDemolish, confirm, cell)) {
                 if (confirm) {
                     for (const auto e : structures)
                         net_.sendCommand(StructureCommand{0, e, StructureOp::Demolish, 0, {}});
@@ -188,12 +188,12 @@ void App::drawDock() {
                     demolishArmed_ = now_;
                 }
             }
-            ImGui::SetItemTooltip("Demolish the selected buildings, refunds half of their cost (click twice)");
+            ImGui::SetItemTooltip(tr("Demolish the selected buildings, refunds half of their cost (click twice)"));
         }
         next();
-        if (cardButton("stop", ICON_FA_STOP, "Stop", "S", hasSelection, false, cell))
+        if (cardButton(tr("stop"), ICON_FA_STOP, tr("Stop"), "S", hasSelection, false, cell))
             pressKey(SDLK_S, false);
-        ImGui::SetItemTooltip("Stop and clear queued orders [S]");
+        ImGui::SetItemTooltip(tr("Stop and clear queued orders [S]"));
 
         const auto rank = own ? static_cast<Rank>(std::min<int>(own->rank, 3)) : Rank::Recruit;
         bool canPromote = false;
@@ -213,7 +213,7 @@ void App::drawDock() {
             }
         }
         next();
-        if (cardButton("promote", rank == Rank::Elite ? ICON_FA_TROPHY : ICON_FA_ARROW_UP, promoteSub, "P", canPromote, false, cell))
+        if (cardButton(tr("promote"), rank == Rank::Elite ? ICON_FA_TROPHY : ICON_FA_ARROW_UP, promoteSub, "P", canPromote, false, cell))
             pressKey(SDLK_P, false);
         ImGui::SetItemTooltip("%s [P]", promoteTip);
     } else if (dock_ == Dock::Skills) {
@@ -224,14 +224,14 @@ void App::drawDock() {
             const bool has = own && rank == Rank::Hero && i < own->skills.size();
             if (!has) {
                 cardButton(kSkillKeys[i], "", "", kSkillKeys[i], false, false, cell);
-                ImGui::SetItemTooltip("Hero skill slot [%s]", kSkillKeys[i]);
+                ImGui::SetItemTooltip(tr("Hero skill slot [%s]"), kSkillKeys[i]);
                 continue;
             }
             const auto& slot = own->skills[i];
             const auto& skill = data_->skill(slot.skill);
-            const std::string shortName = skill.name.substr(0, 7);
+            const std::string shortName = skill.name;
             char lvl[8];
-            std::snprintf(lvl, sizeof(lvl), "lvl %d", slot.level);
+            std::snprintf(lvl, sizeof(lvl), tr("lvl %d"), slot.level);
             if (cardButton(kSkillKeys[i], shortName.c_str(), lvl, kSkillKeys[i], !skill.passive, armedSkill_ == static_cast<int>(i), cell))
                 pressKey(i == 0 ? SDLK_Q : i == 1 ? SDLK_W : i == 2 ? SDLK_E : SDLK_R, false);
             skillTooltip(skill, slot.level);
@@ -250,10 +250,10 @@ void App::drawDock() {
         next();
         char points[16] = "Learn";
         if (own && own->skillPoints > 0)
-            std::snprintf(points, sizeof(points), "%d pts", own->skillPoints);
-        if (cardButton("learn", ICON_FA_BOOK, points, "L", true, panel_ == Panel::Learn, cell))
+            std::snprintf(points, sizeof(points), tr("%d pts"), own->skillPoints);
+        if (cardButton(tr("learn"), ICON_FA_BOOK, points, "L", true, panel_ == Panel::Learn, cell))
             panel_ = panel_ == Panel::Learn ? Panel::None : Panel::Learn;
-        ImGui::SetItemTooltip("Learn hero skills [L]");
+        ImGui::SetItemTooltip(tr("Learn hero skills [L]"));
     } else if (dock_ == Dock::Production) {
         std::vector<UnitDefId> list;
         const net::OwnFactory* queue = factory ? latest->view.factory(factory->id) : nullptr;
@@ -273,37 +273,37 @@ void App::drawDock() {
             const char* key = i < 5 ? kRecruitKeyNames[i] : "";
             const char* missing = missingFor(def);
             const bool full = queue && queue->queue.size() >= World::kQueueSize;
-            if (cardButton(def.id.c_str(), def.name.substr(0, 7).c_str(), cost, key, energy >= def.cost && !missing && !full, false, cell))
+            if (cardButton(def.id.c_str(), def.name.c_str(), cost, key, energy >= def.cost && !missing && !full, false, cell))
                 net_.sendCommand(RecruitCommand{0, list[i], factory ? static_cast<entt::entity>(factory->id) : entt::entity{entt::null}});
-            unitTooltip(def, "Recruit", key);
+            unitTooltip(def, tr("Recruit"), key);
             if (missing && ImGui::BeginItemTooltip()) {
-                ImGui::TextColored(toVec(kBad), "needs a %s", missing);
+                ImGui::TextColored(toVec(kBad), tr("needs a %s"), missing);
                 ImGui::EndTooltip();
             }
             if (!def.producedAt.empty() && ImGui::BeginItemTooltip()) {
-                ImGui::TextDisabled("build time %.0f s", def.produceTime);
+                ImGui::TextDisabled(tr("build time %.0f s"), def.produceTime);
                 ImGui::EndTooltip();
             }
         }
         if (!data_->designBodies().empty() && (factory || (map_ && map_->mission().enabled) ||
                                                (latest && latest->game.mode == static_cast<std::uint8_t>(GameMode::Skirmish)))) {
             next();
-            if (cardButton("designer", ICON_FA_WRENCH, "Design", "F4", true, designerOpen_, cell))
+            if (cardButton(tr("designer"), ICON_FA_WRENCH, tr("Design"), "F4", true, designerOpen_, cell))
                 designerOpen_ = !designerOpen_;
-            ImGui::SetItemTooltip("Vehicle designer [F4]: combine a hull, running gear and weapon into your own designs");
+            ImGui::SetItemTooltip(tr("Vehicle designer [F4]: combine a hull, running gear and weapon into your own designs"));
         }
         if (queue) {
             column = 0;
             ImGui::Spacing();
             if (queue->queue.empty())
-                ImGui::TextDisabled("queue empty - right click the ground to set a rally point");
+                ImGui::TextDisabled(tr("queue empty - right click the ground to set a rally point"));
             for (std::size_t q = 0; q < queue->queue.size(); ++q) {
                 if (q > 0)
                     ImGui::SameLine();
                 const auto& def = data_->unit(queue->queue[q]);
                 ImGui::PushID(static_cast<int>(q) + 1000);
                 const ImVec2 size{cell.x * 0.78f, cell.y * 0.62f};
-                if (ImGui::Button(def.name.substr(0, 6).c_str(), size))
+                if (ImGui::Button(def.name.c_str(), size))
                     net_.sendCommand(StructureCommand{0, static_cast<entt::entity>(factory->id), StructureOp::Cancel, static_cast<std::uint8_t>(q), {}});
                 if (q == 0) {
                     const ImVec2 a = ImGui::GetItemRectMin();
@@ -311,7 +311,7 @@ void App::drawDock() {
                     const float k = static_cast<float>(queue->progress) / 255.0f;
                     ImGui::GetWindowDrawList()->AddRectFilled({a.x, b.y - 4.0f * s}, {a.x + (b.x - a.x) * k, b.y}, kGood, 2.0f);
                 }
-                ImGui::SetItemTooltip("%s - click to cancel and refund", def.name.c_str());
+                ImGui::SetItemTooltip(tr("%s - click to cancel and refund"), def.name.c_str());
                 ImGui::PopID();
             }
         }
@@ -325,14 +325,14 @@ void App::drawDock() {
         for (const auto r : latest->view.research)
             done += r != 0;
         if (lab)
-            ImGui::TextDisabled("%s  -  %d / %d researched", data_->unit(lab->def).name.c_str(), done, static_cast<int>(data_->research().size()));
+            ImGui::TextDisabled(tr("%s  -  %d / %d researched"), data_->unit(lab->def).name.c_str(), done, static_cast<int>(data_->research().size()));
         else
-            ImGui::TextDisabled("%d labs, %d busy  -  %d / %d researched", static_cast<int>(latest->view.labs.size()), busy, done,
+            ImGui::TextDisabled(tr("%d labs, %d busy  -  %d / %d researched"), static_cast<int>(latest->view.labs.size()), busy, done,
                                 static_cast<int>(data_->research().size()));
         if (state && state->topic < data_->research().size()) {
             const auto& r = data_->research(state->topic);
             next();
-            if (cardButton("current", r.name.substr(0, 8).c_str(), "cancel", "", true, true, cell))
+            if (cardButton(tr("current"), r.name.c_str(), tr("cancel"), "", true, true, cell))
                 net_.sendCommand(StructureCommand{0, static_cast<entt::entity>(lab->id), StructureOp::Cancel, 0, {}});
             const ImVec2 a = ImGui::GetItemRectMin();
             const ImVec2 b = ImGui::GetItemRectMax();
@@ -349,33 +349,33 @@ void App::drawDock() {
                 ++shown;
                 char cost[24];
                 std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", r.cost);
-                if (cardButton(r.id.c_str(), r.name.substr(0, 8).c_str(), cost, "", energy >= r.cost, false, cell))
+                if (cardButton(r.id.c_str(), r.name.c_str(), cost, "", energy >= r.cost, false, cell))
                     net_.sendCommand(StructureCommand{0, static_cast<entt::entity>(lab->id), StructureOp::Research, static_cast<std::uint8_t>(t), {}});
                 researchTooltip(t);
             }
             if (shown == 0)
-                ImGui::TextDisabled("nothing left to research here");
+                ImGui::TextDisabled(tr("nothing left to research here"));
         } else {
             for (const auto& l : latest->view.labs)
                 if (l.topic < data_->research().size())
                     ImGui::TextDisabled(ICON_FA_FLASK " %s  %d%%", data_->research(l.topic).name.c_str(), l.progress * 100 / 255);
             if (latest->view.labs.empty())
-                ImGui::TextDisabled("build a Laboratory to research upgrades");
+                ImGui::TextDisabled(tr("build a Laboratory to research upgrades"));
         }
         next();
-        if (cardButton("tree", ICON_FA_SITEMAP, "Tree", "F2", true, researchOpen_, cell))
+        if (cardButton(tr("tree"), ICON_FA_SITEMAP, tr("Tree"), "F2", true, researchOpen_, cell))
             researchOpen_ = !researchOpen_;
     } else if (dock_ == Dock::Refit) {
         const auto* own = focusedOwn();
         const auto* entity = !selected_.empty() ? findEntity(selected_.front()) : nullptr;
         if (!own || !entity) {
-            ImGui::TextDisabled("Select an own unit to refit it");
+            ImGui::TextDisabled(tr("Select an own unit to refit it"));
         } else {
             const UnitDefId current = entity->def;
             const auto variants = data_->refitOptions(current);
-            ImGui::TextDisabled("%s  -  tier %d", data_->unit(current).name.c_str(), data_->refitTier(current));
+            ImGui::TextDisabled(tr("%s  -  tier %d"), data_->unit(current).name.c_str(), data_->refitTier(current));
             if (variants.empty())
-                ImGui::TextDisabled("end of the branch");
+                ImGui::TextDisabled(tr("end of the branch"));
             for (const auto v : variants) {
                 next();
                 const auto& def = data_->unit(v);
@@ -383,32 +383,30 @@ void App::drawDock() {
                 const bool advance = def.refitFrom == current;
                 char cost[24];
                 std::snprintf(cost, sizeof(cost), "%s" ICON_FA_BOLT "%.0f", advance ? ICON_FA_ARROW_UP : "", def.refitCost);
-                std::string name = def.name;
-                if (const auto space = name.find(' '); space != std::string::npos)
-                    name = name.substr(0, space);
-                if (cardButton(def.id.c_str(), name.substr(0, 8).c_str(), cost, "", rankOk && energy >= def.refitCost, false, cell))
+                const std::string name = def.name;
+                if (cardButton(def.id.c_str(), name.c_str(), cost, "", rankOk && energy >= def.refitCost, false, cell))
                     for (const auto id : selected_)
                         if (const auto* e = findEntity(id); e && isOwn(*e) && e->def == current)
                             net_.sendCommand(RefitCommand{0, static_cast<entt::entity>(id), v});
                 if (ImGui::BeginItemTooltip()) {
                     ImGui::Text("%s %s", advance ? "Upgrade to" : "Switch to", def.name.c_str());
-                    ImGui::TextDisabled("HP %.0f  %s armor %.0f  speed %.1f", def.maxHp, armorTypeName(def.armorType), def.armor, def.speed);
+                    ImGui::TextDisabled(tr("HP %.0f  %s armor %.0f  speed %.1f"), def.maxHp, armorTypeName(def.armorType), def.armor, def.speed);
                     if (def.weapon)
-                        ImGui::TextDisabled("%s damage %.0f%s  range %.1f  every %.1fs  (%s)", damageTypeName(def.weapon->type), def.weapon->damage,
+                        ImGui::TextDisabled(tr("%s damage %.0f%s  range %.1f  every %.1fs  (%s)"), damageTypeName(def.weapon->type), def.weapon->damage,
                                             def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown,
                                             def.weapon->targets == 3 ? "ground+air" : def.weapon->targets == 2 ? "air" : "ground");
                     for (const auto a : def.auras)
-                        ImGui::TextColored(toVec(kGood), "aura: %s", data_->skill(a).name.c_str());
+                        ImGui::TextColored(toVec(kGood), tr("aura: %s"), data_->skill(a).name.c_str());
                     if (def.repair > 0.0f)
-                        ImGui::TextColored(toVec(kGood), "repairs nearby vehicles and buildings, %.0f hp/s", def.repair);
+                        ImGui::TextColored(toVec(kGood), tr("repairs nearby vehicles and buildings, %.0f hp/s"), def.repair);
                     if (const auto children = data_->refits(v); !children.empty()) {
                         std::string branch;
                         for (const auto n : children)
                             branch += (branch.empty() ? "" : ", ") + data_->unit(n).name;
-                        ImGui::TextDisabled("leads to: %s", branch.c_str());
+                        ImGui::TextDisabled(tr("leads to: %s"), branch.c_str());
                     }
                     if (!rankOk)
-                        ImGui::TextColored(toVec(kBad), "needs %s rank", def.refitRank >= 3 ? "Hero" : "Elite");
+                        ImGui::TextColored(toVec(kBad), tr("needs %s rank"), def.refitRank >= 3 ? "Hero" : "Elite");
                     ImGui::EndTooltip();
                 }
             }
@@ -417,7 +415,7 @@ void App::drawDock() {
         const auto* own = focusedOwn();
         const auto* entity = !selected_.empty() ? findEntity(selected_.front()) : nullptr;
         if (!own || !entity) {
-            ImGui::TextDisabled("Select an own unit to fit modules");
+            ImGui::TextDisabled(tr("Select an own unit to fit modules"));
         } else {
             for (int slot = 0; slot < kModuleSlots; ++slot) {
                 const auto need = slot == static_cast<int>(ModuleSlot::Armor) ? Rank::Veteran : Rank::Elite;
@@ -432,25 +430,23 @@ void App::drawDock() {
                     const bool fitted = entity->modules[static_cast<std::size_t>(slot)] == i;
                     char cost[16];
                     std::snprintf(cost, sizeof(cost), ICON_FA_BOLT "%.0f", def.cost);
-                    std::string name = def.name;
-                    if (const auto space = name.find(' '); space != std::string::npos && name.size() > 9)
-                        name = name.substr(0, space);
-                    if (cardButton(def.id.c_str(), name.substr(0, 9).c_str(), cost, "", unlocked && !fitted && energy >= def.cost, fitted, cell))
+                    const std::string name = def.name;
+                    if (cardButton(def.id.c_str(), name.c_str(), cost, "", unlocked && !fitted && energy >= def.cost, fitted, cell))
                         for (const auto id : selected_)
                             if (const auto* e = findEntity(id); e && isOwn(*e) && e->modules[static_cast<std::size_t>(slot)] != i)
                                 net_.sendCommand(ModuleCommand{0, static_cast<entt::entity>(id), static_cast<std::uint16_t>(i)});
                     if (ImGui::BeginItemTooltip()) {
-                        ImGui::Text("%s  (%s slot)", def.name.c_str(), moduleSlotName(def.slot));
+                        ImGui::Text(tr("%s  (%s slot)"), def.name.c_str(), moduleSlotName(def.slot));
                         const std::string mods = modsText(def.mods);
                         if (!mods.empty())
                             ImGui::TextUnformatted(mods.c_str());
                         if (def.shield > 0.0f)
-                            ImGui::TextColored({0.35f, 0.85f, 1.0f, 1.0f}, "+%.0f energy shield", def.shield);
+                            ImGui::TextColored({0.35f, 0.85f, 1.0f, 1.0f}, tr("+%.0f energy shield"), def.shield);
                         if (def.weapon)
-                            ImGui::TextDisabled("second weapon: %s %.0f dmg, range %.1f, every %.1fs, hits %s", damageTypeName(def.weapon->type),
+                            ImGui::TextDisabled(tr("second weapon: %s %.0f dmg, range %.1f, every %.1fs, hits %s"), damageTypeName(def.weapon->type),
                                                 def.weapon->damage, def.weapon->range, def.weapon->cooldown,
                                                 def.weapon->targets == 3 ? "ground and air" : def.weapon->targets == 2 ? "air" : "ground");
-                        ImGui::TextDisabled("replaces the module in this slot");
+                        ImGui::TextDisabled(tr("replaces the module in this slot"));
                         ImGui::EndTooltip();
                     }
                 }
@@ -466,15 +462,15 @@ void App::drawDock() {
             const char* key = i < 5 ? kBuildKeyNames[i] : "";
             const bool armed = buildArmed_ == static_cast<int>(list[i]);
             const char* missing = missingFor(def);
-            if (cardButton(def.id.c_str(), def.name.substr(0, 8).c_str(), cost, touch ? "" : key, builders && !missing && (energy >= def.cost || armed), armed, cell))
+            if (cardButton(def.id.c_str(), def.name.c_str(), cost, touch ? "" : key, builders && !missing && (energy >= def.cost || armed), armed, cell))
                 armBuild(i);
-            unitTooltip(def, "Build", key);
+            unitTooltip(def, tr("Build"), key);
             if (missing && ImGui::BeginItemTooltip()) {
-                ImGui::TextColored(toVec(kBad), "needs a %s", missing);
+                ImGui::TextColored(toVec(kBad), tr("needs a %s"), missing);
                 ImGui::EndTooltip();
             }
             if (def.produces != kInvalidUnitDef && ImGui::BeginItemTooltip()) {
-                ImGui::TextDisabled("makes a %s every %.0fs (up to %d)", data_->unit(def.produces).name.c_str(), def.produceInterval, def.produceMax);
+                ImGui::TextDisabled(tr("makes a %s every %.0fs (up to %d)"), data_->unit(def.produces).name.c_str(), def.produceInterval, def.produceMax);
                 ImGui::EndTooltip();
             }
         }

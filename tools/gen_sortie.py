@@ -100,9 +100,10 @@ def main():
 
     mission = {
         "title": "Rail Depot",
-        "briefing": "A sortie east of the city. The marauders' fuel comes from a depot at the frozen rail yard, and the signal box there "
-                    "holds technical documents from the old artillery works. Take a strike group, burn the depot and bring the papers home. "
-                    "Whoever comes back returns to the base with all their experience.",
+        "briefing": "The convoy drivers told us where the gangs get their fuel: the old rail depot east of the city. Take a strike group along "
+                    "the frozen tracks - the base stays behind under its towers. Burn the depot, and search the signal box: the depot served the "
+                    "artillery works, and their papers could teach our lab to build rockets. Whoever comes back returns to the base with all "
+                    "their experience.",
         "objectives": [
             {"id": "depot", "text": "Destroy the marauder fuel depot", "type": "destroy", "tag": "depot"},
             {"id": "docs", "text": "Recover the documents from the signal box", "type": "reach", "pos": [120, 40], "radius": 5},
@@ -112,7 +113,7 @@ def main():
             {"when": "objective", "objective": "docs", "do": [
                 {"type": "message", "text": "Documents recovered: Grad rocket artillery. The lab can build on this."},
                 {"type": "research", "topic": "rocketry"}]},
-            {"when": "objective", "objective": "depot", "do": [{"type": "message", "text": "The depot is burning. Their trucks will run dry by spring."}]},
+            {"when": "objective", "objective": "depot", "do": [{"type": "message", "text": "The depot is burning. Their trucks will run dry by spring. The prisoners keep talking about a violet glow in the south."}]},
             {"when": "time", "time": 120, "repeat": 90, "times": 4, "do": [
                 {"type": "message", "text": "Marauder trucks coming down the eastern road!"},
                 {"type": "spawn", "unit": "raider_technical", "count": 3, "pos": [190, 96], "team": 1, "target": [90, 80]},

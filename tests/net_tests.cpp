@@ -6,6 +6,7 @@
 #include <variant>
 
 #include <doctest/doctest.h>
+#include <nlohmann/json.hpp>
 #include <glm/geometric.hpp>
 
 #include "net/Messages.h"
@@ -208,6 +209,31 @@ TEST_CASE("server and client over loopback") {
     client.disconnect();
     pump(0.2);
     CHECK(server.playerCount() == 0);
+}
+
+TEST_CASE("chapter 1 missions load and the base site is buildable") {
+    const auto data = GameData::parse(readData("units.json"), readData("skills.json"), readData("items.json"), readData("research.json"));
+    const auto campaign = nlohmann::json::parse(readData("campaign/campaign.json"));
+    for (const auto& ch : campaign.at("chapters"))
+        for (const auto& m : ch.at("missions")) {
+            const auto map = Map::parse(readData("maps/" + m.at("map").get<std::string>() + ".json"));
+            CHECK(map.mission().enabled);
+            CHECK_FALSE(m.value("debrief", "").empty());
+            for (const auto& o : map.mission().objectives)
+                if (o.type == "build")
+                    CHECK(data.find(o.unit) != kInvalidUnitDef);
+        }
+    const auto map = Map::parse(readData("maps/voronezh_m1.json"));
+    World world(data, map);
+    world.spawnPlayer(0);
+    const auto& hq = map.mission().objectives.front();
+    REQUIRE(hq.type == "build");
+    int sites = 0;
+    for (float y = -hq.radius; y <= hq.radius; y += 2.0f)
+        for (float x = -hq.radius; x <= hq.radius; x += 2.0f)
+            if (x * x + y * y <= hq.radius * hq.radius && world.checkSite(data.find("hq"), hq.pos + glm::vec2(x, y), 0, false) == SiteStatus::Ok)
+                ++sites;
+    CHECK(sites > 5);
 }
 
 TEST_CASE("designer combinations expand into units") {

@@ -100,10 +100,22 @@ bool ImGuiLayer::init(SDL_Window* window, const Loader& load) {
     auto* fontAwesome = const_cast<std::uint8_t*>(s_iconsFontAwesomeTtf);
     regular_ = io.Fonts->AddFontFromMemoryTTF(robotoRegular, static_cast<int>(sizeof(s_robotoRegularTtf)), 17.0f, &base);
     io.Fonts->AddFontFromMemoryTTF(fontAwesome, static_cast<int>(sizeof(s_iconsFontAwesomeTtf)), 17.0f, &icons);
+    // monochrome emoji (Noto Emoji, OFL) merged behind the text and icon fonts; needs IMGUI_USE_WCHAR32
+    ImFontConfig emoji;
+    emoji.FontDataOwnedByAtlas = false;
+    emoji.MergeMode = true;
+    try {
+        emojiData_ = load("data/fonts/NotoEmoji-Regular.ttf");
+        io.Fonts->AddFontFromMemoryTTF(emojiData_.data(), static_cast<int>(emojiData_.size()), 17.0f, &emoji);
+    } catch (const std::exception& e) {
+        spdlog::warn("emoji font: {}", e.what());
+    }
     try {
         boldData_ = load("data/fonts/Roboto-Bold.ttf");
         bold_ = io.Fonts->AddFontFromMemoryTTF(boldData_.data(), static_cast<int>(boldData_.size()), 17.0f, &base);
         io.Fonts->AddFontFromMemoryTTF(fontAwesome, static_cast<int>(sizeof(s_iconsFontAwesomeTtf)), 17.0f, &icons);
+        if (!emojiData_.empty())
+            io.Fonts->AddFontFromMemoryTTF(emojiData_.data(), static_cast<int>(emojiData_.size()), 17.0f, &emoji);
     } catch (const std::exception& e) {
         spdlog::warn("bold font: {}", e.what());
         bold_ = regular_;

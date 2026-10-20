@@ -58,29 +58,33 @@ M1 = {
     ],
     "mission": {
         "title": "Cold Start",
-        "briefing": "Shilovo, southern edge of Voronezh. Third winter after the Breach. A marauder gang has taken the gas station and the garage "
-                    "cooperative by the main road and is robbing every convoy that tries to reach the city. Take your column through the blocks, "
-                    "clear the outpost and burn their camp.",
+        "briefing": "Shilovo, southern edge of Voronezh. Third winter after the Breach. Our column has come from the north with the last mobile HQ "
+                    "of the colony. The empty panel blocks of Shilovo are the best place for a new base - but a marauder gang holds the gas station "
+                    "and the garage cooperative by the main road and robs every convoy. Set up the base in the blocks, then drive the gang out.",
         "objectives": [
-            {"id": "blocks", "text": "Reach the Shilovo blocks", "type": "reach", "pos": [105, 112], "radius": 12},
+            {"id": "hq", "text": "Deploy the KShM as a field HQ in the Shilovo blocks", "type": "build", "unit": "hq", "pos": [105, 112], "radius": 18},
+            {"id": "workshop", "text": "Build a workshop", "type": "build", "unit": "workshop", "hidden": True},
             {"id": "outpost", "text": "Clear the marauder outpost at the gas station", "type": "destroy", "tag": "outpost", "hidden": True},
             {"id": "camp", "text": "Destroy the marauder camp by the garages", "type": "destroy", "tag": "camp", "hidden": True},
-            {"id": "alive", "text": "Keep the column alive", "type": "survive", "time": 99999, "optional": True},
         ],
         "triggers": [
-            {"when": "start", "do": [say("Column, this is Command. Deploy the KShM into a field HQ (Y), build a workshop, then move east into the blocks."),]},
-            {"when": "objective", "objective": "blocks", "do": [
-                say("Smoke over the gas station. Marauders. They've dug in with sandbags - take them out."),
+            {"when": "start", "do": [say("Column, this is Command. Drive east into the Shilovo blocks and deploy the KShM there (select it, press Y). That is our new home.")]},
+            {"when": "objective", "objective": "hq", "do": [
+                say("The HQ is up. Now a workshop - the crane trucks can build it. We need trucks and armour."),
+                {"type": "reveal", "objective": "workshop"}, {"type": "energy", "amount": 100}]},
+            {"when": "objective", "objective": "workshop", "do": [
+                say("Smoke over the gas station east of the blocks. Marauders, dug in behind sandbags. Take them out."),
                 {"type": "reveal", "objective": "outpost"}]},
-            {"when": "time", "time": 75, "do": [spawn("raider_buggy", 3, [200, 120], [105, 112])]},
+            {"when": "time", "time": 150, "do": [say("Buggies on the main road - they have noticed us."),
+                                                 spawn("raider_buggy", 3, [200, 120], [105, 112], target_tag="hq")]},
             {"when": "destroyed", "tag": "outpost", "do": [
-                say("Outpost is clear. Fuel trucks are yours. Their main camp is in the garages south-east of the road."),
+                say("Outpost is clear and the fuel trucks are ours. Their main camp is in the garages south-east of the road."),
                 {"type": "energy", "amount": 250}, {"type": "reveal", "objective": "camp"},
-                spawn("mtlb", 2, [40, 110], player=True), say("Two MT-LBs from the depot are joining you.")]},
+                spawn("mtlb", 2, [40, 110], player=True), say("Two MT-LBs from the old depot are joining you.")]},
             {"when": "area", "pos": [205, 232], "radius": 22, "do": [
                 say("Movement in the garages! Technicals coming from the field."),
                 spawn("raider_technical", 2, [270, 270], [210, 236]), spawn("raider_buggy", 3, [260, 300], [210, 236])]},
-            {"when": "destroyed", "tag": "camp", "do": [say("Camp is burning. The road to the city is open. Good work, column.")]},
+            {"when": "destroyed", "tag": "camp", "do": [say("The camp is burning. Shilovo is ours - dig in, they will come back for it.")]},
         ],
     },
 }
@@ -98,26 +102,29 @@ M2 = {
     ],
     "mission": {
         "title": "Holdout",
-        "briefing": "We set up a forward HQ in the Shilovo blocks. The marauders want it back and are gathering every truck they have. "
-                    "Hold the HQ for six minutes until the convoy from the city arrives. Engineers can build towers and walls.",
+        "briefing": "Two days later. The gang that lost the garages ran to its staging camp in the east and called in every crew along the highway. "
+                    "They will hit our base in the Shilovo blocks. A convoy from the city is on its way with fuel and people - hold the base "
+                    "until it arrives. Crane trucks can build towers and walls.",
         "objectives": [
             {"id": "hold", "text": "Hold out for 6 minutes", "type": "survive", "time": 360},
             {"id": "hq", "text": "The HQ must survive", "type": "protect", "tag": "hq"},
             {"id": "nest", "text": "Optional: destroy the marauder staging camp", "type": "destroy", "tag": "nest", "optional": True},
         ],
         "triggers": [
-            {"when": "start", "do": [say("HQ is up. Build defences, the first raid is a minute out.")]},
+            {"when": "start", "do": [say("Command here. Build defences around the HQ - the first raid is a minute out.")]},
             {"when": "time", "time": 60, "repeat": 45, "times": 7, "do": [
                 spawn("raider_buggy", 5, [260, 120], [110, 130], target_tag="hq"), spawn("raider_technical", 3, [270, 190], [110, 135], target_tag="hq"),
                 spawn("raider_mortar", 1, [265, 160], [112, 130], target_tag="hq")]},
             {"when": "time", "time": 150, "repeat": 60, "times": 4, "do": [
-                say("Mortar trucks on the main road!"), spawn("raider_mortar", 3, [250, 180], [112, 132], target_tag="hq"), spawn("raider_rocket", 1, [255, 175], [112, 132], target_tag="hq"),
-                spawn("raider_technical", 3, [240, 90], [110, 125], target_tag="hq")]},
+                say("Mortar trucks on the main road!"), spawn("raider_mortar", 3, [250, 180], [112, 132], target_tag="hq"),
+                spawn("raider_rocket", 1, [255, 175], [112, 132], target_tag="hq"), spawn("raider_technical", 3, [240, 90], [110, 125], target_tag="hq")]},
             {"when": "time", "time": 240, "repeat": 40, "times": 3, "do": [
-                say("Their whole gang is coming! Drones in the air!"), spawn("raider_technical", 5, [280, 150], [106, 130], target_tag="hq"), spawn("raider_buggy", 5, [250, 230], [106, 130], target_tag="hq"),
-                spawn("raider_drone", 3, [240, 140], [106, 130], target_tag="hq")]},
-            {"when": "time", "time": 300, "do": [say("Convoy is a minute away. Hold on!")]},
-            {"when": "objective", "objective": "hold", "do": [say("The convoy is here. Shilovo is ours.")]},
+                say("Their whole gang is coming! Drones in the air!"), spawn("raider_technical", 5, [280, 150], [106, 130], target_tag="hq"),
+                spawn("raider_buggy", 5, [250, 230], [106, 130], target_tag="hq"), spawn("raider_drone", 3, [240, 140], [106, 130], target_tag="hq")]},
+            {"when": "time", "time": 300, "do": [say("The convoy is a minute away. Hold on!")]},
+            {"when": "destroyed", "tag": "nest", "do": [say("Their staging camp is gone. The raids will thin out.")]},
+            {"when": "objective", "objective": "hold", "do": [
+                say("The convoy is here. The drivers say the gangs get their fuel from the old rail depot east of the city.")]},
         ],
     },
 }
@@ -137,18 +144,19 @@ M3 = {
     ],
     "mission": {
         "title": "Glow over the Plant",
-        "briefing": "Scouts saw a violet glow over the ruins of the unfinished nuclear heating plant south of the city - right where the Breach "
-                    "began. The marauders who went there did not come back. Find out what is there.",
+        "briefing": "Since the rail depot burned, the gangs have gone quiet. The few we caught were not running from us - they fled from the south, "
+                    "from the ruins of the unfinished nuclear heating plant, right where the Breach began. Scouts saw a violet glow over the cooling "
+                    "towers. Take the base's forces south and find out what is there.",
         "objectives": [
             {"id": "outskirts", "text": "Reach the plant outskirts", "type": "reach", "pos": [305, 250], "radius": 14},
             {"id": "pylons", "text": "Destroy the crystal pylons", "type": "destroy", "tag": "pylon", "hidden": True},
             {"id": "portal", "text": "Destroy the rift", "type": "destroy", "tag": "portal", "hidden": True},
         ],
         "triggers": [
-            {"when": "start", "do": [say("Keep radio silence. Something is jamming everything near the plant.")]},
+            {"when": "start", "do": [say("Keep radio silence south of the blocks. Something is jamming everything near the plant.")]},
             {"when": "objective", "objective": "outskirts", "do": [
-                say("Those are not marauders... The trucks are overgrown with crystals. Command, are you seeing this?"),
-                say("A rift. It's feeding on the pylons around it. Destroy the pylons first, then the rift itself."),
+                say("Those are not marauders... The trucks here are overgrown with crystals. Command, are you seeing this?"),
+                say("A rift. It is feeding on the pylons around it. Destroy the pylons first, then the rift itself."),
                 {"type": "reveal", "objective": "pylons"}, {"type": "reveal", "objective": "portal"},
                 spawn("void_melee", 4, [360, 270], [305, 250])]},
             {"when": "time", "time": 120, "repeat": 45, "times": 12, "do": [spawn("void_melee", 3, [372, 290], [300, 250]), spawn("void_ranged", 1, [372, 290], [300, 250])]},

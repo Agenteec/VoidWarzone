@@ -34,13 +34,13 @@ void App::drawDesigner() {
     const float s = uiScale();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
     ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.45f}, ImGuiCond_Appearing, {0.5f, 0.5f});
-    if (!ImGui::Begin(ICON_FA_WRENCH "  Vehicle Designer###designer", &designerOpen_, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (!ImGui::Begin(tr(ICON_FA_WRENCH "  Vehicle Designer###designer"), &designerOpen_, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
         trackWindow();
         ImGui::End();
         return;
     }
     trackWindow();
-    ImGui::TextDisabled("Pick a hull, a running gear and a weapon. Saved designs appear in the factories' Production tab.");
+    ImGui::TextDisabled(tr("Pick a hull, a running gear and a weapon. Saved designs appear in the factories' Production tab."));
 
     auto column = [&](const char* title, const std::vector<DesignPart>& parts, int& selected) {
         ImGui::BeginGroup();
@@ -54,7 +54,7 @@ void App::drawDesigner() {
                 selected = static_cast<int>(i);
             ImGui::PopStyleColor();
             if (!ok && ImGui::BeginItemTooltip()) {
-                ImGui::TextColored(toVec(kBad), "research: %s", data_->research(parts[i].research).name.c_str());
+                ImGui::TextColored(toVec(kBad), tr("research: %s"), data_->research(parts[i].research).name.c_str());
                 ImGui::EndTooltip();
             }
             ImGui::PopID();
@@ -76,22 +76,22 @@ void App::drawDesigner() {
         ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.2f);
         ImGui::TextUnformatted(def.name.c_str());
         ImGui::PopFont();
-        ImGui::Text(ICON_FA_BOLT " %.0f   build %.0f s", def.cost, def.produceTime);
-        ImGui::Text("Hull %.0f hp, armour %.0f (%s)", def.maxHp, def.armor, def.armorType == ArmorType::Light ? "light" : "heavy");
-        ImGui::Text("Speed %.1f, turn %.1f", def.speed, def.turnRate);
+        ImGui::Text(tr(ICON_FA_BOLT " %.0f   build %.0f s"), def.cost, def.produceTime);
+        ImGui::Text(tr("Hull %.0f hp, armour %.0f (%s)"), def.maxHp, def.armor, def.armorType == ArmorType::Light ? "light" : "heavy");
+        ImGui::Text(tr("Speed %.1f, turn %.1f"), def.speed, def.turnRate);
         if (def.weapon) {
             const auto& w = *def.weapon;
             const float dps = w.damage * static_cast<float>(std::max(1, w.burst)) / std::max(0.05f, w.cooldown);
-            ImGui::Text("%s %.0f x%d, range %.1f, every %.1f s (%.0f dps)", damageTypeName(w.type), w.damage, std::max(1, w.burst), w.range, w.cooldown, dps);
-            ImGui::TextDisabled("hits %s%s", w.targets == 3 ? "ground and air" : w.targets == 2 ? "air only" : "ground",
+            ImGui::Text(tr("%s %.0f x%d, range %.1f, every %.1f s (%.0f dps)"), damageTypeName(w.type), w.damage, std::max(1, w.burst), w.range, w.cooldown, dps);
+            ImGui::TextDisabled(tr("hits %s%s"), w.targets == 3 ? "ground and air" : w.targets == 2 ? "air only" : "ground",
                                 w.splash > 0.0f ? ", splash" : "");
         } else if (def.repair > 0.0f) {
-            ImGui::Text("Repairs %.0f hp/s within %.0f", def.repair, def.repairRange);
+            ImGui::Text(tr("Repairs %.0f hp/s within %.0f"), def.repair, def.repairRange);
         }
         std::string factories;
         for (const auto at : def.producedAt)
             factories += (factories.empty() ? "" : ", ") + data_->unit(at).name;
-        ImGui::TextDisabled("made at: %s", factories.c_str());
+        ImGui::TextDisabled(tr("made at: %s"), factories.c_str());
         bool locked = false;
         for (const auto r : def.researchAll) {
             const bool ok = researched(r);
@@ -108,12 +108,12 @@ void App::drawDesigner() {
         }
         ImGui::EndDisabled();
         if (locked)
-            ImGui::TextDisabled("can be saved now, built once researched");
+            ImGui::TextDisabled(tr("can be saved now, built once researched"));
     }
     ImGui::EndGroup();
 
     ImGui::Separator();
-    ImGui::TextDisabled("SAVED DESIGNS  %d / 12", static_cast<int>(designs_.size()));
+    ImGui::TextDisabled(tr("SAVED DESIGNS  %d / 12"), static_cast<int>(designs_.size()));
     for (std::size_t i = 0; i < designs_.size(); ++i) {
         const UnitDefId d = data_->find(designs_[i]);
         if (d == kInvalidUnitDef)
@@ -125,7 +125,7 @@ void App::drawDesigner() {
             ImGui::PopID();
             break;
         }
-        ImGui::SetItemTooltip("Remove this design");
+        ImGui::SetItemTooltip(tr("Remove this design"));
         ImGui::SameLine();
         ImGui::Text("%s", data_->unit(d).name.c_str());
         ImGui::SameLine();

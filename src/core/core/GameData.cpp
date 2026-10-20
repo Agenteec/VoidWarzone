@@ -510,6 +510,7 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
             if (const auto w = t.find("weapon"); w != t.end())
                 def.weapon = static_cast<int>(parseDamage(w->get<std::string>()));
             def.classes = t.value("classes", std::vector<std::string>{});
+            def.branch = t.value("branch", "");
             if (index.contains(def.id))
                 throw std::runtime_error("duplicate research: " + def.id);
             const auto id = static_cast<ResearchId>(d.research_.size());
@@ -559,6 +560,47 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
 
     d.hash_ = fnv1a(researchText, fnv1a(itemsText, fnv1a(skillsText, fnv1a(unitsText))));
     return d;
+}
+
+void GameData::localize(const std::function<std::string(std::string_view)>& translate) {
+    std::vector<std::string*> fields;
+    for (auto& u : units_)
+        fields.push_back(&u.name);
+    for (auto& r : research_) {
+        fields.push_back(&r.name);
+        fields.push_back(&r.desc);
+    }
+    for (auto& sk : skills_)
+        fields.push_back(&sk.name);
+    for (auto& it : items_)
+        fields.push_back(&it.name);
+    for (auto& m : modules_)
+        fields.push_back(&m.name);
+    for (auto& parts : designParts_)
+        for (auto& p : parts)
+            fields.push_back(&p.name);
+    if (sourceText_.empty())
+        for (const auto* f : fields)
+            sourceText_.push_back(*f);
+    for (std::size_t i = 0; i < fields.size() && i < sourceText_.size(); ++i)
+        *fields[i] = translate(sourceText_[i]);
+    // designs read "<hull> <gear> <weapon>" from the translated parts
+    for (auto& u : units_) {
+        if (!u.design || u.id.size() < 3)
+            continue;
+        const std::string rest = u.id.substr(2);
+        const auto a = rest.find('_');
+        const auto b = a == std::string::npos ? a : rest.find('_', a + 1);
+        if (b == std::string::npos)
+            continue;
+        auto name = [&](std::size_t k, const std::string& id) {
+            for (const auto& p : designParts_[k])
+                if (p.id == id)
+                    return p.name;
+            return id;
+        };
+        u.name = name(0, rest.substr(0, a)) + " " + name(1, rest.substr(a + 1, b - a - 1)) + " " + name(2, rest.substr(b + 1));
+    }
 }
 
 UnitDefId GameData::designOf(std::string_view body, std::string_view prop, std::string_view weapon) const {

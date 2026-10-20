@@ -178,6 +178,7 @@ void App::loadSettings() {
             fpsLimit_ = std::clamp(j.value("fpsLimit", fpsLimit_), 0, 1000);
             limitBackground_ = j.value("limitBackground", limitBackground_);
             volMaster_ = std::clamp(j.value("volume", volMaster_), 0.0f, 1.0f);
+            language_ = j.value("language", language_);
             if (const auto d = j.find("designs"); d != j.end() && d->is_array())
                 designs_ = d->get<std::vector<std::string>>();
             volEffects_ = std::clamp(j.value("volumeEffects", volEffects_), 0.0f, 1.0f);
@@ -220,6 +221,7 @@ void App::saveSettings() const {
                                             {"fpsLimit", fpsLimit_},
                                             {"limitBackground", limitBackground_},
                                             {"volume", volMaster_},
+                                            {"language", language_},
                                             {"designs", designs_},
                                             {"volumeEffects", volEffects_},
                                             {"volumeInterface", volUi_},
@@ -420,6 +422,21 @@ void App::loadContent() {
     loadUserMaps();
     loadCampaign();
     loadSounds();
+    applyLanguage();
+}
+
+void App::applyLanguage() {
+    const std::string code = !options_.lang.empty() ? options_.lang : language_.empty() ? systemLanguage() : language_;
+    std::string dict;
+    if (code != "en")
+        try {
+            dict = loadText("data/lang/" + code + ".json");
+        } catch (const std::exception& e) {
+            spdlog::warn("language {}: {}", code, e.what());
+        }
+    setDictionary(code, dict);
+    if (data_)
+        data_->localize([](std::string_view s) { return trs(s); });
 }
 
 App::App() = default;
@@ -1295,13 +1312,18 @@ void App::updateGame(float dt) {
     if (!cameraPlaced_ && net_.hasSnapshot()) {
         glm::vec2 center{};
         int own = 0;
+        std::optional<glm::vec2> hq;
         for (const auto& e : entities_)
             if (e.kind == net::EntityKind::Unit && isOwn(e)) {
                 center += e.pos;
                 ++own;
+                const auto& def = data_->unit(e.def);
+                if (def.undeploy != kInvalidUnitDef || def.deploy != kInvalidUnitDef || (def.structure && !hq))
+                    hq = e.pos;
             }
         if (own > 0) {
-            camera_.target = options_.camera.value_or(center / static_cast<float>(own));
+            // start on the HQ (or any own building) so a base split from its vehicles isn't framed in the dark between them
+            camera_.target = options_.camera.value_or(hq.value_or(center / static_cast<float>(own)));
             if (options_.zoom > 0.0f)
                 camera_.distance = std::clamp(options_.zoom, kMinZoom, kMaxZoom);
             cameraPlaced_ = true;
@@ -1402,7 +1424,7 @@ void App::frame(double dt) {
     }
     for (auto& line : net_.takeChat()) {
         if (line.player == 0xfe)
-            showBanner(line.text, 6.0f);
+            showBanner(trs(line.text), 6.0f);
         chatLog_.push_back({std::move(line), now_});
         if (chatLog_.size() > 60)
             chatLog_.erase(chatLog_.begin());
@@ -1795,13 +1817,13 @@ void App::handleNetEvent(const net::NetEvent& ev) {
         break;
     case net::NetEventType::Enrage:
         addEffect(Mesh::Sphere, pos, {1.0f, 0.1f, 0.1f, 0.7f}, 2.0f, 8.0f, 0.8f);
-        showBanner("THE BOSS IS ENRAGED", 2.5f);
+        showBanner(tr("THE BOSS IS ENRAGED"), 2.5f);
         break;
     case net::NetEventType::WaveStart: {
         const auto* latest = net_.latest();
         const int total = latest ? latest->game.totalWaves : 0;
         const int wave = static_cast<int>(std::lround(value));
-        showBanner(wave == total ? "FINAL WAVE" : "WAVE " + std::to_string(wave), 3.0f);
+        showBanner(wave == total ? std::string(tr("FINAL WAVE")) : std::string(tr("WAVE")) + " " + std::to_string(wave), 3.0f);
         playUi("wave_horn", 0.8f);
         break;
     }
@@ -1847,7 +1869,7 @@ void App::handleNetEvent(const net::NetEvent& ev) {
         addEffect(Mesh::Sphere, pos, {1.0f, 0.85f, 0.3f, 0.7f}, 0.5f, 4.0f, 0.6f);
         playAt("promote", {pos.x, pos.z}, 0.8f);
         if (static_cast<Rank>(std::lround(value)) == Rank::Hero)
-            showBanner("A HERO RISES", 2.0f);
+            showBanner(tr("A HERO RISES"), 2.0f);
         break;
     case net::NetEventType::LevelUp:
         addEffect(Mesh::Cylinder, {pos.x, 0.1f, pos.z}, {1.0f, 0.85f, 0.3f, 0.7f}, 0.5f, 4.0f, 0.6f);
@@ -1855,7 +1877,7 @@ void App::handleNetEvent(const net::NetEvent& ev) {
     case net::NetEventType::Loot: {
         const auto id = static_cast<ItemId>(std::lround(value));
         if (id < data_->items().size())
-            showBanner("LOOT: " + data_->item(id).name, 3.0f);
+            showBanner(std::string(tr("LOOT:")) + " " + data_->item(id).name, 3.0f);
         addEffect(Mesh::Sphere, pos, {0.9f, 0.6f, 1.0f, 0.7f}, 0.5f, 3.0f, 0.8f);
         break;
     }

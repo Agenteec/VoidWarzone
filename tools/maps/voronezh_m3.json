@@ -172,7 +172,7 @@
   ],
   "mission": {
    "title": "Glow over the Plant",
-   "briefing": "Scouts saw a violet glow over the ruins of the unfinished nuclear heating plant south of the city - right where the Breach began. The marauders who went there did not come back. Find out what is there.",
+   "briefing": "Since the rail depot burned, the gangs have gone quiet. The few we caught were not running from us - they fled from the south, from the ruins of the unfinished nuclear heating plant, right where the Breach began. Scouts saw a violet glow over the cooling towers. Take the base's forces south and find out what is there.",
    "objectives": [
     {
      "id": "outskirts",
@@ -205,7 +205,7 @@
      "do": [
       {
        "type": "message",
-       "text": "Keep radio silence. Something is jamming everything near the plant."
+       "text": "Keep radio silence south of the blocks. Something is jamming everything near the plant."
       }
      ]
     },
@@ -215,11 +215,11 @@
      "do": [
       {
        "type": "message",
-       "text": "Those are not marauders... The trucks are overgrown with crystals. Command, are you seeing this?"
+       "text": "Those are not marauders... The trucks here are overgrown with crystals. Command, are you seeing this?"
       },
       {
        "type": "message",
-       "text": "A rift. It's feeding on the pylons around it. Destroy the pylons first, then the rift itself."
+       "text": "A rift. It is feeding on the pylons around it. Destroy the pylons first, then the rift itself."
       },
       {
        "type": "reveal",

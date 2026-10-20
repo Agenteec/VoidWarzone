@@ -32,7 +32,8 @@ void App::loadCampaign() {
         for (const auto& ch : doc.at("chapters"))
             for (const auto& m : ch.at("missions"))
                 campaign_.push_back({m.at("id").get<std::string>(), m.at("map").get<std::string>(), m.value("name", ""), m.value("place", ""),
-                                     ch.value("name", ""), ch.value("intro", ""), m.value("kind", "base") == "sortie", m.value("transport", 8)});
+                                     ch.value("name", ""), ch.value("intro", ""), m.value("kind", "base") == "sortie", m.value("transport", 8),
+                                     m.value("debrief", "")});
     } catch (const std::exception& e) {
         spdlog::warn("campaign: {}", e.what());
     }
@@ -177,7 +178,7 @@ void App::drawCampaign() {
     ImGui::SetNextWindowSize({std::min(display.x - 40.0f * s, 980.0f * s), std::min(display.y - 40.0f * s, 620.0f * s)});
     ImGui::Begin("##campaign", nullptr, kHudFlags & ~ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.6f);
-    ImGui::TextColored(toVec(kAccent), ICON_FA_FLAG "  CAMPAIGN");
+    ImGui::TextColored(toVec(kAccent), tr(ICON_FA_FLAG "  CAMPAIGN"));
     ImGui::PopFont();
     ImGui::Separator();
 
@@ -189,13 +190,13 @@ void App::drawCampaign() {
         if (m.chapter != chapter) {
             chapter = m.chapter;
             ImGui::PushFont(ui_.bold(), 0.0f);
-            ImGui::TextUnformatted(chapter.c_str());
+            ImGui::TextUnformatted(tr(chapter));
             ImGui::PopFont();
         }
         const bool done = std::find(campaignDone_.begin(), campaignDone_.end(), m.id) != campaignDone_.end();
         const bool open = campaignUnlocked(i);
         char label[96];
-        std::snprintf(label, sizeof(label), "%s  %d. %s%s", done ? ICON_FA_CHECK : open ? ICON_FA_PLAY : ICON_FA_LOCK, static_cast<int>(i + 1), m.name.c_str(),
+        std::snprintf(label, sizeof(label), "%s  %d. %s%s", done ? ICON_FA_CHECK : open ? ICON_FA_PLAY : ICON_FA_LOCK, static_cast<int>(i + 1), tr(m.name),
                       m.sortie ? "  " ICON_FA_TRUCK : "  " ICON_FA_HOME);
         ImGui::BeginDisabled(!open);
         if (ImGui::Selectable(label, campaignChoice_ == static_cast<int>(i), 0, {0.0f, 28.0f * s}))
@@ -209,27 +210,34 @@ void App::drawCampaign() {
         campaignChoice_ = std::clamp(campaignChoice_, 0, static_cast<int>(campaign_.size()) - 1);
         const auto& m = campaign_[static_cast<std::size_t>(campaignChoice_)];
         ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.3f);
-        ImGui::TextUnformatted(m.name.c_str());
+        ImGui::TextUnformatted(tr(m.name));
         ImGui::PopFont();
-        ImGui::TextDisabled("%s", m.place.c_str());
+        ImGui::TextDisabled("%s", tr(m.place));
         ImGui::Spacing();
         ImGui::PushTextWrapPos(0.0f);
         if (campaignChoice_ == 0 || campaign_[static_cast<std::size_t>(campaignChoice_) - 1].chapter != m.chapter) {
-            ImGui::TextColored(toVec(kDim), "%s", m.intro.c_str());
+            ImGui::TextColored(toVec(kDim), "%s", tr(m.intro));
+            ImGui::Spacing();
+        } else if (const auto& prev = campaign_[static_cast<std::size_t>(campaignChoice_) - 1]; !prev.debrief.empty()) {
+            ImGui::TextColored(toVec(kDim), "%s %s", tr("Previously:"), tr(prev.debrief));
+            ImGui::Spacing();
+        }
+        if (std::find(campaignDone_.begin(), campaignDone_.end(), m.id) != campaignDone_.end() && !m.debrief.empty()) {
+            ImGui::TextColored(toVec(kGood), ICON_FA_CHECK "  %s", tr(m.debrief));
             ImGui::Spacing();
         }
         try {
             const auto map = Map::parse(readMap(m.map));
-            ImGui::TextUnformatted(map.mission().briefing.c_str());
+            ImGui::TextUnformatted(tr(map.mission().briefing));
             ImGui::Spacing();
             ImGui::PushFont(ui_.bold(), 0.0f);
-            ImGui::TextUnformatted("Objectives");
+            ImGui::TextUnformatted(tr("Objectives"));
             ImGui::PopFont();
             for (const auto& o : map.mission().objectives)
                 if (!o.hidden)
-                    ImGui::BulletText("%s", o.text.c_str());
+                    ImGui::BulletText("%s", tr(o.text));
             if (std::any_of(map.mission().objectives.begin(), map.mission().objectives.end(), [](const auto& o) { return o.hidden; }))
-                ImGui::BulletText("...more objectives will appear during the mission");
+                ImGui::BulletText(tr("...more objectives will appear during the mission"));
         } catch (const std::exception& e) {
             ImGui::TextColored(toVec(kBad), "%s", e.what());
         }
@@ -245,12 +253,12 @@ void App::drawCampaign() {
         structures = static_cast<int>(base.size()) - static_cast<int>(units.size());
         if (!m.sortie) {
             if (!base.empty())
-                ImGui::TextColored(toVec(kGood), ICON_FA_HOME "  Base mission: your base returns - %d buildings, %d vehicles", structures,
+                ImGui::TextColored(toVec(kGood), tr(ICON_FA_HOME "  Base mission: your base returns - %d buildings, %d vehicles"), structures,
                                    static_cast<int>(units.size()));
             else
-                ImGui::TextDisabled(ICON_FA_HOME "  Base mission: the base you build here stays for the next missions");
+                ImGui::TextDisabled(tr(ICON_FA_HOME "  Base mission: the base you build here stays for the next missions"));
         } else {
-            ImGui::TextColored(toVec(kAccent), ICON_FA_TRUCK "  Sortie: pick up to %d vehicles from the base", m.transport);
+            ImGui::TextColored(toVec(kAccent), tr(ICON_FA_TRUCK "  Sortie: pick up to %d vehicles from the base"), m.transport);
             if (sortieFor_ != campaignChoice_) {
                 // default team: the most experienced units first
                 sortieFor_ = campaignChoice_;
@@ -270,9 +278,9 @@ void App::drawCampaign() {
                 }
             }
             if (units.empty()) {
-                ImGui::TextDisabled("No vehicles at the base yet - a default column will go.");
+                ImGui::TextDisabled(tr("No vehicles at the base yet - a default column will go."));
             } else {
-                ImGui::TextDisabled("%d / %d selected. Units left behind stay at the base.", static_cast<int>(sortieTeam_.size()), m.transport);
+                ImGui::TextDisabled(tr("%d / %d selected. Units left behind stay at the base."), static_cast<int>(sortieTeam_.size()), m.transport);
                 ImGui::BeginChild("##team", {0.0f, 150.0f * s}, ImGuiChildFlags_Borders);
                 for (const int i : units) {
                     const auto& u = base[static_cast<std::size_t>(i)];
@@ -282,7 +290,7 @@ void App::drawCampaign() {
                     static constexpr const char* kRanks[] = {"Recruit", "Veteran", "Elite", "Hero"};
                     const int rank = p == u.end() ? 0 : std::clamp(p->value("rank", 0), 0, 3);
                     char label[96];
-                    std::snprintf(label, sizeof(label), "%s  (%s)##%d", data_->unit(def).name.c_str(), kRanks[rank], i);
+                    std::snprintf(label, sizeof(label), "%s  (%s)##%d", data_->unit(def).name.c_str(), tr(kRanks[rank]), i);
                     ImGui::BeginDisabled(!picked && static_cast<int>(sortieTeam_.size()) >= m.transport);
                     if (ImGui::Checkbox(label, &picked)) {
                         if (picked)
@@ -299,14 +307,14 @@ void App::drawCampaign() {
     }
     ImGui::EndChild();
 
-    if (ImGui::Button(ICON_FA_CHEVRON_LEFT "  Back", {130.0f * s, 40.0f * s}))
+    if (ImGui::Button(tr(ICON_FA_CHEVRON_LEFT "  Back"), {130.0f * s, 40.0f * s}))
         setScreen(Screen::Menu);
     ImGui::SameLine();
-    if (ImGui::Button(ICON_FA_REFRESH "  Reset progress", {180.0f * s, 40.0f * s}))
+    if (ImGui::Button(tr(ICON_FA_REFRESH "  Reset progress"), {180.0f * s, 40.0f * s}))
         ImGui::OpenPopup("##reset");
     if (ImGui::BeginPopup("##reset")) {
-        ImGui::TextUnformatted("Forget completed missions and veterans?");
-        if (ImGui::Button("Reset")) {
+        ImGui::TextUnformatted(tr("Forget completed missions and veterans?"));
+        if (ImGui::Button(tr("Reset"))) {
             campaignDone_.clear();
             campaignRoster_.clear();
             campaignBase_.clear();
@@ -322,10 +330,10 @@ void App::drawCampaign() {
     ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x - buttonW * 2.0f - 8.0f * s);
     const bool open = !campaign_.empty() && campaignUnlocked(static_cast<std::size_t>(campaignChoice_));
     ImGui::BeginDisabled(!open);
-    if (ImGui::Button(ICON_FA_USERS "  Host co-op", {buttonW, 40.0f * s}))
+    if (ImGui::Button(tr(ICON_FA_USERS "  Host co-op"), {buttonW, 40.0f * s}))
         startMission(static_cast<std::size_t>(campaignChoice_), true);
     ImGui::SameLine();
-    if (accentButton(ICON_FA_PLAY "  Start mission", {buttonW, 40.0f * s}))
+    if (accentButton(tr(ICON_FA_PLAY "  Start mission"), {buttonW, 40.0f * s}))
         startMission(static_cast<std::size_t>(campaignChoice_), false);
     ImGui::EndDisabled();
     trackWindow();
@@ -335,9 +343,9 @@ void App::drawCampaign() {
 bool App::drawObjectives() {
     if (const auto* latest = net_.latest(); latest && latest->game.mode == static_cast<std::uint8_t>(GameMode::Skirmish)) {
         ImGui::PushFont(ui_.bold(), 0.0f);
-        ImGui::TextColored(toVec(kAccent), ICON_FA_FLAG "  SKIRMISH");
+        ImGui::TextColored(toVec(kAccent), tr(ICON_FA_FLAG "  SKIRMISH"));
         ImGui::PopFont();
-        ImGui::TextDisabled("%d sides left  -  destroy every enemy base", static_cast<int>(latest->game.sides));
+        ImGui::TextDisabled(tr("%d sides left  -  destroy every enemy base"), static_cast<int>(latest->game.sides));
         return true;
     }
     if (!map_ || !map_->mission().enabled)
@@ -345,7 +353,7 @@ bool App::drawObjectives() {
     const auto* latest = net_.latest();
     const auto& mission = map_->mission();
     ImGui::PushFont(ui_.bold(), 0.0f);
-    ImGui::TextColored(toVec(kAccent), ICON_FA_FLAG "  %s", mission.title.empty() ? "MISSION" : mission.title.c_str());
+    ImGui::TextColored(toVec(kAccent), ICON_FA_FLAG "  %s", mission.title.empty() ? tr("MISSION") : tr(mission.title));
     ImGui::PopFont();
     for (std::size_t i = 0; i < mission.objectives.size(); ++i) {
         const std::uint8_t state = latest && i < latest->game.objectives.size() ? latest->game.objectives[i] : (mission.objectives[i].hidden ? 0 : 1);
@@ -358,9 +366,9 @@ bool App::drawObjectives() {
         const ImVec4 color = state == 2 ? toVec(kGood) : state == 3 ? toVec(kBad) : o.optional ? toVec(kDim) : toVec(kText);
         if (o.type == "survive" && state == 1) {
             const float left = std::max(0.0f, o.time - static_cast<float>(latest ? latest->tick : 0) / static_cast<float>(kTickRate));
-            ImGui::TextColored(color, "%s  %s  %d:%02d", icon, o.text.c_str(), static_cast<int>(left) / 60, static_cast<int>(left) % 60);
+            ImGui::TextColored(color, "%s  %s  %d:%02d", icon, tr(o.text), static_cast<int>(left) / 60, static_cast<int>(left) % 60);
         } else {
-            ImGui::TextColored(color, "%s  %s", icon, o.text.c_str());
+            ImGui::TextColored(color, "%s  %s", icon, tr(o.text));
         }
     }
     return true;

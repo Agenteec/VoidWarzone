@@ -84,14 +84,14 @@ void App::drawDebug() {
     const float s = uiScale();
     ImGui::SetNextWindowPos({20.0f * s, topBarHeight_ + 20.0f * s}, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize({360.0f * s, 0.0f}, ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin(ICON_FA_BUG "  Debug  [F9]###debug", &debugOpen_, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (!ImGui::Begin(tr(ICON_FA_BUG "  Debug  [F9]###debug"), &debugOpen_, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
         trackWindow();
         ImGui::End();
         return;
     }
     if (ImGui::BeginTabBar("##dbg")) {
-        if (ImGui::BeginTabItem("Info")) {
-            ImGui::Text("%.0f fps  %.2f ms  %s", fps_, frameMs_, renderer_.name());
+        if (ImGui::BeginTabItem(tr("Info"))) {
+            ImGui::Text(tr("%.0f fps  %.2f ms  %s"), fps_, frameMs_, renderer_.name());
             int units = 0, structures = 0, shells = 0, own = 0;
             for (const auto& e : entities_) {
                 if (e.kind == net::EntityKind::Projectile) {
@@ -101,83 +101,83 @@ void App::drawDebug() {
                 (data_->unit(e.def).structure ? structures : units)++;
                 own += isOwn(e);
             }
-            ImGui::Text("units %d  structures %d  shells %d  own %d", units, structures, shells, own);
-            ImGui::Text("particles %d  effects %d", static_cast<int>(particles_.size()), static_cast<int>(effects_.size()));
+            ImGui::Text(tr("units %d  structures %d  shells %d  own %d"), units, structures, shells, own);
+            ImGui::Text(tr("particles %d  effects %d"), static_cast<int>(particles_.size()), static_cast<int>(effects_.size()));
             if (latest)
-                ImGui::Text("tick %u  player %d  energy %u", latest->tick, net_.player(), latest->view.energy);
+                ImGui::Text(tr("tick %u  player %d  energy %u"), latest->tick, net_.player(), latest->view.energy);
             if (host_ && host_->world())
-                ImGui::Text("sim %.2f ms/tick  (embedded host)", simMs_);
+                ImGui::Text(tr("sim %.2f ms/tick  (embedded host)"), simMs_);
             if (map_)
-                ImGui::Text("map %s  %dx%d", options_.map.c_str(), map_->width(), map_->height());
-            ImGui::Text("camera %.1f, %.1f  zoom %.0f", camera_.target.x, camera_.target.y, camera_.distance);
+                ImGui::Text(tr("map %s  %dx%d"), options_.map.c_str(), map_->width(), map_->height());
+            ImGui::Text(tr("camera %.1f, %.1f  zoom %.0f"), camera_.target.x, camera_.target.y, camera_.distance);
             if (const auto g = camera_.screenToGround(mouse_.x, mouse_.y))
-                ImGui::Text("cursor %.1f, %.1f", g->x, g->y);
+                ImGui::Text(tr("cursor %.1f, %.1f"), g->x, g->y);
             if (!selected_.empty())
                 if (const auto* e = findEntity(selected_.front()))
-                    ImGui::Text("selected #%u %s  hp %d/%d", e->id, data_->unit(e->def).id.c_str(), static_cast<int>(e->hp), static_cast<int>(e->maxHp));
-            ImGui::Checkbox("Stats overlay [F3]", &showStats_);
+                    ImGui::Text(tr("selected #%u %s  hp %d/%d"), e->id, data_->unit(e->def).id.c_str(), static_cast<int>(e->hp), static_cast<int>(e->maxHp));
+            ImGui::Checkbox(tr("Stats overlay [F3]"), &showStats_);
             ImGui::EndTabItem();
         }
-        if (ImGui::BeginTabItem("Overlays")) {
-            ImGui::Checkbox("Weapon ranges", &dbgRanges_);
-            ImGui::Checkbox("Blocked nav cells", &dbgNav_);
-            ImGui::Checkbox("Entity labels", &dbgLabels_);
-            ImGui::Checkbox("Health bars for everything", &dbgBars_);
+        if (ImGui::BeginTabItem(tr("Overlays"))) {
+            ImGui::Checkbox(tr("Weapon ranges"), &dbgRanges_);
+            ImGui::Checkbox(tr("Blocked nav cells"), &dbgNav_);
+            ImGui::Checkbox(tr("Entity labels"), &dbgLabels_);
+            ImGui::Checkbox(tr("Health bars for everything"), &dbgBars_);
             ImGui::EndTabItem();
         }
-        if (ImGui::BeginTabItem("Cheats")) {
+        if (ImGui::BeginTabItem(tr("Cheats"))) {
             const bool leader = net_.lobby().leader == net_.player();
             if (!cheatsOn()) {
-                ImGui::TextWrapped("Cheats are off for this match.");
+                ImGui::TextWrapped(tr("Cheats are off for this match."));
                 ImGui::BeginDisabled(!leader);
-                if (accentButton(ICON_FA_MAGIC "  Enable cheats", {-1.0f, 34.0f * s}))
+                if (accentButton(tr(ICON_FA_MAGIC "  Enable cheats"), {-1.0f, 34.0f * s}))
                     net_.sendCheats(true);
                 ImGui::EndDisabled();
                 if (!leader)
-                    ImGui::TextDisabled("only the host can enable them");
+                    ImGui::TextDisabled(tr("only the host can enable them"));
             } else {
                 const float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
                 const ImVec2 b{w, 30.0f * s};
-                if (ImGui::Button(ICON_FA_BOLT " +1000 energy", b))
+                if (ImGui::Button(tr(ICON_FA_BOLT " +1000 energy"), b))
                     sendCheat(CheatOp::Energy);
                 ImGui::SameLine();
-                if (ImGui::Button(ICON_FA_HEART " Heal all", b))
+                if (ImGui::Button(tr(ICON_FA_HEART " Heal all"), b))
                     sendCheat(CheatOp::Heal);
-                if (ImGui::Button(ICON_FA_FORWARD " Finish all", b))
+                if (ImGui::Button(tr(ICON_FA_FORWARD " Finish all"), b))
                     sendCheat(CheatOp::Finish);
-                ImGui::SetItemTooltip("Completes construction, the head of every factory queue and running research");
+                ImGui::SetItemTooltip(tr("Completes construction, the head of every factory queue and running research"));
                 ImGui::SameLine();
-                if (ImGui::Button(ICON_FA_FLASK " All research", b))
+                if (ImGui::Button(tr(ICON_FA_FLASK " All research"), b))
                     sendCheat(CheatOp::Research);
-                if (ImGui::Button(ICON_FA_TROPHY " Hero XP", b))
+                if (ImGui::Button(tr(ICON_FA_TROPHY " Hero XP"), b))
                     sendCheat(CheatOp::Xp, selectedEntities());
-                ImGui::SetItemTooltip("Gives the selected units enough XP to become heroes");
+                ImGui::SetItemTooltip(tr("Gives the selected units enough XP to become heroes"));
                 ImGui::SameLine();
                 const bool god = latest && (latest->view.flags & net::kViewGod) != 0;
                 if (toggleButton(god ? ICON_FA_SHIELD " God: on" : ICON_FA_SHIELD " God: off", god, b))
                     sendCheat(CheatOp::God);
-                if (ImGui::Button(ICON_FA_STEP_FORWARD " Next wave", b))
+                if (ImGui::Button(tr(ICON_FA_STEP_FORWARD " Next wave"), b))
                     sendCheat(CheatOp::Wave);
                 ImGui::SameLine();
                 std::vector<entt::entity> kill = selectedEntities();
                 if (inspected_)
                     kill.push_back(static_cast<entt::entity>(inspected_));
                 ImGui::BeginDisabled(kill.empty());
-                if (ImGui::Button(ICON_FA_TIMES " Kill selected", b)) {
+                if (ImGui::Button(tr(ICON_FA_TIMES " Kill selected"), b)) {
                     sendCheat(CheatOp::Kill, kill);
                     selected_.clear();
                     inspected_ = 0;
                 }
                 ImGui::EndDisabled();
-                if (ImGui::Button(ICON_FA_FLAG " Win", b))
+                if (ImGui::Button(tr(ICON_FA_FLAG " Win"), b))
                     sendCheat(CheatOp::Win);
                 ImGui::SameLine();
-                if (ImGui::Button(ICON_FA_FLAG_O " Lose", b))
+                if (ImGui::Button(tr(ICON_FA_FLAG_O " Lose"), b))
                     sendCheat(CheatOp::Lose);
-                if (toggleButton(ICON_FA_CROSSHAIRS " Kill on click", cheatArm_ == CheatArm::Kill, {-1.0f, 30.0f * s}))
+                if (toggleButton(tr(ICON_FA_CROSSHAIRS " Kill on click"), cheatArm_ == CheatArm::Kill, {-1.0f, 30.0f * s}))
                     cheatArm_ = cheatArm_ == CheatArm::Kill ? CheatArm::None : CheatArm::Kill;
 
-                ImGui::SeparatorText("Spawn");
+                ImGui::SeparatorText(tr("Spawn"));
                 cheatUnit_ = std::clamp(cheatUnit_, 0, static_cast<int>(data_->units().size()) - 1);
                 ImGui::SetNextItemWidth(-1.0f);
                 if (ImGui::BeginCombo("##unit", data_->unit(static_cast<UnitDefId>(cheatUnit_)).name.c_str(), ImGuiComboFlags_HeightLarge)) {
@@ -189,19 +189,19 @@ void App::drawDebug() {
                     }
                     ImGui::EndCombo();
                 }
-                if (toggleButton("Ours", cheatTeam_ == 0, {w * 0.48f, 0.0f}))
+                if (toggleButton(tr("Ours"), cheatTeam_ == 0, {w * 0.48f, 0.0f}))
                     cheatTeam_ = 0;
                 ImGui::SameLine();
-                if (toggleButton("Enemy", cheatTeam_ == 1, {w * 0.48f, 0.0f}))
+                if (toggleButton(tr("Enemy"), cheatTeam_ == 1, {w * 0.48f, 0.0f}))
                     cheatTeam_ = 1;
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(-1.0f);
                 ImGui::SliderInt("##count", &cheatCount_, 1, 10, "x%d");
-                if (toggleButton(ICON_FA_MAP_MARKER " Place on map (click, Shift keeps)", cheatArm_ == CheatArm::Spawn, {-1.0f, 30.0f * s}))
+                if (toggleButton(tr(ICON_FA_MAP_MARKER " Place on map (click, Shift keeps)"), cheatArm_ == CheatArm::Spawn, {-1.0f, 30.0f * s}))
                     cheatArm_ = cheatArm_ == CheatArm::Spawn ? CheatArm::None : CheatArm::Spawn;
                 if (leader) {
                     ImGui::Spacing();
-                    if (ImGui::SmallButton("Disable cheats"))
+                    if (ImGui::SmallButton(tr("Disable cheats")))
                         net_.sendCheats(false);
                 }
             }
@@ -318,15 +318,15 @@ void App::researchTooltip(ResearchId t) {
     if (!mods.empty()) {
         const char* who = r.scope == ResearchScope::Vehicles ? "vehicles" : r.scope == ResearchScope::Structures ? "buildings" : "everything";
         if (r.weapon >= 0)
-            ImGui::TextColored(toVec(kGood), "%s(%s weapons, %s)", mods.c_str(), damageTypeName(static_cast<DamageType>(r.weapon)), who);
+            ImGui::TextColored(toVec(kGood), tr("%s(%s weapons, %s)"), mods.c_str(), damageTypeName(static_cast<DamageType>(r.weapon)), who);
         else
             ImGui::TextColored(toVec(kGood), "%s(%s)", mods.c_str(), who);
     }
     for (const auto u : r.unlocks)
-        ImGui::TextColored(toVec(kEnergy), "unlocks %s", data_->unit(u).name.c_str());
+        ImGui::TextColored(toVec(kEnergy), tr("unlocks %s"), data_->unit(u).name.c_str());
     for (const auto a : r.after)
         if (!latest || !latest->view.researched(a))
-            ImGui::TextColored(toVec(kBad), "needs %s", data_->research(a).name.c_str());
+            ImGui::TextColored(toVec(kBad), tr("needs %s"), data_->research(a).name.c_str());
     ImGui::EndTooltip();
 }
 
@@ -341,7 +341,7 @@ void App::trackResearch() {
     }
     for (std::size_t i = 0; i < now.size(); ++i)
         if (now[i] && !knownResearch_[i]) {
-            showBanner("RESEARCH COMPLETE: " + data_->research(static_cast<ResearchId>(i)).name, 3.0f);
+            showBanner(std::string(tr("RESEARCH COMPLETE:")) + " " + data_->research(static_cast<ResearchId>(i)).name, 3.0f);
             playUi("research", 0.8f);
             researchDot_ = true;
         }
@@ -356,64 +356,168 @@ void App::drawResearchTree() {
         return;
     const float s = uiScale();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const auto& topics = data_->research();
+    int tiers = 0;
+    for (const auto& r : topics)
+        tiers = std::max(tiers, r.tier + 1);
+
+    // rows: one band per branch, topics of the same tier stacked inside the band
+    static constexpr std::pair<const char*, const char*> kBranches[] = {{"weapons", "Weapons"},      {"armour", "Armour"},
+                                                                        {"artillery", "Artillery & rockets"}, {"air", "Air & air defence"},
+                                                                        {"defences", "Defences"},    {"recon", "Recon & support"}};
+    const ImVec2 cell{150.0f * s, 44.0f * s};
+    const float gapX = 30.0f * s, gapY = 6.0f * s, labelW = 120.0f * s, bandGap = 14.0f * s;
+    std::vector<ImVec2> pos(topics.size(), ImVec2{-1.0f, -1.0f});
+    std::vector<std::pair<std::string, float>> bands;
+    float y = 0.0f;
+    for (const auto& [key, label] : kBranches) {
+        std::vector<int> stack(static_cast<std::size_t>(tiers), 0);
+        bool any = false;
+        for (std::size_t i = 0; i < topics.size(); ++i)
+            if (topics[i].branch == key || (topics[i].branch.empty() && std::string_view(key) == "recon")) {
+                auto& n = stack[static_cast<std::size_t>(topics[i].tier)];
+                pos[i] = {labelW + static_cast<float>(topics[i].tier) * (cell.x + gapX), y + static_cast<float>(n) * (cell.y + gapY)};
+                ++n;
+                any = true;
+            }
+        if (!any)
+            continue;
+        bands.emplace_back(label, y);
+        y += static_cast<float>(*std::max_element(stack.begin(), stack.end())) * (cell.y + gapY) + bandGap;
+    }
+    const ImVec2 canvas{labelW + static_cast<float>(tiers) * (cell.x + gapX), y};
+
     ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.45f}, ImGuiCond_Appearing, {0.5f, 0.5f});
-    if (!ImGui::Begin(ICON_FA_FLASK "  Research###research", &researchOpen_, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::SetNextWindowSize({std::min(canvas.x + 40.0f * s, display.x - 40.0f * s), std::min(canvas.y + 110.0f * s, display.y * 0.86f)}, ImGuiCond_Appearing);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4{0.05f, 0.06f, 0.09f, 0.98f});
+    const bool open = ImGui::Begin(tr(ICON_FA_FLASK "  Research###research"), &researchOpen_, ImGuiWindowFlags_NoSavedSettings);
+    ImGui::PopStyleColor();
+    if (!open) {
         trackWindow();
         ImGui::End();
         return;
     }
-    int tiers = 0;
-    for (const auto& r : data_->research())
-        tiers = std::max(tiers, r.tier + 1);
-    const std::uint32_t lab = idleLab();
-    ImGui::TextDisabled(lab ? "Click a topic to start it in an idle laboratory." : "Build a laboratory, or wait for one to finish its topic.");
-    const ImVec2 cell{150.0f * s, 46.0f * s};
-    ImGui::BeginTable("##tree", tiers, ImGuiTableFlags_SizingFixedFit);
-    for (int t = 0; t < tiers; ++t)
-        ImGui::TableSetupColumn(("Tier " + std::to_string(t + 1)).c_str(), ImGuiTableColumnFlags_WidthFixed, cell.x);
-    ImGui::TableHeadersRow();
-    ImGui::TableNextRow();
-    for (int t = 0; t < tiers; ++t) {
-        ImGui::TableSetColumnIndex(t);
-        for (std::size_t i = 0; i < data_->research().size(); ++i) {
-            const auto& r = data_->research(static_cast<ResearchId>(i));
-            if (r.tier != t)
-                continue;
-            const auto id = static_cast<ResearchId>(i);
-            const bool done = latest->view.researched(id);
-            const net::OwnLab* running = nullptr;
-            for (const auto& l : latest->view.labs)
-                if (l.topic == id)
-                    running = &l;
-            const bool ready = researchReady(id);
-            ImGui::PushID(static_cast<int>(i));
-            const ImVec4 color = done ? ImVec4{0.16f, 0.42f, 0.22f, 1.0f} : running ? ImVec4{0.16f, 0.36f, 0.56f, 1.0f}
-                                 : ready ? ImVec4{0.22f, 0.24f, 0.3f, 1.0f} : ImVec4{0.12f, 0.12f, 0.14f, 1.0f};
-            ImGui::PushStyleColor(ImGuiCol_Button, color);
-            const bool affordable = latest->view.energy >= r.cost;
-            if (ImGui::Button("##t", cell) && ready && lab && affordable)
-                startResearch(id);
-            ImGui::PopStyleColor();
-            const ImVec2 a = ImGui::GetItemRectMin();
-            const ImVec2 b = ImGui::GetItemRectMax();
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-            dl->AddText({a.x + 6.0f * s, a.y + 4.0f * s}, done || ready || running ? kText : kDim, r.name.c_str());
-            char sub[40];
-            if (done)
-                std::snprintf(sub, sizeof(sub), ICON_FA_CHECK " done");
-            else if (running)
-                std::snprintf(sub, sizeof(sub), "%d%%", running->progress * 100 / 255);
-            else
-                std::snprintf(sub, sizeof(sub), ICON_FA_BOLT "%.0f  %.0fs", r.cost, r.time);
-            dl->AddText({a.x + 6.0f * s, b.y - ImGui::GetFontSize() - 4.0f * s}, done ? kGood : affordable ? kEnergy : kBad, sub);
-            if (running)
-                dl->AddRectFilled({a.x, b.y - 3.0f * s}, {a.x + (b.x - a.x) * static_cast<float>(running->progress) / 255.0f, b.y}, kGood);
-            researchTooltip(id);
-            ImGui::PopID();
-        }
-    }
-    ImGui::EndTable();
     trackWindow();
+    const std::uint32_t lab = idleLab();
+    int done = 0;
+    for (const auto r : latest->view.research)
+        done += r != 0;
+    ImGui::TextDisabled("%s", lab ? tr("Click a topic to start it in an idle laboratory.") : tr("Build a laboratory, or wait for one to finish its topic."));
+    ImGui::SameLine();
+    ImGui::TextColored(toVec(kAccent), "  %d / %d", done, static_cast<int>(topics.size()));
+    ImGui::SameLine();
+    ImGui::TextColored(toVec(kGood), "  " ICON_FA_CHECK);
+    ImGui::SameLine(0.0f, 2.0f);
+    ImGui::TextDisabled("%s", tr("done"));
+    ImGui::SameLine();
+    ImGui::TextColored(toVec(kAccent), "  " ICON_FA_FLASK);
+    ImGui::SameLine(0.0f, 2.0f);
+    ImGui::TextDisabled("%s", tr("available"));
+    ImGui::SameLine();
+    ImGui::TextColored(toVec(kDim), "  " ICON_FA_LOCK);
+    ImGui::SameLine(0.0f, 2.0f);
+    ImGui::TextDisabled("%s", tr("locked"));
+
+    ImGui::BeginChild("##treecanvas", {0.0f, 0.0f}, 0, ImGuiWindowFlags_HorizontalScrollbar);
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    for (int t = 0; t < tiers; ++t) {
+        char head[24];
+        std::snprintf(head, sizeof(head), "%s %d", tr("Tier"), t + 1);
+        dl->AddText({origin.x + labelW + static_cast<float>(t) * (cell.x + gapX), origin.y - 2.0f * s}, kDim, head);
+    }
+    const float headH = ImGui::GetFontSize() + 4.0f * s;
+    auto at = [&](std::size_t i) { return ImVec2{origin.x + pos[i].x, origin.y + headH + pos[i].y}; };
+    for (std::size_t b = 0; b < bands.size(); ++b) {
+        const float top = origin.y + headH + bands[b].second;
+        if (b > 0)
+            dl->AddLine({origin.x, top - bandGap * 0.5f}, {origin.x + canvas.x, top - bandGap * 0.5f}, IM_COL32(255, 255, 255, 18));
+        dl->AddText(ui_.bold(), ImGui::GetFontSize(), {origin.x, top + 4.0f * s}, kAccent, tr(bands[b].first));
+    }
+
+    // hover chain: everything the hovered topic needs and everything that needs it
+    std::vector<char> chain(topics.size(), 0);
+    if (hoveredTopic_ >= 0 && static_cast<std::size_t>(hoveredTopic_) < topics.size()) {
+        std::vector<int> work{hoveredTopic_};
+        chain[static_cast<std::size_t>(hoveredTopic_)] = 1;
+        while (!work.empty()) {
+            const int k = work.back();
+            work.pop_back();
+            for (const auto a : topics[static_cast<std::size_t>(k)].after)
+                if (!chain[a]) {
+                    chain[a] = 1;
+                    work.push_back(a);
+                }
+        }
+        // topics only depend on earlier ones, so one forward pass collects every descendant
+        std::vector<char> below(topics.size(), 0);
+        below[static_cast<std::size_t>(hoveredTopic_)] = 1;
+        for (std::size_t j = 0; j < topics.size(); ++j)
+            for (const auto a : topics[j].after)
+                if (below[a])
+                    below[j] = 1;
+        for (std::size_t j = 0; j < topics.size(); ++j)
+            if (below[j] && !chain[j])
+                chain[j] = 2;
+    }
+    for (std::size_t i = 0; i < topics.size(); ++i)
+        for (const auto a : topics[i].after) {
+            const ImVec2 from{at(a).x + cell.x, at(a).y + cell.y * 0.5f};
+            const ImVec2 to{at(i).x, at(i).y + cell.y * 0.5f};
+            const bool lit = hoveredTopic_ >= 0 && chain[i] && chain[a];
+            const bool got = latest->view.researched(a);
+            const ImU32 col = lit ? kAccent : got ? IM_COL32(90, 200, 120, 150) : IM_COL32(150, 160, 180, 70);
+            dl->AddBezierCubic(from, {from.x + gapX * 0.8f, from.y}, {to.x - gapX * 0.8f, to.y}, to, col, lit ? 2.5f * s : 1.3f * s);
+        }
+
+    int hovered = -1;
+    for (std::size_t i = 0; i < topics.size(); ++i) {
+        const auto& r = topics[i];
+        const auto id = static_cast<ResearchId>(i);
+        const bool got = latest->view.researched(id);
+        const net::OwnLab* running = nullptr;
+        for (const auto& l : latest->view.labs)
+            if (l.topic == id)
+                running = &l;
+        const bool ready = researchReady(id);
+        const bool affordable = latest->view.energy >= r.cost;
+        ImGui::SetCursorScreenPos(at(i));
+        ImGui::PushID(static_cast<int>(i));
+        const bool clicked = ImGui::InvisibleButton("##t", cell);
+        if (ImGui::IsItemHovered())
+            hovered = static_cast<int>(i);
+        if (clicked && ready && lab && affordable)
+            startResearch(id);
+        const ImVec2 a = ImGui::GetItemRectMin();
+        const ImVec2 b = ImGui::GetItemRectMax();
+        const bool lit = hoveredTopic_ >= 0 && chain[i];
+        const ImU32 fill = got ? IM_COL32(34, 92, 52, 255) : running ? IM_COL32(32, 78, 122, 255) : ready ? IM_COL32(48, 54, 70, 255) : IM_COL32(26, 27, 32, 255);
+        dl->AddRectFilled(a, b, fill, 4.0f * s);
+        dl->AddRect(a, b, lit ? kAccent : ready && !got ? IM_COL32(110, 160, 220, 160) : IM_COL32(255, 255, 255, 30), 4.0f * s, 0, lit ? 2.0f * s : 1.0f);
+        const char* icon = got ? ICON_FA_CHECK : running ? ICON_FA_COG : ready ? ICON_FA_FLASK : ICON_FA_LOCK;
+        dl->AddText({a.x + 5.0f * s, a.y + 3.0f * s}, got ? kGood : ready || running ? kAccent : kDim, icon);
+        fitText(dl, r.name, {a.x + 20.0f * s, a.y + 1.0f}, {b.x - 2.0f, b.y - ImGui::GetFontSize() * 0.95f}, got || ready || running ? kText : kDim, 0.92f);
+        char sub[40];
+        if (got)
+            std::snprintf(sub, sizeof(sub), "%s", tr("done"));
+        else if (running)
+            std::snprintf(sub, sizeof(sub), "%d%%", running->progress * 100 / 255);
+        else
+            std::snprintf(sub, sizeof(sub), ICON_FA_BOLT "%.0f   %.0fs", r.cost, r.time);
+        const float fs = ImGui::GetFontSize() * 0.8f;
+        const ImVec2 ss = ImGui::GetFont()->CalcTextSizeA(fs, FLT_MAX, 0.0f, sub);
+        dl->AddText(ImGui::GetFont(), fs, {a.x + (cell.x - ss.x) * 0.5f, b.y - ss.y - 3.0f * s}, got ? kGood : affordable ? kEnergy : kBad, sub);
+        if (!r.unlocks.empty())
+            dl->AddText(ImGui::GetFont(), fs, {b.x - 14.0f * s, a.y + 3.0f * s}, kEnergy, ICON_FA_STAR);
+        if (running)
+            dl->AddRectFilled({a.x, b.y - 3.0f * s}, {a.x + (b.x - a.x) * static_cast<float>(running->progress) / 255.0f, b.y}, kGood);
+        researchTooltip(id);
+        ImGui::PopID();
+    }
+    hoveredTopic_ = hovered;
+    ImGui::SetCursorScreenPos({origin.x, origin.y + headH + canvas.y});
+    ImGui::Dummy({canvas.x, 1.0f});
+    ImGui::EndChild();
     ImGui::End();
 }
 

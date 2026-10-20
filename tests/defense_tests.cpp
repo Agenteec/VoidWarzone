@@ -401,6 +401,17 @@ TEST_CASE("campaign base carries over between missions") {
     for (auto [e, unit, order] : next.registry().view<const Unit, const Order>().each())
         if (unit.def == data.find("raider"))
             CHECK(glm::distance(order.point, hq) < 2.0f);
+
+    // a vehicles-only list (sortie team, old roster) keeps the map's own buildings and replaces only the start column
+    World third(data, second);
+    third.spawnPlayer(0);
+    third.spawnBase(0, R"([{"def":"truck"},{"def":"kshm"}])");
+    CHECK(countDef(third, data, "workshop") == 1);
+    CHECK(countDef(third, data, "truck") == 1);
+    CHECK(countDef(third, data, "kshm") == 1);
+    for (auto [e, unit, tag] : third.registry().view<const Unit, const Tag>().each())
+        if (unit.def == data.find("kshm"))
+            CHECK(tag.name == "hq");
 }
 
 TEST_CASE("mobile hq deploys, packs up and gates production") {
