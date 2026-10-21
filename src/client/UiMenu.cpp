@@ -223,7 +223,7 @@ void App::drawMenuPage() {
     case Screen::Joining:
     case Screen::Connecting:
         spinner(full, s, now_);
-        centeredText(status_.empty() ? "connecting" : status_.c_str(), kText);
+        centeredText(status_.empty() ? tr("connecting") : tr(status_), kText);
         ImGui::Spacing();
         if (ImGui::Button(tr("Cancel"), {full, 36.0f * s}))
             leaveGame("cancelled");
@@ -254,7 +254,7 @@ void App::drawBrowser() {
     int rows = 0;
     const ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_PadOuterX;
     if (ImGui::BeginTable("games", 5, flags)) {
-        ImGui::TableSetupColumn(online ? "Code" : "Address", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn(online ? tr("Code") : tr("Address"), ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn(tr("Name"), ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn(tr("Map"), ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn(tr("Players"), ImGuiTableColumnFlags_WidthFixed);
@@ -298,7 +298,7 @@ void App::drawBrowser() {
     if (rows == 0) {
         ImGui::Spacing();
         const bool failed = online && lobby_.state() == net::MasterClient::State::Failed;
-        centeredText(failed ? lobby_.error().c_str() : "No games yet - host one with Host Multiplayer", failed ? kBad : kDim);
+        centeredText(failed ? tr(lobby_.error()) : tr("No games yet - host one with Host Multiplayer"), failed ? kBad : kDim);
     }
 }
 
@@ -522,7 +522,7 @@ void App::drawLobby() {
             SDL_SetClipboardText(lobby_.code().c_str());
     } else if (host_ && multiplayer && lobby_.state() == net::MasterClient::State::Failed) {
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * s);
-        ImGui::TextColored(toVec(kBad), tr("online unavailable: %s (LAN and IP still work)"), lobby_.error().c_str());
+        ImGui::TextColored(toVec(kBad), tr("online unavailable: %s (LAN and IP still work)"), tr(lobby_.error()));
     } else if (host_ && multiplayer) {
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * s);
         ImGui::TextDisabled(tr("registering room..."));
@@ -532,7 +532,7 @@ void App::drawLobby() {
         if (const auto ext = mapper_.external(options_.port))
             ImGui::TextColored(toVec(kGood), tr("  UPnP: direct %s:%u"), mapper_.externalIp().c_str(), static_cast<unsigned>(*ext));
         else
-            ImGui::TextDisabled(tr("  UPnP: %s"), mapper_.status().c_str());
+            ImGui::TextDisabled(tr("  UPnP: %s"), tr(mapper_.status()));
     }
     ImGui::Separator();
 
@@ -551,13 +551,13 @@ void App::drawLobby() {
         const int sides = static_cast<int>(std::count_if(perTeam.begin(), perTeam.end(), [](int n) { return n > 0; }));
         std::string summary;
         if (!skirmish)
-            summary = "co-op: everyone fights the Void together";
+            summary = tr("co-op: everyone fights the Void together");
         else if (sides <= 1)
-            summary = "free-for-all: everyone fights everyone";
+            summary = tr("free-for-all: everyone fights everyone");
         else
             for (int t = 0; t < net::kLobbyTeams; ++t)
                 if (perTeam[static_cast<std::size_t>(t)] > 0)
-                    summary += (summary.empty() ? "teams: " : " vs ") + std::to_string(perTeam[static_cast<std::size_t>(t)]);
+                    summary += (summary.empty() ? std::string(tr("teams:")) + " " : std::string(" vs ")) + std::to_string(perTeam[static_cast<std::size_t>(t)]);
         ImGui::TextColored(toVec(kAccent), "  %s", summary.c_str());
     }
     const float rosterH = multiplayer ? std::max(150.0f * s, bodyH * 0.55f) : ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing() * 3.0f;
@@ -566,7 +566,7 @@ void App::drawLobby() {
         ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn(tr("Player"), ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn(tr("Colour"), ImGuiTableColumnFlags_WidthFixed, 100.0f * s);
-        ImGui::TableSetupColumn(tr("Team"), ImGuiTableColumnFlags_WidthFixed, 86.0f * s);
+        ImGui::TableSetupColumn(tr("Team"), ImGuiTableColumnFlags_WidthFixed, 112.0f * s);
         ImGui::TableSetupColumn(tr("Status"), ImGuiTableColumnFlags_WidthFixed, 96.0f * s);
         ImGui::TableHeadersRow();
         for (const auto& p : info.players) {
@@ -607,7 +607,7 @@ void App::drawLobby() {
                 ImGui::SameLine();
             }
             ImGui::AlignTextToFramePadding();
-            ImGui::TextColored(toVec(me ? kGood : kText), "%s%s", p.name.c_str(), me ? "  (you)" : "");
+            ImGui::TextColored(toVec(me ? kGood : kText), "%s%s", p.name.c_str(), me ? tr("  (you)") : "");
 
             ImGui::TableNextColumn();
             ImGui::BeginDisabled(!editable);
@@ -728,8 +728,14 @@ void App::drawLobby() {
         if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 4.0f)
             ImGui::SetScrollHereY(1.0f);
         ImGui::EndChild();
+        if (emojiPicker(chatBuf_.data(), std::min(chatBuf_.size(), net::kMaxChatLength + 1), emojiOpen_)) {
+            ImGui::SetKeyboardFocusHere();
+            chatCaretEnd_ = true;
+        }
+        ImGui::SameLine();
         ImGui::SetNextItemWidth(-1.0f);
-        if (ImGui::InputTextWithHint("##chat", tr("say something..."), chatBuf_.data(), chatBuf_.size(), ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (ImGui::InputTextWithHint("##chat", tr("say something..."), chatBuf_.data(), chatBuf_.size(),
+                                     ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackAlways, caretToEnd, &chatCaretEnd_)) {
             if (chatBuf_[0] != '\0')
                 net_.sendChat(chatBuf_.data());
             chatBuf_[0] = '\0';

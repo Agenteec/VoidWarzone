@@ -633,7 +633,7 @@ void App::drawPauseMenu() {
         if (ImGui::SmallButton(tr("Copy")))
             SDL_SetClipboardText(lobby_.code().c_str());
     } else if (host_ && lobby_.state() == net::MasterClient::State::Failed) {
-        ImGui::TextColored(toVec(kBad), tr("Online unavailable: %s"), lobby_.error().c_str());
+        ImGui::TextColored(toVec(kBad), tr("Online unavailable: %s"), tr(lobby_.error()));
     }
     ImGui::Spacing();
     if (accentButton(tr(ICON_FA_PLAY "  Resume"), {full, 44.0f * s}))

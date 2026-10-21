@@ -502,7 +502,7 @@ void App::drawInspect() {
         for (const auto& p : net_.lobby().players)
             if (p.id == e->owner)
                 owner = p.name;
-        ImGui::TextColored({c.r, c.g, c.b, 1.0f}, "%s%s", owner.c_str(), e->owner == net_.player() ? " (you)" : "");
+        ImGui::TextColored({c.r, c.g, c.b, 1.0f}, "%s%s", owner.c_str(), e->owner == net_.player() ? tr(" (you)") : "");
     } else {
         ImGui::TextColored(toVec(e->team == 1 ? kVoid : kAccent), "%s", e->team == 1 ? "the Void" : "allied");
     }

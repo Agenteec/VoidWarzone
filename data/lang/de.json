@@ -757,6 +757,24 @@
   "Save failed:": "Speichern fehlgeschlagen:",
   "Game loaded:": "Spiel geladen:",
   "Load failed:": "Laden fehlgeschlagen:",
-  "MISSION": "MISSION"
+  "MISSION": "MISSION",
+  "(you)": "(du)",
+  "Code": "Code",
+  "Address": "Adresse",
+  "No games yet - host one with Host Multiplayer": "Noch keine Spiele - eröffne eins über Mehrspieler hosten",
+  "co-op: everyone fights the Void together": "Koop: alle gemeinsam gegen die Leere",
+  "free-for-all: everyone fights everyone": "Jeder gegen jeden",
+  "teams:": "Teams:",
+  "searching for a UPnP router...": "suche UPnP-Router...",
+  "no UPnP router found": "kein UPnP-Router gefunden",
+  "bad room code": "ungültiger Raumcode",
+  "cannot create ICE agent": "ICE-Agent konnte nicht erstellt werden",
+  "cannot reach master server": "Master-Server nicht erreichbar",
+  "could not reach host (NAT traversal failed)": "Host nicht erreichbar (NAT-Traversal fehlgeschlagen)",
+  "joining timed out": "Beitreten abgelaufen",
+  "master protocol mismatch": "Master-Protokoll inkompatibel",
+  "master server timed out": "Master-Server antwortet nicht",
+  "connection failed": "Verbindung fehlgeschlagen",
+  "disconnected": "Verbindung getrennt"
  }
 }

@@ -361,7 +361,11 @@ void NetClient::sendReturnToLobby() {
 void NetClient::sendChat(const std::string& text) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::Chat));
-    w.str(text.substr(0, kMaxChatLength));
+    std::size_t n = std::min(text.size(), kMaxChatLength);
+    if (n < text.size())
+        while (n > 0 && (static_cast<unsigned char>(text[n]) & 0xC0) == 0x80)
+            --n;
+    w.str(text.substr(0, n));
     sendMessage(w);
 }
 

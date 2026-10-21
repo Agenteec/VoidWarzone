@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -205,6 +206,75 @@ inline void hotkeyBadge(const char* key) {
         return;
     const ImVec2 a = ImGui::GetItemRectMin();
     ImGui::GetWindowDrawList()->AddText({a.x + 4.0f, a.y + 2.0f}, kEnergy, key);
+}
+
+inline int utf8Encode(char32_t c, char* out) {
+    if (c < 0x80) {
+        out[0] = static_cast<char>(c);
+        return 1;
+    }
+    if (c < 0x800) {
+        out[0] = static_cast<char>(0xC0 | (c >> 6));
+        out[1] = static_cast<char>(0x80 | (c & 0x3F));
+        return 2;
+    }
+    if (c < 0x10000) {
+        out[0] = static_cast<char>(0xE0 | (c >> 12));
+        out[1] = static_cast<char>(0x80 | ((c >> 6) & 0x3F));
+        out[2] = static_cast<char>(0x80 | (c & 0x3F));
+        return 3;
+    }
+    out[0] = static_cast<char>(0xF0 | (c >> 18));
+    out[1] = static_cast<char>(0x80 | ((c >> 12) & 0x3F));
+    out[2] = static_cast<char>(0x80 | ((c >> 6) & 0x3F));
+    out[3] = static_cast<char>(0x80 | (c & 0x3F));
+    return 4;
+}
+
+inline constexpr char32_t kChatEmoji[] = {0x1F600, 0x1F602, 0x1F609, 0x1F60E, 0x1F914, 0x1F62E, 0x1F622, 0x1F621, 0x1F608, 0x1F480,
+                                          0x1F44D, 0x1F44E, 0x1F44B, 0x1F44F, 0x1F64F, 0x1F4AA, 0x1F91D, 0x1F440, 0x2764,  0x2B50,
+                                          0x1F525, 0x1F4A5, 0x1F4A3, 0x26A1,  0x2744,  0x1F3AF, 0x1F680, 0x1F681, 0x2708,  0x1F6E1,
+                                          0x2694,  0x1F3C6, 0x26A0,  0x2705,  0x274C,  0x2753,  0x1F6A9, 0x1F4E2, 0x1F527, 0x1F319};
+
+// keeps the caret at the end after an emoji was appended (InputText callback, UserData = bool*)
+inline int caretToEnd(ImGuiInputTextCallbackData* d) {
+    auto* pending = static_cast<bool*>(d->UserData);
+    if (pending && *pending) {
+        d->CursorPos = d->SelectionStart = d->SelectionEnd = d->BufTextLen;
+        *pending = false;
+    }
+    return 0;
+}
+
+// emoji button + popup grid appending to buf; `open` tracks the popup, returns true the frame after it closed
+inline bool emojiPicker(char* buf, std::size_t size, bool& open) {
+    char label[16];
+    const int n = utf8Encode(0x1F600, label);
+    std::snprintf(label + n, sizeof(label) - n, "##emoji");
+    if (ImGui::Button(label))
+        ImGui::OpenPopup("##emojis");
+    const bool was = open;
+    open = false;
+    if (ImGui::BeginPopup("##emojis")) {
+        open = true;
+        const float cell = ImGui::GetFrameHeight() * 1.25f;
+        for (int i = 0; i < static_cast<int>(std::size(kChatEmoji)); ++i) {
+            if (i % 10)
+                ImGui::SameLine();
+            char e[8] = {};
+            const int len = utf8Encode(kChatEmoji[i], e);
+            ImGui::PushID(i);
+            if (ImGui::Button(e, {cell, cell})) {
+                const std::size_t have = std::strlen(buf);
+                if (have + len < size)
+                    std::memcpy(buf + have, e, static_cast<std::size_t>(len) + 1);
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndPopup();
+    }
+    return was && !open;
 }
 
 }

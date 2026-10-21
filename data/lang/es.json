@@ -757,6 +757,24 @@
   "Save failed:": "Error al guardar:",
   "Game loaded:": "Partida cargada:",
   "Load failed:": "Error al cargar:",
-  "MISSION": "MISIÓN"
+  "MISSION": "MISIÓN",
+  "(you)": "(tú)",
+  "Code": "Código",
+  "Address": "Dirección",
+  "No games yet - host one with Host Multiplayer": "Aún no hay partidas: crea una con Alojar multijugador",
+  "co-op: everyone fights the Void together": "cooperativo: todos juntos contra el Vacío",
+  "free-for-all: everyone fights everyone": "todos contra todos",
+  "teams:": "equipos:",
+  "searching for a UPnP router...": "buscando router UPnP...",
+  "no UPnP router found": "no se encontró router UPnP",
+  "bad room code": "código de sala no válido",
+  "cannot create ICE agent": "no se pudo crear el agente ICE",
+  "cannot reach master server": "no se puede contactar con el servidor maestro",
+  "could not reach host (NAT traversal failed)": "no se pudo alcanzar al host (falló el NAT traversal)",
+  "joining timed out": "tiempo de conexión agotado",
+  "master protocol mismatch": "protocolo del servidor maestro incompatible",
+  "master server timed out": "el servidor maestro no responde",
+  "connection failed": "conexión fallida",
+  "disconnected": "desconectado"
  }
 }

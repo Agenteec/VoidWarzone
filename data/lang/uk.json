@@ -757,6 +757,24 @@
   "Save failed:": "Не вдалося зберегти:",
   "Game loaded:": "Гру завантажено:",
   "Load failed:": "Не вдалося завантажити:",
-  "MISSION": "МІСІЯ"
+  "MISSION": "МІСІЯ",
+  "(you)": "(ви)",
+  "Code": "Код",
+  "Address": "Адреса",
+  "No games yet - host one with Host Multiplayer": "Ігор поки немає - створіть свою через «Мережева гра»",
+  "co-op: everyone fights the Void together": "кооператив: усі разом проти Порожнечі",
+  "free-for-all: everyone fights everyone": "кожен сам за себе",
+  "teams:": "команди:",
+  "searching for a UPnP router...": "пошук UPnP-роутера...",
+  "no UPnP router found": "UPnP-роутер не знайдено",
+  "bad room code": "невірний код кімнати",
+  "cannot create ICE agent": "не вдалося створити ICE-агент",
+  "cannot reach master server": "майстер-сервер недоступний",
+  "could not reach host (NAT traversal failed)": "не вдалося під'єднатися до хоста (NAT не пробито)",
+  "joining timed out": "час під'єднання вичерпано",
+  "master protocol mismatch": "несумісна версія майстер-сервера",
+  "master server timed out": "майстер-сервер не відповідає",
+  "connection failed": "не вдалося під'єднатися",
+  "disconnected": "з'єднання розірвано"
  }
 }

@@ -214,4 +214,22 @@ T = [
 
 EXTRA = {
     "MISSION": "МИССИЯ",
+    '(you)': '(вы)',
+    'Code': 'Код',
+    'Address': 'Адрес',
+    'No games yet - host one with Host Multiplayer': 'Игр пока нет - создайте свою через «Сетевая игра»',
+    'co-op: everyone fights the Void together': 'кооператив: все вместе против Пустоты',
+    'free-for-all: everyone fights everyone': 'каждый сам за себя',
+    'teams:': 'команды:',
+    'searching for a UPnP router...': 'поиск UPnP-роутера...',
+    'no UPnP router found': 'UPnP-роутер не найден',
+    'bad room code': 'неверный код комнаты',
+    'cannot create ICE agent': 'не удалось создать ICE-агент',
+    'cannot reach master server': 'мастер-сервер недоступен',
+    'could not reach host (NAT traversal failed)': 'не удалось подключиться к хосту (NAT не пробит)',
+    'joining timed out': 'время подключения истекло',
+    'master protocol mismatch': 'несовместимая версия мастер-сервера',
+    'master server timed out': 'мастер-сервер не отвечает',
+    'connection failed': 'не удалось подключиться',
+    'disconnected': 'соединение разорвано',
 }

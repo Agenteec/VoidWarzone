@@ -79,4 +79,8 @@ if(ANDROID)
     target_link_libraries(vw_client PRIVATE EGL GLESv3 android log)
 endif()
 vw_target_defaults(vw_client)
+# translated UI strings (tr()) are used as printf formats; tools/lang_build.py checks their specifiers
+if(NOT MSVC)
+    target_compile_options(vw_client PRIVATE -Wno-format-security -Wno-format-nonliteral)
+endif()
 vw_copy_data(vw_client)

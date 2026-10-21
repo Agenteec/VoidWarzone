@@ -366,15 +366,20 @@ void App::drawChat() {
         ImGui::TextUnformatted(entry->line.text.c_str());
     }
     if (chatOpen_) {
+        const bool refocus = emojiPicker(chatBuf_.data(), std::min(chatBuf_.size(), net::kMaxChatLength + 1), emojiOpen_);
+        ImGui::SameLine();
         ImGui::SetNextItemWidth(360.0f * s);
-        if (ImGui::IsWindowAppearing())
+        if (ImGui::IsWindowAppearing() || refocus) {
             ImGui::SetKeyboardFocusHere();
-        if (ImGui::InputTextWithHint("##say", tr("Enter to send, Esc to close"), chatBuf_.data(), chatBuf_.size(), ImGuiInputTextFlags_EnterReturnsTrue)) {
+            chatCaretEnd_ = true;
+        }
+        if (ImGui::InputTextWithHint("##say", tr("Enter to send, Esc to close"), chatBuf_.data(), chatBuf_.size(),
+                                     ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackAlways, caretToEnd, &chatCaretEnd_)) {
             if (chatBuf_[0] != '\0')
                 net_.sendChat(chatBuf_.data());
             chatBuf_[0] = '\0';
             chatOpen_ = false;
-        } else if (ImGui::IsItemDeactivated()) {
+        } else if (ImGui::IsItemDeactivated() && !emojiOpen_) {
             chatOpen_ = false;
         }
         trackWindow();

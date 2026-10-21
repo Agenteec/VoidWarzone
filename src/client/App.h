@@ -607,6 +607,8 @@ private:
     std::vector<CatalogEntry> modes_;
     std::array<char, 128> chatBuf_{};
     bool chatOpen_ = false;
+    bool emojiOpen_ = false;
+    bool chatCaretEnd_ = false;
 };
 
 }
