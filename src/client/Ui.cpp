@@ -675,6 +675,65 @@ void App::drawPauseMenu() {
     ImGui::End();
 }
 
+void App::drawMatchStats() {
+    const auto& stats = net_.matchStats();
+    if (!stats || stats->players.empty())
+        return;
+    const float s = uiScale();
+    char line[96];
+    const int secs = static_cast<int>(stats->seconds);
+    std::snprintf(line, sizeof(line), tr("Match time %d:%02d"), secs / 60, secs % 60);
+    centeredText(line, kDim);
+    const char* levels[] = {tr("Easy"), tr("Normal"), tr("Hard"), tr("Brutal")};
+    const char* styles[] = {tr("Balanced"), tr("Rush"), tr("Turtle"), tr("Armor"), tr("Artillery"), tr("Air force")};
+    const char* heads[] = {tr("Player"), tr("Units"), tr("Lost"), tr("Kills"), tr("Buildings"), tr("Research"), tr("Damage"), tr("Earned"), tr("Spent")};
+    if (ImGui::BeginTable("##stats", 9, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerH)) {
+        ImGui::TableSetupColumn(heads[0], ImGuiTableColumnFlags_WidthStretch);
+        for (int i = 1; i < 9; ++i)
+            ImGui::TableSetupColumn(heads[i], ImGuiTableColumnFlags_WidthFixed, std::max((i >= 6 ? 70.0f : 54.0f) * s, ImGui::CalcTextSize(heads[i]).x + 10.0f * s));
+        ImGui::TableHeadersRow();
+        auto best = [&](auto field) {
+            float m = 0.0f;
+            for (const auto& p : stats->players)
+                m = std::max(m, static_cast<float>(p.*field));
+            return m;
+        };
+        const float bestKills = best(&net::PlayerMatchStats::kills), bestDamage = best(&net::PlayerMatchStats::damageDealt);
+        for (const auto& p : stats->players) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            std::string name = "#" + std::to_string(p.id + 1);
+            for (const auto& lp : net_.lobby().players)
+                if (lp.id == p.id)
+                    name = lp.name;
+            if (p.ai)
+                name += std::string(" (") + levels[p.aiLevel % 4] + ", " + styles[p.aiStyle % std::size(styles)] + ")";
+            const glm::vec4 c = playerColor(p.id);
+            const bool won = stats->winner >= 0 && p.team == stats->winner;
+            ImGui::TextColored({c.r, c.g, c.b, 1.0f}, "%s%s%s", won ? ICON_FA_TROPHY " " : "", name.c_str(), p.id == net_.player() ? tr("  (you)") : "");
+            ImGui::TableNextColumn();
+            ImGui::Text("%d", p.produced);
+            ImGui::TableNextColumn();
+            ImGui::Text("%d", p.lost);
+            ImGui::TableNextColumn();
+            ImGui::TextColored(toVec(p.kills > 0 && p.kills >= bestKills ? kEnergy : kText), "%d", p.kills);
+            ImGui::TableNextColumn();
+            ImGui::Text("%d / %d", p.built, p.structuresLost);
+            ImGui::SetItemTooltip(tr("Built / lost"));
+            ImGui::TableNextColumn();
+            ImGui::Text("%d", p.researched);
+            ImGui::TableNextColumn();
+            ImGui::TextColored(toVec(p.damageDealt > 0.0f && p.damageDealt >= bestDamage ? kEnergy : kText), "%.0f", p.damageDealt);
+            ImGui::TableNextColumn();
+            ImGui::Text("%.0f", p.earned);
+            ImGui::TableNextColumn();
+            ImGui::Text("%.0f", p.spent);
+        }
+        ImGui::EndTable();
+    }
+    ImGui::Spacing();
+}
+
 void App::drawEndScreen() {
     const auto& game = net_.latest()->game;
     const bool victory = wonMatch();
@@ -685,10 +744,11 @@ void App::drawEndScreen() {
     const ImVec2 display = ImGui::GetIO().DisplaySize;
     ImGui::GetBackgroundDrawList()->AddRectFilled({0.0f, 0.0f}, display, IM_COL32(0, 0, 0, 90));
     ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.45f}, ImGuiCond_Always, {0.5f, 0.5f});
-    ImGui::SetNextWindowSizeConstraints({420.0f * s, 0.0f}, {420.0f * s, display.y});
+    const float width = std::min(display.x - 16.0f * s, net_.matchStats() ? 820.0f * s : 420.0f * s);
+    ImGui::SetNextWindowSizeConstraints({width, 0.0f}, {width, display.y});
     ImGui::Begin("##end", nullptr, kHudFlags);
     ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 2.6f);
-    centeredText(campaign ? (victory ? "MISSION COMPLETE" : "MISSION FAILED") : victory ? "VICTORY" : "DEFEAT", victory ? kGood : kBad);
+    centeredText(tr(campaign ? (victory ? "MISSION COMPLETE" : "MISSION FAILED") : victory ? "VICTORY" : "DEFEAT"), victory ? kGood : kBad);
     ImGui::PopFont();
     if (campaign) {
         bool sortie = false;
@@ -704,10 +764,11 @@ void App::drawEndScreen() {
             ImGui::PopTextWrapPos();
             ImGui::Spacing();
         }
-        centeredText(victory ? (sortie ? "Survivors return to the base with their experience" : "The base is saved for the next missions")
-                             : (sortie ? "The strike group is lost - the base is unchanged" : "The base has fallen"),
+        centeredText(tr(victory ? (sortie ? "Survivors return to the base with their experience" : "The base is saved for the next missions")
+                                : (sortie ? "The strike group is lost - the base is unchanged" : "The base has fallen")),
                      kText);
         ImGui::Spacing();
+        drawMatchStats();
         const float w = ImGui::GetContentRegionAvail().x;
         const std::string mission = campaignMission_;
         std::size_t index = 0;
@@ -729,16 +790,24 @@ void App::drawEndScreen() {
         ImGui::End();
         return;
     }
-    centeredText(victory ? "The Void portal is sealed" : "The core has fallen", kText);
-    char line[64];
-    if (game.totalWaves == 0)
-        std::snprintf(line, sizeof(line), tr("Survived %d waves   |   %s"), std::max(0, game.wave - 1),
-                      difficultyName(static_cast<Difficulty>(std::min<int>(game.difficulty, 3))));
+    const char* difficulties[] = {tr("Easy"), tr("Normal"), tr("Hard"), tr("Nightmare")};
+    const char* difficulty = difficulties[std::min<int>(game.difficulty, 3)];
+    char line[96];
+    if (game.mode == static_cast<std::uint8_t>(GameMode::Skirmish)) {
+        centeredText(tr(victory ? "Your side holds the field" : "Your side has been wiped out"), kText);
+        std::snprintf(line, sizeof(line), "%s   |   %s", tr("Skirmish"), difficulty);
+    } else {
+        centeredText(tr(victory ? "The Void portal is sealed" : "The core has fallen"), kText);
+    }
+    if (game.mode == static_cast<std::uint8_t>(GameMode::Skirmish))
+        ;
+    else if (game.totalWaves == 0)
+        std::snprintf(line, sizeof(line), tr("Survived %d waves   |   %s"), std::max(0, game.wave - 1), difficulty);
     else
-        std::snprintf(line, sizeof(line), tr("Waves: %d / %d   |   %s"), game.wave, game.totalWaves,
-                      difficultyName(static_cast<Difficulty>(std::min<int>(game.difficulty, 3))));
+        std::snprintf(line, sizeof(line), tr("Waves: %d / %d   |   %s"), game.wave, game.totalWaves, difficulty);
     centeredText(line, kDim);
     ImGui::Spacing();
+    drawMatchStats();
     const float full = ImGui::GetContentRegionAvail().x;
     if (ImGui::Button(tr(ICON_FA_PLAY "  Keep playing"), {full, 40.0f * s}))
         endDismissed_ = true;

@@ -46,6 +46,35 @@ enum class Difficulty : std::uint8_t { Easy, Normal, Hard, Nightmare };
 enum class GameMode : std::uint8_t { Defense, Endless, Arena, Skirmish };
 enum class MatchState : std::uint8_t { Playing, Victory, Defeat };
 
+struct PlayerStats {
+    int produced = 0;
+    int lost = 0;
+    int kills = 0;
+    int built = 0;
+    int structuresLost = 0;
+    int researched = 0;
+    float damageDealt = 0.0f;
+    float damageTaken = 0.0f;
+    float earned = 0.0f;
+    float valueKilled = 0.0f;
+    float valueLost = 0.0f;
+};
+
+// Per unit type, for balance runs (vw_server --simulate prints it).
+struct DefStats {
+    int produced = 0;
+    int lost = 0;
+    int kills = 0;
+    float dealt = 0.0f;
+    float taken = 0.0f;
+    float valueKilled = 0.0f;
+};
+
+// Skirmish AI: level 0..3 (easy, normal, hard, brutal) and a play style.
+enum class AiStyle : std::uint8_t { Balanced, Rush, Turtle, Armor, Artillery, Air, Count };
+const char* aiStyleName(AiStyle style);
+inline constexpr int kAiLevels = 4;
+
 struct PlayerState {
     bool active = false;
     float energy = 0.0f;
@@ -57,6 +86,10 @@ struct PlayerState {
     std::uint8_t team = 0;
     std::uint8_t slot = 0;
     bool ai = false;
+    std::uint8_t aiLevel = 1;
+    AiStyle aiStyle = AiStyle::Balanced;
+    PlayerStats stats;
+    float startEnergy = 0.0f;
 };
 
 inline constexpr std::uint8_t kVoidTeam = 1;
@@ -102,6 +135,8 @@ struct SaveHeader {
     GameMode mode = GameMode::Defense;
     Difficulty difficulty = Difficulty::Normal;
     std::uint64_t tick = 0;
+    std::string campaign; // campaign mission id, empty outside the campaign
+    bool fog = false;
 };
 
 std::string makeSaveFile(const SaveHeader& header, const World& world);
@@ -144,11 +179,14 @@ public:
     }
     bool canResearch(std::uint8_t player, ResearchId topic) const;
     void grantResearch(std::uint8_t player, ResearchId topic);
+    // sum of the economy fields of every researched topic
+    StatMods economy(int player) const;
     std::string exportResearch(std::uint8_t player) const;
     void importResearch(std::uint8_t player, std::string_view list);
     static constexpr std::size_t kQueueSize = 5;
     bool campaignRules() const { return map_ && (map_->mission().enabled || mode_ == GameMode::Skirmish); }
-    void setAi(std::uint8_t player, bool on);
+    void setAi(std::uint8_t player, bool on, int level = -1, AiStyle style = AiStyle::Balanced);
+    const std::vector<DefStats>& defStats() const { return defStats_; }
     glm::vec2 startOf(std::uint8_t player) const;
     const std::vector<std::uint8_t>& objectives() const { return objectiveState_; }
     std::vector<std::string> takeMessages() { return std::exchange(messages_, {}); }
@@ -312,6 +350,7 @@ private:
     void updateResearch();
     void updateAi();
     void thinkAi(std::uint8_t player);
+    void aiMove(std::vector<entt::entity> units, glm::vec2 point);
     void updateSkirmish();
     void grantEnergyTo(std::uint8_t team, float amount);
     struct AiState {
@@ -323,8 +362,17 @@ private:
         glm::vec2 goal{};
         std::array<float, 32> seenStrength{};
         entt::entity target = entt::null;
+        bool started = false;
+        float buildStarted = 0.0f;
+        float nextCapture = 0.0f;
     };
     std::array<AiState, kMaxPlayers> ai_{};
+    std::vector<DefStats> defStats_;
+    void noteProduced(int owner, UnitDefId def, bool structure);
+    void earn(PlayerState& p, float amount) {
+        p.energy += amount;
+        p.stats.earned += amount;
+    }
     int skirmishSlots_ = 0;
     int skirmishTeams_ = 0;
     int sidesLeft_ = 0;

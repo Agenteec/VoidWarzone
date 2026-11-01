@@ -1,6 +1,8 @@
 #include "App.h"
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <cmath>
 #include <cstdio>
 #include <utility>
@@ -64,6 +66,92 @@ bool cardSelectable(const char* id, bool selected, const std::string& title, con
 
 }
 
+void App::loadSave(const std::string& name) {
+    try {
+        std::ifstream f(savesDir() + name + ".json", std::ios::binary);
+        const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        const SaveHeader header = readSaveHeader(text);
+        options_.map = header.map;
+        options_.mode = header.mode;
+        options_.difficulty = header.difficulty;
+        campaignMission_ = header.campaign;
+        if (!campaignMission_.empty()) {
+            loadCampaign();
+            campaignRecorded_ = false;
+            preSortieBase_ = campaignBase_;
+            sortieSent_.clear();
+        }
+        pendingLoad_ = name;
+        autoStart_ = true;
+        loadOpen_ = false;
+        startHost(false);
+    } catch (const std::exception& e) {
+        status_ = std::string(tr("Cannot load the save: ")) + e.what();
+    }
+}
+
+void App::drawLoadWindow() {
+    const float s = uiScale();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    if (now_ - savesListed_ > 2.0) {
+        saves_ = listJson(savesDir());
+        savesListed_ = now_;
+    }
+    const float w = std::min(display.x - 460.0f * s, 640.0f * s);
+    ImGui::SetNextWindowPos({display.x - w - 40.0f * s, display.y * 0.5f}, ImGuiCond_Always, {0.0f, 0.5f});
+    ImGui::SetNextWindowSizeConstraints({w, 0.0f}, {w, display.y - 60.0f * s});
+    ImGui::Begin("##load", nullptr, kHudFlags);
+    ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.3f);
+    ImGui::TextColored(toVec(kAccent), tr(ICON_FA_FOLDER_OPEN "  LOAD GAME"));
+    ImGui::PopFont();
+    ImGui::TextDisabled(tr("F8 in game makes a quick save, the game also autosaves every 5 minutes."));
+    ImGui::Separator();
+    if (saves_.empty())
+        ImGui::TextDisabled(tr("No saved games yet."));
+    std::string remove;
+    const char* modes[] = {tr("Defense"), tr("Endless"), tr("Arena"), tr("Skirmish")};
+    for (const auto& name : saves_) {
+        ImGui::PushID(name.c_str());
+        std::string info;
+        try {
+            const auto path = std::filesystem::path(savesDir() + name + ".json");
+            std::ifstream f(path, std::ios::binary);
+            const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+            const SaveHeader h = readSaveHeader(text);
+            const int secs = static_cast<int>(h.tick / static_cast<std::uint64_t>(kTickRate));
+            std::string mapName = h.map;
+            for (const auto& m : maps_)
+                if (m.id == h.map)
+                    mapName = tr(m.name);
+            char buf[160];
+            std::snprintf(buf, sizeof(buf), "%s  |  %s  |  %d:%02d", mapName.c_str(), h.campaign.empty() ? modes[static_cast<int>(h.mode) % 4] : tr("Campaign"),
+                          secs / 60, secs % 60);
+            info = buf;
+        } catch (const std::exception&) {
+            info = tr("unreadable save");
+        }
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(name.c_str());
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", info.c_str());
+        ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x - 150.0f * s);
+        if (ImGui::Button(tr(ICON_FA_PLAY "  Load"), {100.0f * s, 0.0f}))
+            loadSave(name);
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_TRASH "##del", {40.0f * s, 0.0f}))
+            remove = name;
+        ImGui::SetItemTooltip(tr("Delete this save"));
+        ImGui::PopID();
+    }
+    if (!remove.empty()) {
+        std::error_code ec;
+        std::filesystem::remove(savesDir() + remove + ".json", ec);
+        savesListed_ = -100.0;
+    }
+    trackWindow();
+    ImGui::End();
+}
+
 void App::drawMenu() {
     if (screen_ == Screen::Lobby) {
         drawLobby();
@@ -109,6 +197,11 @@ void App::drawMenu() {
         settingsOpen_ = false;
         loadCampaign();
         setScreen(Screen::Campaign);
+    }
+    if (menuButton(tr(ICON_FA_FOLDER_OPEN "   Load Game"), loadOpen_, full, h)) {
+        settingsOpen_ = false;
+        loadOpen_ = !loadOpen_;
+        savesListed_ = -100.0;
     }
     if (menuButton(tr(ICON_FA_PLAY "   Single Player"), false, full, h)) {
         settingsOpen_ = false;
@@ -162,6 +255,8 @@ void App::drawMenu() {
         saveSettings();
     ImGui::End();
 
+    if (loadOpen_ && screen_ == Screen::Menu && !settingsOpen_)
+        drawLoadWindow();
     if (settingsOpen_ || screen_ != Screen::Menu) {
         const float pad = 24.0f * s;
         const float x = panelW + pad;
@@ -608,6 +703,31 @@ void App::drawLobby() {
             }
             ImGui::AlignTextToFramePadding();
             ImGui::TextColored(toVec(me ? kGood : kText), "%s%s", p.name.c_str(), me ? tr("  (you)") : "");
+            if (p.bot) {
+                const char* levels[] = {tr("Easy"), tr("Normal"), tr("Hard"), tr("Brutal")};
+                const char* styles[] = {tr("Balanced"), tr("Rush"), tr("Turtle"), tr("Armor"), tr("Artillery"), tr("Air force")};
+                const bool canEdit = info.leader == net_.player();
+                ImGui::BeginDisabled(!canEdit);
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(96.0f * s);
+                if (ImGui::BeginCombo("##ailevel", levels[p.aiLevel % 4])) {
+                    for (int i = 0; i < 4; ++i)
+                        if (ImGui::Selectable(levels[i], p.aiLevel == i))
+                            net_.sendBotSetup(p.id, static_cast<std::uint8_t>(i), p.aiStyle);
+                    ImGui::EndCombo();
+                }
+                ImGui::SetItemTooltip(tr("AI difficulty: how fast it thinks, its income bonus and how carefully it attacks"));
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(110.0f * s);
+                if (ImGui::BeginCombo("##aistyle", styles[p.aiStyle % std::size(styles)])) {
+                    for (int i = 0; i < static_cast<int>(std::size(styles)); ++i)
+                        if (ImGui::Selectable(styles[i], p.aiStyle == i))
+                            net_.sendBotSetup(p.id, p.aiLevel, static_cast<std::uint8_t>(i));
+                    ImGui::EndCombo();
+                }
+                ImGui::SetItemTooltip(tr("AI strategy: Balanced, Rush (early cheap attacks), Turtle (towers and artillery), Armor (tanks), Artillery, Air force (helicopters)"));
+                ImGui::EndDisabled();
+            }
 
             ImGui::TableNextColumn();
             ImGui::BeginDisabled(!editable);
@@ -650,9 +770,7 @@ void App::drawLobby() {
             ImGui::TableNextColumn();
             ImGui::AlignTextToFramePadding();
             if (p.bot) {
-                ImGui::TextDisabled(tr("computer"));
                 if (leader) {
-                    ImGui::SameLine();
                     if (ImGui::SmallButton(ICON_FA_TIMES "##rm"))
                         net_.sendBot(false, p.id);
                     ImGui::SetItemTooltip(tr("Remove this AI player"));

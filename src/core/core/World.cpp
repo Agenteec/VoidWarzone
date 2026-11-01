@@ -60,6 +60,7 @@ World::World(const GameData& data, const Map& map, Difficulty difficulty, GameMo
     : data_(&data), map_(&map), difficulty_(difficulty), mode_(mode) {
     spatial_.reset(static_cast<float>(map.width()), static_cast<float>(map.height()), 3.0f);
     structures_.reset(static_cast<float>(map.width()), static_cast<float>(map.height()), 8.0f);
+    defStats_.resize(data.units().size());
     for (const auto& def : data.units())
         (def.structure ? maxStructureRadius_ : maxUnitRadius_) = std::max(def.structure ? maxStructureRadius_ : maxUnitRadius_, def.radius);
     nav_ = std::make_unique<Map>(map);
@@ -186,9 +187,25 @@ glm::vec2 World::startOf(std::uint8_t player) const {
     return playerBase(player);
 }
 
-void World::setAi(std::uint8_t player, bool on) {
-    if (player < kMaxPlayers)
-        players_[player].ai = on;
+void World::setAi(std::uint8_t player, bool on, int level, AiStyle style) {
+    if (player >= kMaxPlayers)
+        return;
+    auto& p = players_[player];
+    p.ai = on;
+    p.aiLevel = static_cast<std::uint8_t>(std::clamp(level < 0 ? static_cast<int>(difficulty_) : level, 0, kAiLevels - 1));
+    p.aiStyle = style < AiStyle::Count ? style : AiStyle::Balanced;
+}
+
+const char* aiStyleName(AiStyle style) {
+    static constexpr const char* names[] = {"balanced", "rush", "turtle", "armor", "artillery", "air"};
+    return style < AiStyle::Count ? names[static_cast<int>(style)] : "balanced";
+}
+
+void World::noteProduced(int owner, UnitDefId def, bool structure) {
+    if (def < defStats_.size())
+        ++defStats_[def].produced;
+    if (owner >= 0 && owner < static_cast<int>(kMaxPlayers))
+        ++(structure ? players_[static_cast<std::size_t>(owner)].stats.built : players_[static_cast<std::size_t>(owner)].stats.produced);
 }
 
 glm::vec2 World::playerBase(std::uint8_t player) const {
@@ -204,6 +221,7 @@ std::vector<entt::entity> World::spawnPlayer(std::uint8_t player, std::uint8_t t
     if (!map_ || player >= kMaxPlayers)
         return spawned;
     players_[player] = {true, map_->defense().startEnergy, 0};
+    players_[player].startEnergy = map_->defense().startEnergy;
     players_[player].team = team;
     const auto& start = map_->playerStart();
     if (mode_ == GameMode::Skirmish && !start.slots.empty())
@@ -923,11 +941,33 @@ void World::damage(entt::entity target, float amount, int sourceOwner, entt::ent
         amount -= absorbed / vs;
         h.shieldDelay = 3.0f;
     }
-    const float hull = amount * combat.vsHull(type, data_->unit(registry_.get<Unit>(target).def).armorType);
+    const UnitDefId targetDef = registry_.get<Unit>(target).def;
+    const float hull = amount * combat.vsHull(type, data_->unit(targetDef).armorType);
+    const float before = std::max(h.hp, 0.0f);
     if (hull > 0.0f)
         h.hp -= std::max(type == DamageType::Emp ? 0.0f : 1.0f, hull - h.armor);
     if (sourceOwner >= 0)
         h.lastHitBy = sourceOwner;
+    UnitDefId sourceDef = kInvalidUnitDef;
+    if (registry_.valid(source)) {
+        if (const auto* u = registry_.try_get<Unit>(source))
+            sourceDef = u->def;
+        else if (const auto* proj = registry_.try_get<Projectile>(source))
+            sourceDef = proj->def;
+    }
+    if (sourceDef != kInvalidUnitDef)
+        h.lastHitDef = sourceDef;
+    const float dealt = before - std::max(h.hp, 0.0f);
+    if (dealt > 0.0f) {
+        if (sourceDef < defStats_.size())
+            defStats_[sourceDef].dealt += dealt;
+        if (targetDef < defStats_.size())
+            defStats_[targetDef].taken += dealt;
+        if (sourceOwner >= 0 && sourceOwner < static_cast<int>(kMaxPlayers))
+            players_[static_cast<std::size_t>(sourceOwner)].stats.damageDealt += dealt;
+        if (const auto* owner = registry_.try_get<Owner>(target); owner && owner->player < kMaxPlayers)
+            players_[owner->player].stats.damageTaken += dealt;
+    }
     events_.push_back({EventType::Hit, target, source, registry_.get<Position>(target).value, registry_.get<Position>(target).value});
 }
 
@@ -1154,6 +1194,28 @@ void World::removeDead() {
         if (h.hp > 0.0f)
             continue;
         dead.push_back(e);
+        {
+            const auto& def = data_->unit(unit.def);
+            const auto* owner = registry_.try_get<Owner>(e);
+            const bool unfinished = registry_.all_of<Construction>(e);
+            if (unit.def < defStats_.size() && !unfinished)
+                ++defStats_[unit.def].lost;
+            if (owner && owner->player < kMaxPlayers && !unfinished) {
+                auto& st = players_[owner->player].stats;
+                ++(def.structure ? st.structuresLost : st.lost);
+                st.valueLost += def.cost;
+            }
+            const bool friendly = owner && h.lastHitBy == static_cast<int>(owner->player);
+            if (h.lastHitBy >= 0 && h.lastHitBy < static_cast<int>(kMaxPlayers) && !friendly) {
+                auto& st = players_[static_cast<std::size_t>(h.lastHitBy)].stats;
+                ++st.kills;
+                st.valueKilled += std::max(def.cost, def.bounty);
+            }
+            if (h.lastHitDef < defStats_.size() && !friendly) {
+                ++defStats_[h.lastHitDef].kills;
+                defStats_[h.lastHitDef].valueKilled += std::max(def.cost, def.bounty);
+            }
+        }
         if (registry_.all_of<Structure>(e)) {
             navDirty_ = true;
             if (data_->unit(unit.def).buildable)

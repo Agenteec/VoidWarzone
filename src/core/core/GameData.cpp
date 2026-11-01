@@ -62,6 +62,10 @@ StatMods parseMods(const json& j) {
     m.armor = j.value("armor", m.armor);
     m.range = j.value("range", m.range);
     m.regen = j.value("regen", m.regen);
+    m.income = j.value("income", m.income);
+    m.buildSpeed = j.value("buildSpeed", m.buildSpeed);
+    m.produceSpeed = j.value("produceSpeed", m.produceSpeed);
+    m.researchSpeed = j.value("researchSpeed", m.researchSpeed);
     return m;
 }
 
@@ -110,6 +114,10 @@ void StatMods::add(const StatMods& o, float scale) {
     armor += o.armor * scale;
     range += o.range * scale;
     regen += o.regen * scale;
+    income += o.income * scale;
+    buildSpeed += o.buildSpeed * scale;
+    produceSpeed += o.produceSpeed * scale;
+    researchSpeed += o.researchSpeed * scale;
 }
 
 std::uint64_t fnv1a(std::string_view data, std::uint64_t seed) {
@@ -373,6 +381,8 @@ GameData GameData::parse(std::string_view unitsText, std::string_view skillsText
         }
         if (const auto w = u.find("weapon"); w != u.end())
             def.weapon = parseWeapon(*w, def.structure);
+        if (def.weapon && def.structure)
+            def.sight = std::max(def.sight, def.weapon->range + 1.0f); // towers see as far as they shoot
         if (const auto b = u.find("boss"); b != u.end()) {
             BossDef bd;
             bd.title = b->value("title", def.name);

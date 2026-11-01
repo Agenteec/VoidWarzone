@@ -364,7 +364,8 @@ void App::drawResearchTree() {
     // rows: one band per branch, topics of the same tier stacked inside the band
     static constexpr std::pair<const char*, const char*> kBranches[] = {{"weapons", "Weapons"},      {"armour", "Armour"},
                                                                         {"artillery", "Artillery & rockets"}, {"air", "Air & air defence"},
-                                                                        {"defences", "Defences"},    {"recon", "Recon & support"}};
+                                                                        {"defences", "Defences"},    {"recon", "Recon & support"},
+                                                                        {"economy", "Economy"}};
     const ImVec2 cell{150.0f * s, 44.0f * s};
     const float gapX = 30.0f * s, gapY = 6.0f * s, labelW = 120.0f * s, bandGap = 14.0f * s;
     std::vector<ImVec2> pos(topics.size(), ImVec2{-1.0f, -1.0f});

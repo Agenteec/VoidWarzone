@@ -215,7 +215,7 @@ void Server::broadcastLobby() {
     for (const auto& c : clients_)
         info.players.push_back({c->player, c->name, c->ready, c->color, c->team});
     for (const auto& b : bots_)
-        info.players.push_back({b.player, "AI " + std::to_string(b.player + 1), true, b.color, b.team, true});
+        info.players.push_back({b.player, "AI " + std::to_string(b.player + 1), true, b.color, b.team, true, b.level, b.style});
     std::sort(info.players.begin(), info.players.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
     Writer w;
     w.u8(static_cast<std::uint8_t>(MessageType::Lobby));
@@ -237,6 +237,7 @@ void Server::broadcastChat(const Client& from, const std::string& text) {
 void Server::startMatch(const std::string* save) {
     const auto t0 = std::chrono::steady_clock::now();
     world_ = std::make_unique<World>(data_, *map_, config_.difficulty, config_.mode);
+    statsSent_ = false;
     world_->setCheats(config_.cheats);
     world_->setFog(config_.fog);
     spdlog::info("world ready in {:.2f}s", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
@@ -245,7 +246,7 @@ void Server::startMatch(const std::string* save) {
     if (config_.mode == GameMode::Skirmish)
         for (const auto& b : bots_) {
             world_->spawnPlayer(b.player, matchTeam(b.player, b.team));
-            world_->setAi(b.player, true);
+            world_->setAi(b.player, true, b.level, static_cast<AiStyle>(b.style));
         }
     for (auto& c : clients_) {
         if (save && world_->resumePlayer(c->player))
@@ -291,15 +292,20 @@ void Server::notice(const std::string& text, const std::string& from, std::uint8
 void Server::saveGame(Client& client, const std::string& name) {
     if (!world_ || client.player != leader() || !validSaveName(name))
         return;
+    writeSave(name, false);
+}
+
+void Server::writeSave(const std::string& name, bool quiet) {
     try {
         std::filesystem::create_directories(config_.saveDir);
         const auto path = std::filesystem::path(config_.saveDir) / (name + ".json");
         std::ofstream f(path, std::ios::binary);
-        f << makeSaveFile({config_.mapName, config_.mode, config_.difficulty, world_->tick()}, *world_);
+        f << makeSaveFile({config_.mapName, config_.mode, config_.difficulty, world_->tick(), config_.campaign, config_.fog}, *world_);
         if (!f)
             throw std::runtime_error("write failed");
         spdlog::info("saved '{}' to {}", name, path.string());
-        notice("Game saved: " + name);
+        if (!quiet)
+            notice("Game saved: " + name);
     } catch (const std::exception& e) {
         spdlog::warn("save '{}': {}", name, e.what());
         notice("Save failed: " + std::string(e.what()));
@@ -323,6 +329,8 @@ void Server::loadGame(Client& client, const std::string& name) {
         }
         config_.mode = header.mode;
         config_.difficulty = header.difficulty;
+        config_.campaign = header.campaign;
+        config_.fog = header.fog;
         startMatch(&text);
         spdlog::info("loaded '{}' (map {}, tick {})", name, header.map, header.tick);
         notice("Game loaded: " + name);
@@ -415,11 +423,20 @@ void Server::handleMessages(Client& client) {
             handlePlayerSetup(client, r);
             break;
         case MessageType::Bot: {
-            const bool add = r.u8() != 0;
+            const std::uint8_t op = r.u8();
             const std::uint8_t target = r.u8();
+            const std::uint8_t level = r.u8();
+            const std::uint8_t style = r.u8();
             if (!r.ok() || world_ || client.player != leader())
                 break;
-            if (add && playerCount() < config_.maxPlayers) {
+            const bool add = op == 1;
+            if (op == 2) {
+                for (auto& b : bots_)
+                    if (b.player == target) {
+                        b.level = static_cast<std::uint8_t>(std::min<int>(level, kAiLevels - 1));
+                        b.style = static_cast<std::uint8_t>(std::min<int>(style, static_cast<int>(AiStyle::Count) - 1));
+                    }
+            } else if (add && playerCount() < config_.maxPlayers) {
                 Bot b;
                 while (idTaken(b.player))
                     ++b.player;
@@ -428,6 +445,8 @@ void Server::handleMessages(Client& client) {
                        b.color + 1u < kPlayerColors.size())
                     ++b.color;
                 b.team = client.team;
+                b.level = static_cast<std::uint8_t>(std::min<int>(static_cast<int>(config_.difficulty), kAiLevels - 1));
+                b.style = static_cast<std::uint8_t>(bots_.size() % static_cast<std::size_t>(AiStyle::Count));
                 bots_.push_back(b);
             } else if (!add) {
                 std::erase_if(bots_, [&](const Bot& b) { return b.player == target; });
@@ -809,6 +828,28 @@ Snapshot Server::buildSnapshot() const {
     return s;
 }
 
+void Server::sendStats() {
+    statsSent_ = true;
+    MatchStats stats;
+    stats.seconds = world_->missionTime();
+    stats.winner = world_->defense().winner;
+    for (std::size_t i = 0; i < kMaxPlayers; ++i) {
+        const auto& p = world_->player(static_cast<std::uint8_t>(i));
+        if (!p.active)
+            continue;
+        const auto& st = p.stats;
+        const float spent = p.startEnergy + st.earned - p.energy;
+        stats.players.push_back({static_cast<std::uint8_t>(i), p.team, p.ai, p.aiLevel, static_cast<std::uint8_t>(p.aiStyle), st.produced, st.lost, st.kills,
+                                 st.built, st.structuresLost, st.researched, st.damageDealt, st.damageTaken, st.earned, std::max(0.0f, spent),
+                                 st.valueKilled, st.valueLost});
+    }
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Stats));
+    writeStats(w, stats);
+    for (auto& c : clients_)
+        c->conn->sendReliable(w.data());
+}
+
 void Server::tick() {
     if (!world_) {
         for (auto& c : clients_)
@@ -816,6 +857,11 @@ void Server::tick() {
         return;
     }
     world_->step();
+    if (!statsSent_ && world_->defense().state != MatchState::Playing)
+        sendStats();
+    if (config_.autosave > 0 && world_->defense().state == MatchState::Playing &&
+        world_->tick() % static_cast<std::uint64_t>(config_.autosave * kTickRate) == 0)
+        writeSave("autosave", true);
     for (const auto& text : world_->takeMessages())
         notice(text, "Command", 0xfe);
     Snapshot snap = buildSnapshot();

@@ -1576,6 +1576,7 @@
       "structure": true,
       "buildable": true,
       "cost": 180,
+      "sight": 13,
       "maxHp": 1000,
       "armor": 3,
       "radius": 0.9,
@@ -1957,7 +1958,7 @@
       "id": "uaz",
       "name": "UAZ (MG)",
       "cost": 55,
-      "maxHp": 180,
+      "maxHp": 220,
       "armor": 1,
       "armorType": "light",
       "radius": 0.5,
@@ -1977,7 +1978,7 @@
         "workshop"
       ],
       "weapon": {
-        "damage": 8,
+        "damage": 10,
         "range": 5.5,
         "cooldown": 0.3,
         "projectileSpeed": 52,
@@ -2024,7 +2025,7 @@
       "weapon": {
         "damage": 13,
         "range": 6.5,
-        "cooldown": 0.32,
+        "cooldown": 0.38,
         "projectileSpeed": 51,
         "type": "piercing",
         "targets": "both"
@@ -2102,7 +2103,7 @@
       "produceTime": 18,
       "weapon": {
         "type": "explosive",
-        "damage": 26,
+        "damage": 20,
         "range": 17,
         "cooldown": 11,
         "projectileSpeed": 15,
@@ -2590,7 +2591,8 @@
       "name": "D-30 Howitzer",
       "structure": true,
       "buildable": true,
-      "cost": 320,
+      "cost": 280,
+      "sight": 25,
       "maxHp": 1400,
       "armor": 4,
       "radius": 1.0,
@@ -2630,9 +2632,9 @@
       "buildTime": 14,
       "weapon": {
         "type": "kinetic",
-        "damage": 6,
+        "damage": 9,
         "range": 9,
-        "cooldown": 0.05,
+        "cooldown": 0.07,
         "projectileSpeed": 64,
         "turnRate": 4,
         "targets": "both"
@@ -3058,7 +3060,7 @@
       "research": "attack_helicopters",
       "weapon": {
         "type": "explosive",
-        "damage": 34,
+        "damage": 28,
         "range": 10,
         "cooldown": 7,
         "projectileSpeed": 26,
@@ -3137,6 +3139,7 @@
       "structure": true,
       "buildable": true,
       "cost": 320,
+      "sight": 21,
       "maxHp": 1300,
       "armor": 4,
       "radius": 1.1,
@@ -3169,7 +3172,7 @@
       {
         "id": "light",
         "name": "Light",
-        "cost": 40,
+        "cost": 50,
         "maxHp": 300,
         "armor": 1,
         "radius": 0.62,
@@ -3257,7 +3260,7 @@
           "type": "kinetic",
           "damage": 9,
           "range": 6,
-          "cooldown": 0.2,
+          "cooldown": 0.3,
           "projectileSpeed": 60,
           "turnRate": 4,
           "targets": "both"
@@ -3273,7 +3276,7 @@
           "type": "kinetic",
           "damage": 14,
           "range": 7,
-          "cooldown": 0.28,
+          "cooldown": 0.32,
           "projectileSpeed": 60,
           "turnRate": 4,
           "targets": "both"
@@ -3290,7 +3293,7 @@
           "type": "kinetic",
           "damage": 8,
           "range": 7,
-          "cooldown": 0.08,
+          "cooldown": 0.1,
           "projectileSpeed": 64,
           "turnRate": 4.5,
           "targets": "both"
@@ -3304,9 +3307,9 @@
         "research": "belt_feed",
         "weapon": {
           "type": "piercing",
-          "damage": 15,
+          "damage": 14,
           "range": 7,
-          "cooldown": 0.3,
+          "cooldown": 0.36,
           "projectileSpeed": 52,
           "turnRate": 3.5,
           "targets": "both"
@@ -3373,7 +3376,7 @@
       {
         "id": "rockets",
         "name": "MRL",
-        "cost": 200,
+        "cost": 230,
         "turret": "colony_grad",
         "research": "rocketry",
         "shot": "rocket",
@@ -3384,7 +3387,7 @@
         "sight": 19,
         "weapon": {
           "type": "explosive",
-          "damage": 34,
+          "damage": 22,
           "range": 18,
           "cooldown": 10,
           "projectileSpeed": 16,

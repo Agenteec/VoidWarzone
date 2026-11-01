@@ -257,6 +257,35 @@ void App::drawCampaign() {
                                    static_cast<int>(units.size()));
             else
                 ImGui::TextDisabled(tr(ICON_FA_HOME "  Base mission: the base you build here stays for the next missions"));
+            if (!base.empty()) {
+                // what exactly comes back: buildings first, then vehicles, with counts
+                std::vector<std::pair<std::string, int>> list;
+                for (int pass = 0; pass < 2; ++pass)
+                    for (const auto& u : base) {
+                        const UnitDefId def = data_->find(u.value("def", ""));
+                        if (def == kInvalidUnitDef || data_->unit(def).structure != (pass == 0))
+                            continue;
+                        const std::string& name = data_->unit(def).name;
+                        auto it = std::find_if(list.begin(), list.end(), [&](const auto& e) { return e.first == name; });
+                        if (it == list.end())
+                            list.emplace_back(name, 1);
+                        else
+                            ++it->second;
+                    }
+                std::string text;
+                for (const auto& [name, count] : list)
+                    text += (text.empty() ? "" : ", ") + name + (count > 1 ? " x" + std::to_string(count) : "");
+                ImGui::TextColored(toVec(kDim), "%s", text.c_str());
+                int topics = 0;
+                try {
+                    if (!campaignResearch_.empty())
+                        topics = static_cast<int>(json::parse(campaignResearch_).size());
+                } catch (const std::exception&) {
+                }
+                ImGui::TextColored(toVec(kDim), tr(ICON_FA_FLASK "  %d technologies researched"), topics);
+                ImGui::SameLine(0.0f, 24.0f * s);
+                ImGui::TextColored(toVec(kDim), tr(ICON_FA_BOLT "  %.0f energy"), std::max(0.0f, campaignEnergy_));
+            }
         } else {
             ImGui::TextColored(toVec(kAccent), tr(ICON_FA_TRUCK "  Sortie: pick up to %d vehicles from the base"), m.transport);
             if (sortieFor_ != campaignChoice_) {
@@ -318,6 +347,7 @@ void App::drawCampaign() {
             campaignDone_.clear();
             campaignRoster_.clear();
             campaignBase_.clear();
+            campaignResearch_.clear();
             campaignEnergy_ = -1.0f;
             sortieFor_ = -1;
             saveCampaign();

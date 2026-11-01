@@ -61,11 +61,11 @@ void App::drawDesigner() {
         }
         ImGui::EndGroup();
     };
-    column("HULL", bodies, designBody_);
+    column(tr("HULL"), bodies, designBody_);
     ImGui::SameLine(0.0f, 18.0f * s);
-    column("RUNNING GEAR", props, designProp_);
+    column(tr("RUNNING GEAR"), props, designProp_);
     ImGui::SameLine(0.0f, 18.0f * s);
-    column("WEAPON", weapons, designWeapon_);
+    column(tr("WEAPON"), weapons, designWeapon_);
     ImGui::SameLine(0.0f, 24.0f * s);
 
     const UnitDefId id = data_->designOf(bodies[static_cast<std::size_t>(designBody_)].id, props[static_cast<std::size_t>(designProp_)].id,
@@ -101,7 +101,7 @@ void App::drawDesigner() {
         ImGui::Spacing();
         const bool saved = designSaved(id);
         ImGui::BeginDisabled(saved || designs_.size() >= 12);
-        if (ImGui::Button(saved ? ICON_FA_CHECK "  Saved" : ICON_FA_PLUS "  Save design", {200.0f * s, 34.0f * s})) {
+        if (ImGui::Button(tr(saved ? ICON_FA_CHECK "  Saved" : ICON_FA_PLUS "  Save design"), {200.0f * s, 34.0f * s})) {
             designs_.push_back(def.id);
             saveSettings();
             playUi("ui_confirm");

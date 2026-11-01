@@ -310,6 +310,30 @@ TEST_CASE("save and load restore the match") {
     CHECK_FALSE(validSaveName("../evil"));
 }
 
+TEST_CASE("skirmish saves keep AI players, their settings and stats") {
+    const auto data = GameData::parse(kUnits);
+    const auto map = Map::parse(kMap);
+    World world(data, map, Difficulty::Normal, GameMode::Skirmish);
+    world.spawnPlayer(0, kFirstSkirmishTeam);
+    world.spawnPlayer(1, kFirstSkirmishTeam + 1);
+    world.setAi(1, true, 3, AiStyle::Artillery);
+    run(world, 3.0f);
+    const std::string file = makeSaveFile({"test", GameMode::Skirmish, Difficulty::Normal, world.tick(), "c1m2", true}, world);
+    CHECK(readSaveHeader(file).campaign == "c1m2");
+    CHECK(readSaveHeader(file).fog);
+
+    World loaded(data, map, Difficulty::Normal, GameMode::Skirmish);
+    loaded.loadState(file);
+    CHECK(loaded.player(1).active); // AI resumes without a client
+    CHECK(loaded.player(1).ai);
+    CHECK(loaded.player(1).aiLevel == 3);
+    CHECK(loaded.player(1).aiStyle == AiStyle::Artillery);
+    CHECK(loaded.player(1).team == kFirstSkirmishTeam + 1);
+    CHECK_FALSE(loaded.player(0).active);
+    CHECK(loaded.resumePlayer(0));
+    CHECK(loaded.player(0).stats.earned == doctest::Approx(world.player(0).stats.earned));
+}
+
 TEST_CASE("mission objectives and triggers drive the match") {
     const auto data = GameData::parse(kUnits);
     const auto map = Map::parse(R"({"width":40,"height":40,

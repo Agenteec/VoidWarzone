@@ -33,6 +33,17 @@ void World::grantResearch(std::uint8_t player, ResearchId topic) {
     r[topic] = 1;
 }
 
+StatMods World::economy(int player) const {
+    StatMods m;
+    if (player < 0 || player >= static_cast<int>(kMaxPlayers))
+        return m;
+    const auto& r = players_[static_cast<std::size_t>(player)].researched;
+    for (std::size_t t = 0; t < r.size() && t < data_->research().size(); ++t)
+        if (r[t])
+            m.add(data_->research(static_cast<ResearchId>(t)).mods);
+    return m;
+}
+
 void World::refreshOwned(std::uint8_t player) {
     std::vector<entt::entity> list;
     for (auto [e, owner] : registry_.view<const Owner>().each())
@@ -47,7 +58,7 @@ void World::updateResearch() {
     for (auto [e, lab, owner] : registry_.view<Lab, const Owner>(entt::exclude<Construction>).each()) {
         if (lab.topic >= data_->research().size() || !alive(e))
             continue;
-        lab.progress += kTickDt;
+        lab.progress += kTickDt * (1.0f + economy(owner.player).researchSpeed);
         if (lab.progress >= data_->research(lab.topic).time) {
             done.emplace_back(owner.player, lab.topic);
             lab.topic = kInvalidId;
@@ -56,6 +67,8 @@ void World::updateResearch() {
     }
     for (const auto& [player, topic] : done) {
         grantResearch(player, topic);
+        if (player < kMaxPlayers)
+            ++players_[player].stats.researched;
         refreshOwned(player);
     }
 }
@@ -147,6 +160,17 @@ void World::handle(const CheatCommand& cmd) {
         if (defense_.state == MatchState::Playing) {
             const bool win = cmd.op == CheatOp::Win;
             defense_.state = win ? MatchState::Victory : MatchState::Defeat;
+            if (mode_ == GameMode::Skirmish) {
+                // the requester's side wins, or the first other side does
+                defense_.state = MatchState::Victory;
+                defense_.winner = players_[cmd.player].team;
+                if (!win)
+                    for (const auto& other : players_)
+                        if (other.active && other.team != players_[cmd.player].team) {
+                            defense_.winner = other.team;
+                            break;
+                        }
+            }
             events_.push_back({EventType::MatchEnd, entt::null, entt::null, {}, {}, win ? 1.0f : 0.0f});
         }
         break;

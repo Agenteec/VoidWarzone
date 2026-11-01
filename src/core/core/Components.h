@@ -51,6 +51,7 @@ struct Health {
     float shield = 0.0f;
     float shieldMax = 0.0f;
     float shieldDelay = 0.0f;
+    UnitDefId lastHitDef = kInvalidUnitDef;
 };
 
 struct Weapon {

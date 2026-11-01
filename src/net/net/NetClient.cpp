@@ -99,6 +99,7 @@ void NetClient::start(std::uint64_t dataHash, std::string name, double now) {
 }
 
 void NetClient::disconnect() {
+    matchStats_.reset();
     if (state_ != ClientState::Disconnected && (socket_.isOpen() || ice_)) {
         Writer w;
         w.u8(static_cast<std::uint8_t>(PacketType::Disconnect));
@@ -236,6 +237,7 @@ void NetClient::handlePacket(const std::uint8_t* buf, int n, double now) {
 }
 
 void NetClient::resetMatch() {
+    matchStats_.reset();
     snapshots_ = {};
     latestTick_ = 0;
     synced_ = false;
@@ -258,6 +260,10 @@ void NetClient::handleMessages() {
             mapName_ = info.map;
             mapHash_ = info.mapHash;
             lobby_ = std::move(info);
+        } else if (type == MessageType::Stats) {
+            MatchStats stats;
+            if (readStats(r, stats))
+                matchStats_ = std::move(stats);
         } else if (type == MessageType::Chat) {
             ChatLine line;
             line.player = r.u8();
@@ -289,6 +295,18 @@ void NetClient::sendBot(bool add, std::uint8_t target) {
     w.u8(static_cast<std::uint8_t>(MessageType::Bot));
     w.u8(add ? 1 : 0);
     w.u8(target);
+    w.u8(0);
+    w.u8(0);
+    sendMessage(w);
+}
+
+void NetClient::sendBotSetup(std::uint8_t target, std::uint8_t level, std::uint8_t style) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(MessageType::Bot));
+    w.u8(2);
+    w.u8(target);
+    w.u8(level);
+    w.u8(style);
     sendMessage(w);
 }
 

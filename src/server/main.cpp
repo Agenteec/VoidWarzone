@@ -33,21 +33,48 @@ std::string readFile(const std::filesystem::path& path) {
     return ss.str();
 }
 
-int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty difficulty, vw::GameMode mode, int players, bool fog) {
+struct SimOptions {
+    std::vector<int> levels;
+    std::vector<vw::AiStyle> styles;
+    int minutes = 20;
+    bool quiet = false;
+};
+
+std::vector<std::string> splitList(std::string_view text) {
+    std::vector<std::string> out;
+    std::string cur;
+    for (char c : text) {
+        if (c == ',') {
+            out.push_back(cur);
+            cur.clear();
+        } else {
+            cur += c;
+        }
+    }
+    if (!cur.empty())
+        out.push_back(cur);
+    return out;
+}
+
+int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty difficulty, vw::GameMode mode, int players, bool fog,
+             const SimOptions& opt) {
     vw::World world(data, map, difficulty, mode);
     world.setFog(fog);
     const bool skirmish = mode == vw::GameMode::Skirmish;
     for (int p = 0; p < players; ++p) {
         world.spawnPlayer(static_cast<std::uint8_t>(p), skirmish ? static_cast<std::uint8_t>(vw::kFirstSkirmishTeam + p) : std::uint8_t{0});
-        if (skirmish)
-            world.setAi(static_cast<std::uint8_t>(p), true);
+        if (skirmish) {
+            const auto idx = static_cast<std::size_t>(p);
+            world.setAi(static_cast<std::uint8_t>(p), true, idx < opt.levels.size() ? opt.levels[idx] : -1,
+                        idx < opt.styles.size() ? opt.styles[idx] : vw::AiStyle::Balanced);
+        }
     }
     spdlog::info("simulating {} | {} | {} {} players", map.name(), vw::difficultyName(difficulty), players, skirmish ? "AI" : "idle");
 
-    const std::uint64_t limit = static_cast<std::uint64_t>(vw::kTickRate) * 60 * 20;
+    const std::uint64_t limit = static_cast<std::uint64_t>(vw::kTickRate) * 60 * static_cast<std::uint64_t>(opt.minutes);
     while (world.defense().state == vw::MatchState::Playing && world.tick() < limit) {
         world.step();
-        if (skirmish && world.tick() % (vw::kTickRate * 120) == 0) {
+        if (skirmish && !opt.quiet && world.tick() % (vw::kTickRate * 120) == 0) {
             std::string line;
             for (int p = 0; p < players; ++p) {
                 int units = 0, structures = 0, building = 0;
@@ -102,9 +129,33 @@ int simulate(const vw::GameData& data, const vw::Map& map, vw::Difficulty diffic
         for (const auto& [p, c] : perPlayer)
             spdlog::info("  player {} (team {}): {} structures, {} units, energy {:.0f}", p, world.player(static_cast<std::uint8_t>(p)).team, c.first, c.second,
                          world.player(static_cast<std::uint8_t>(p)).energy);
-        for (const auto& [p, k] : kinds)
-            spdlog::info("  player {}: {}", p, k);
-        spdlog::info("  winner team {}", d.winner);
+        if (!opt.quiet)
+            for (const auto& [p, k] : kinds)
+                spdlog::info("  player {}: {}", p, k);
+        for (int p = 0; p < players; ++p) {
+            const auto& pl = world.player(static_cast<std::uint8_t>(p));
+            const auto& st = pl.stats;
+            spdlog::info("  stats p{} {} L{}: made {} built {} lost {}/{} kills {} dealt {:.0f} taken {:.0f} earned {:.0f} research {} value k/l {:.0f}/{:.0f}",
+                         p, vw::aiStyleName(pl.aiStyle), pl.aiLevel, st.produced, st.built, st.lost, st.structuresLost, st.kills, st.damageDealt,
+                         st.damageTaken, st.earned, st.researched, st.valueKilled, st.valueLost);
+        }
+        spdlog::info("  winner team {} ({})", d.winner,
+                     d.winner >= vw::kFirstSkirmishTeam && d.winner - vw::kFirstSkirmishTeam < players
+                         ? vw::aiStyleName(world.player(static_cast<std::uint8_t>(d.winner - vw::kFirstSkirmishTeam)).aiStyle)
+                         : "-");
+        // unit balance: cost efficiency = enemy value destroyed / own value lost, damage per cost spent
+        std::vector<std::size_t> order;
+        for (std::size_t i = 0; i < world.defStats().size(); ++i)
+            if (world.defStats()[i].produced > 0 || world.defStats()[i].dealt > 0.0f)
+                order.push_back(i);
+        std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return world.defStats()[a].dealt > world.defStats()[b].dealt; });
+        for (const auto i : order) {
+            const auto& ds = world.defStats()[i];
+            const auto& def = data.unit(static_cast<vw::UnitDefId>(i));
+            const float spent = def.cost * static_cast<float>(std::max(ds.produced, 1));
+            spdlog::info("  unit {:<22} made {:>3} lost {:>3} kills {:>4} dealt {:>8.0f} taken {:>8.0f} dmg/cost {:>5.2f} kill/cost {:>5.2f}", def.id,
+                         ds.produced, ds.lost, ds.kills, ds.dealt, ds.taken, ds.dealt / spent, ds.valueKilled / spent);
+        }
     }
     return d.state == vw::MatchState::Defeat ? 2 : 0;
 }
@@ -125,6 +176,7 @@ int main(int argc, char** argv) {
     double runFor = 0.0;
     std::string master;
     int simPlayers = -1;
+    SimOptions sim;
     bool iceLog = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
@@ -163,6 +215,21 @@ int main(int argc, char** argv) {
             config.lobby = false;
         } else if (arg == "--export-map" && hasValue) {
             exportPath = argv[++i];
+        } else if (arg == "--ai-styles" && hasValue) {
+            for (const auto& name : splitList(argv[++i])) {
+                vw::AiStyle st = vw::AiStyle::Balanced;
+                for (int k = 0; k < static_cast<int>(vw::AiStyle::Count); ++k)
+                    if (name == vw::aiStyleName(static_cast<vw::AiStyle>(k)))
+                        st = static_cast<vw::AiStyle>(k);
+                sim.styles.push_back(st);
+            }
+        } else if (arg == "--ai-levels" && hasValue) {
+            for (const auto& v : splitList(argv[++i]))
+                sim.levels.push_back(std::atoi(v.c_str()));
+        } else if (arg == "--minutes" && hasValue) {
+            sim.minutes = std::atoi(argv[++i]);
+        } else if (arg == "--quiet") {
+            sim.quiet = true;
         } else if (arg == "--simulate")
             simPlayers = hasValue && argv[i + 1][0] != '-' ? std::atoi(argv[++i]) : 0;
     }
@@ -192,7 +259,7 @@ int main(int argc, char** argv) {
         }
         const auto map = vw::Map::parse(generated ? *generated : readFile(dataDir / "maps" / (config.mapName + ".json")));
         if (simPlayers >= 0)
-            return simulate(data, map, config.difficulty, config.mode, simPlayers, fog);
+            return simulate(data, map, config.difficulty, config.mode, simPlayers, fog, sim);
         config.loadMap = [dataDir](const std::string& name) {
             if (name.empty() || name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_") != std::string::npos)
                 throw std::runtime_error("bad map name");

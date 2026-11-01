@@ -43,6 +43,11 @@ struct StatMods {
     float armor = 0.0f;
     float range = 0.0f;
     float regen = 0.0f;
+    // economy research (player-wide fractions): +income, faster construction, production and research
+    float income = 0.0f;
+    float buildSpeed = 0.0f;
+    float produceSpeed = 0.0f;
+    float researchSpeed = 0.0f;
 
     void add(const StatMods& o, float scale = 1.0f);
 };

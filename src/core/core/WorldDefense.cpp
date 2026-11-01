@@ -94,9 +94,9 @@ void World::grantTeamEnergy(float amount) {
     if (n == 0)
         return;
     const float share = amount / static_cast<float>(n);
-    for (auto& p : players_)
-        if (p.active)
-            p.energy += share;
+    for (std::size_t i = 0; i < players_.size(); ++i)
+        if (players_[i].active)
+            earn(players_[i], share * (1.0f + economy(static_cast<int>(i)).income));
 }
 
 void World::handle(const StructureCommand& cmd) {
@@ -159,7 +159,8 @@ void World::updateFactories() {
     for (auto [e, factory] : registry_.view<Factory>(entt::exclude<Construction>).each()) {
         if (factory.queue.empty() || !alive(e))
             continue;
-        factory.progress += kTickDt;
+        const auto* fo = registry_.try_get<Owner>(e);
+        factory.progress += kTickDt * (1.0f + (fo ? economy(fo->player).produceSpeed : 0.0f));
         if (factory.progress >= data_->unit(factory.queue.front()).produceTime)
             ready.push_back({e, factory.queue.front()});
     }
@@ -171,6 +172,7 @@ void World::updateFactories() {
         const glm::vec2 pos = Map::center(nearestFree(navMap(), Map::cellOf(at + dir * (radius + 1.4f))));
         const auto* owner = registry_.try_get<Owner>(r.factory);
         const auto made = spawn(r.unit, registry_.get<Team>(r.factory).id, pos, owner ? static_cast<int>(owner->player) : -1);
+        noteProduced(owner ? static_cast<int>(owner->player) : -1, r.unit, false);
         if (factory.hasRally && registry_.all_of<Order>(made))
             registry_.get<Order>(made) = {OrderType::Move, factory.rally, entt::null, pos};
         factory.queue.erase(factory.queue.begin());
@@ -283,6 +285,7 @@ void World::handle(const RecruitCommand& cmd) {
                                          : glm::vec2(static_cast<float>(slot % 3 - 1) * 1.5f, static_cast<float>(slot / 3 - 1) * 1.5f);
     const glm::vec2 pos = Map::center(nearestFree(navMap(), Map::cellOf(origin + offset)));
     spawn(cmd.unit, player.team, pos, cmd.player);
+    noteProduced(cmd.player, cmd.unit, false);
 }
 
 SiteStatus World::checkSite(UnitDefId id, glm::vec2 pos, std::uint8_t team, bool phantoms) const {
@@ -417,7 +420,9 @@ void World::updateConstruction() {
                 ++builders;
         if (builders == 0)
             continue;
-        const float step = kTickDt * std::pow(static_cast<float>(builders), 0.75f) / std::max(data_->unit(unit.def).buildTime, 0.1f);
+        const auto* so = registry_.try_get<Owner>(s);
+        const float step = kTickDt * std::pow(static_cast<float>(builders), 0.75f) / std::max(data_->unit(unit.def).buildTime, 0.1f) *
+                           (1.0f + (so ? economy(so->player).buildSpeed : 0.0f));
         construction.progress += step;
         auto& health = registry_.get<Health>(s);
         health.hp = std::min(health.max, health.hp + health.max * 0.9f * step);
@@ -426,8 +431,11 @@ void World::updateConstruction() {
     for (auto [s, construction] : registry_.view<const Construction>().each())
         if (construction.progress >= 1.0f)
             done.push_back(s);
-    for (const auto s : done)
+    for (const auto s : done) {
         registry_.remove<Construction>(s);
+        const auto* owner = registry_.try_get<Owner>(s);
+        noteProduced(owner ? static_cast<int>(owner->player) : -1, registry_.get<Unit>(s).def, true);
+    }
 }
 
 void World::updateProducers() {
@@ -662,7 +670,11 @@ void World::grantEnergyTo(std::uint8_t team, float amount) {
         return;
     for (auto& p : players_)
         if (p.active && p.team == team)
-            p.energy += amount / static_cast<float>(n);
+            earn(p, amount / static_cast<float>(n));
+}
+
+namespace {
+constexpr float kAiIncome[kAiLevels] = {0.8f, 1.0f, 1.2f, 1.45f};
 }
 
 void World::updateSkirmish() {
@@ -670,7 +682,7 @@ void World::updateSkirmish() {
     std::array<float, kMaxPlayers> income{};
     for (std::size_t i = 0; i < players_.size(); ++i)
         if (players_[i].active)
-            income[i] = def.baseIncome * (players_[i].ai && difficulty_ >= Difficulty::Hard ? 1.25f : 1.0f);
+            income[i] = def.baseIncome * (players_[i].ai ? kAiIncome[players_[i].aiLevel % kAiLevels] : 1.0f);
     std::array<bool, 64> alive_{};
     for (auto [e, unit, owner, team] : registry_.view<const Unit, const Owner, const Team>().each()) {
         if (!alive(e) || owner.player >= kMaxPlayers)
@@ -682,7 +694,7 @@ void World::updateSkirmish() {
     }
     for (std::size_t i = 0; i < players_.size(); ++i)
         if (players_[i].active)
-            players_[i].energy += income[i] * kTickDt;
+            earn(players_[i], income[i] * kTickDt * (1.0f + economy(static_cast<int>(i)).income));
     if (defense_.state != MatchState::Playing)
         return;
     int teams = 0;

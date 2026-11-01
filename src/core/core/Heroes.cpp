@@ -176,7 +176,7 @@ void World::onEnemyKilled(const UnitDef& def, glm::vec2 pos, int lastHitBy) {
     if (def.bounty > 0.0f) {
         if (byPlayer) {
             auto& p = players_[static_cast<std::size_t>(lastHitBy)];
-            p.energy += def.bounty;
+            earn(p, def.bounty);
             ++p.kills;
         } else {
             grantTeamEnergy(def.bounty * 0.5f);

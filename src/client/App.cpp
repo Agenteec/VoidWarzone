@@ -529,6 +529,8 @@ void App::startHost(bool multiplayer) {
     config.fog = true;
     config.loadMap = [](const std::string& name) { return readMap(name); };
     config.saveDir = savesDir();
+    config.autosave = 300;
+    config.campaign = campaignMission_;
     if (!campaignMission_.empty()) {
         config.base = matchBase_;
         config.energy = matchEnergy_;
@@ -1063,6 +1065,8 @@ void App::handleGameKey(SDL_Keycode key, bool shift) {
         cycleShadows();
     } else if (key == SDLK_F6) {
         cycleLight();
+    } else if (key == SDLK_F8 && net_.lobby().leader == net_.player()) {
+        net_.sendSaveGame("quicksave");
     } else if (key >= SDLK_0 && key <= SDLK_9 && (ctrl || panel_ == Panel::None)) {
         controlGroup(static_cast<int>(key - SDLK_0), ctrl, shift);
     } else if (panel_ != Panel::None && ((key >= SDLK_1 && key <= SDLK_9) || key == SDLK_0)) {
@@ -1341,6 +1345,10 @@ void App::updateGame(float dt) {
                 options_.debug = false;
                 break;
             }
+    if (cameraPlaced_ && options_.autoWin > 0.0f && net_.latest() && net_.latest()->tick > static_cast<std::uint32_t>(options_.autoWin * kTickRate)) {
+        options_.autoWin = 0.0f;
+        sendCheat(CheatOp::Win);
+    }
     if (cameraPlaced_ && options_.designer) {
         designerOpen_ = true;
         options_.designer = false;
@@ -1400,10 +1408,15 @@ void App::frame(double dt) {
     if (autoStart_ && screen_ == Screen::Lobby && !net_.lobby().players.empty()) {
         autoStart_ = false;
         if (net_.lobby().leader == net_.player()) {
-            for (int b = 0; b < options_.bots; ++b)
-                net_.sendBot(true);
-            if (!options_.stayInLobby)
-                net_.sendStart();
+            if (!pendingLoad_.empty()) {
+                net_.sendLoadGame(pendingLoad_);
+                pendingLoad_.clear();
+            } else {
+                for (int b = 0; b < options_.bots; ++b)
+                    net_.sendBot(true);
+                if (!options_.stayInLobby)
+                    net_.sendStart();
+            }
         }
     }
     updateLobby();
@@ -1941,6 +1954,14 @@ std::string App::modsText(const StatMods& m) const {
         add("+%.1f range ", m.range);
     if (m.regen != 0.0f)
         add("+%.0f regen ", m.regen);
+    if (m.income != 0.0f)
+        add(tr("+%.0f%% income "), m.income * 100.0f);
+    if (m.buildSpeed != 0.0f)
+        add(tr("+%.0f%% build speed "), m.buildSpeed * 100.0f);
+    if (m.produceSpeed != 0.0f)
+        add(tr("+%.0f%% production "), m.produceSpeed * 100.0f);
+    if (m.researchSpeed != 0.0f)
+        add(tr("+%.0f%% research speed "), m.researchSpeed * 100.0f);
     return s;
 }
 

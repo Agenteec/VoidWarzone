@@ -21,7 +21,44 @@ void writeLobby(Writer& w, const LobbyInfo& info) {
         w.u8(p.color);
         w.u8(p.team);
         w.u8(p.bot ? 1 : 0);
+        w.u8(p.aiLevel);
+        w.u8(p.aiStyle);
     }
+}
+
+void writeStats(Writer& w, const MatchStats& stats) {
+    w.f32(stats.seconds);
+    w.u32(static_cast<std::uint32_t>(stats.winner));
+    w.u8(static_cast<std::uint8_t>(stats.players.size()));
+    for (const auto& p : stats.players) {
+        w.u8(p.id);
+        w.u8(p.team);
+        w.u8(p.ai ? 1 : 0);
+        w.u8(p.aiLevel);
+        w.u8(p.aiStyle);
+        for (const auto v : {p.produced, p.lost, p.kills, p.built, p.structuresLost, p.researched})
+            w.u32(static_cast<std::uint32_t>(v));
+        for (const auto v : {p.damageDealt, p.damageTaken, p.earned, p.spent, p.valueKilled, p.valueLost})
+            w.f32(v);
+    }
+}
+
+bool readStats(Reader& r, MatchStats& stats) {
+    stats.seconds = r.f32();
+    stats.winner = static_cast<std::int32_t>(r.u32());
+    stats.players.resize(r.u8());
+    for (auto& p : stats.players) {
+        p.id = r.u8();
+        p.team = r.u8();
+        p.ai = r.u8() != 0;
+        p.aiLevel = r.u8();
+        p.aiStyle = r.u8();
+        for (auto* v : {&p.produced, &p.lost, &p.kills, &p.built, &p.structuresLost, &p.researched})
+            *v = static_cast<std::int32_t>(r.u32());
+        for (auto* v : {&p.damageDealt, &p.damageTaken, &p.earned, &p.spent, &p.valueKilled, &p.valueLost})
+            *v = r.f32();
+    }
+    return r.ok();
 }
 
 bool readLobby(Reader& r, LobbyInfo& info) {
@@ -43,6 +80,8 @@ bool readLobby(Reader& r, LobbyInfo& info) {
         p.color = static_cast<std::uint8_t>(r.u8() % kPlayerColors.size());
         p.team = static_cast<std::uint8_t>(r.u8() % kLobbyTeams);
         p.bot = r.u8() != 0;
+        p.aiLevel = static_cast<std::uint8_t>(r.u8() % 4);
+        p.aiStyle = r.u8();
     }
     return r.ok();
 }

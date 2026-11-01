@@ -17,7 +17,7 @@ constexpr int kSaveVersion = 1;
 
 std::string makeSaveFile(const SaveHeader& header, const World& world) {
     json out = {{"map", header.map}, {"mode", static_cast<int>(header.mode)}, {"difficulty", static_cast<int>(header.difficulty)},
-                {"tick", world.tick()}, {"world", json::parse(world.saveState())}};
+                {"tick", world.tick()}, {"campaign", header.campaign}, {"fog", header.fog}, {"world", json::parse(world.saveState())}};
     return out.dump(1);
 }
 
@@ -28,6 +28,8 @@ SaveHeader readSaveHeader(std::string_view text) {
     h.mode = static_cast<GameMode>(std::clamp(in.value("mode", 0), 0, 3));
     h.difficulty = static_cast<Difficulty>(std::clamp(in.value("difficulty", 1), 0, 3));
     h.tick = in.value("tick", std::uint64_t{0});
+    h.campaign = in.value("campaign", std::string{});
+    h.fog = in.value("fog", false);
     return h;
 }
 
@@ -70,7 +72,12 @@ std::string World::saveState() const {
         for (std::size_t i = 0; i < p.researched.size(); ++i)
             if (p.researched[i])
                 research.push_back(data_->research(static_cast<ResearchId>(i)).id);
-        players.push_back({{"active", p.active}, {"energy", p.energy}, {"kills", p.kills}, {"shards", p.shards}, {"stash", stash}, {"research", research}});
+        const auto& st = p.stats;
+        players.push_back({{"active", p.active}, {"energy", p.energy}, {"kills", p.kills}, {"shards", p.shards}, {"stash", stash}, {"research", research},
+                           {"team", p.team}, {"slot", p.slot}, {"ai", p.ai}, {"aiLevel", p.aiLevel}, {"aiStyle", static_cast<int>(p.aiStyle)},
+                           {"startEnergy", p.startEnergy},
+                           {"stats", {st.produced, st.lost, st.kills, st.built, st.structuresLost, st.researched, st.damageDealt, st.damageTaken,
+                                      st.earned, st.valueKilled, st.valueLost}}});
     }
     out["players"] = players;
     json points = json::array();
@@ -262,6 +269,23 @@ void World::loadState(std::string_view text) {
             if (const ItemId id = data_->findItem(item.get<std::string>()); id != kInvalidId)
                 p.stash.push_back(id);
         saved_[i] = players[i].value("active", false);
+        p.team = static_cast<std::uint8_t>(players[i].value("team", static_cast<int>(p.team)));
+        p.slot = static_cast<std::uint8_t>(players[i].value("slot", static_cast<int>(p.slot)));
+        p.ai = players[i].value("ai", false);
+        p.aiLevel = static_cast<std::uint8_t>(std::clamp(players[i].value("aiLevel", 1), 0, kAiLevels - 1));
+        p.aiStyle = static_cast<AiStyle>(std::clamp(players[i].value("aiStyle", 0), 0, static_cast<int>(AiStyle::Count) - 1));
+        p.startEnergy = players[i].value("startEnergy", 0.0f);
+        if (const auto st = players[i].find("stats"); st != players[i].end() && st->is_array() && st->size() >= 11) {
+            const auto& a = *st;
+            p.stats = {a[0].get<int>(),   a[1].get<int>(),   a[2].get<int>(),   a[3].get<int>(),   a[4].get<int>(),   a[5].get<int>(),
+                       a[6].get<float>(), a[7].get<float>(), a[8].get<float>(), a[9].get<float>(), a[10].get<float>()};
+        }
+        if (p.ai && saved_[i]) {
+            // computer players have no client to come back: they resume right away
+            p.active = true;
+            saved_[i] = false;
+            ai_[i] = {};
+        }
         p.researched.clear();
         for (const auto& t : players[i].value("research", json::array()))
             if (const ResearchId id = data_->findResearch(t.get<std::string>()); id != kInvalidId)

@@ -33,6 +33,8 @@ struct ServerConfig {
     std::string research;
     std::string base;
     float energy = -1.0f;
+    std::string campaign;
+    int autosave = 0; // seconds between autosaves, 0 = off
 };
 
 class Server {
@@ -107,8 +109,13 @@ private:
         std::uint8_t player = 0;
         std::uint8_t color = 0;
         std::uint8_t team = 0;
+        std::uint8_t level = 1;
+        std::uint8_t style = 0;
     };
     std::vector<Bot> bots_;
+    bool statsSent_ = false;
+    void writeSave(const std::string& name, bool quiet);
+    void sendStats();
     bool idTaken(std::uint8_t player) const;
     std::uint8_t matchTeam(std::uint8_t player, std::uint8_t lobbyTeam) const;
     std::array<net::Snapshot, 64> history_{};

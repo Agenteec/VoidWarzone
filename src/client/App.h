@@ -70,6 +70,7 @@ struct LaunchOptions {
     int bots = 0;
     bool debug = false;
     bool researchTree = false;
+    float autoWin = 0.0f; // dev: cheat a victory after this many seconds of play (screenshots of the end screen)
 };
 
 const char* shadowQualityName(int quality);
@@ -349,6 +350,7 @@ private:
     void drawStats();
     void drawPauseMenu();
     void drawEndScreen();
+    void drawMatchStats();
     void trackWindow();
     bool overUi(glm::vec2 p) const;
     float uiScale() const;
@@ -487,6 +489,10 @@ private:
     bool drawObjectives();
     char saveName_[49] = "";
     std::vector<std::string> saves_;
+    std::string pendingLoad_;
+    bool loadOpen_ = false;
+    void drawLoadWindow();
+    void loadSave(const std::string& name);
     int saveChoice_ = 0;
     double savesListed_ = -100.0;
     std::unordered_map<std::uint32_t, Shell> shells_;

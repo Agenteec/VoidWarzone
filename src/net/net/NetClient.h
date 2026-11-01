@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <unordered_map>
@@ -65,6 +66,8 @@ public:
     void sendCheats(bool on);
     void sendFog(bool on);
     void sendBot(bool add, std::uint8_t target = 0);
+    void sendBotSetup(std::uint8_t target, std::uint8_t level, std::uint8_t style);
+    const std::optional<MatchStats>& matchStats() const { return matchStats_; }
     void sendSettings(const std::string& map, std::uint8_t mode, std::uint8_t difficulty, std::uint8_t maxPlayers);
     void sendStart();
     void sendSaveGame(const std::string& name);
@@ -128,6 +131,7 @@ private:
     std::uint64_t mapHash_ = 0;
     LobbyInfo lobby_;
     std::vector<ChatLine> chat_;
+    std::optional<MatchStats> matchStats_;
 
     std::array<Snapshot, 64> snapshots_{};
     std::uint32_t latestTick_ = 0;
