@@ -1545,18 +1545,18 @@
       "name": "ZU-23 AA",
       "structure": true,
       "buildable": true,
-      "cost": 140,
+      "cost": 160,
       "maxHp": 1100,
       "armor": 3,
       "radius": 0.9,
       "buildTime": 9,
       "weapon": {
         "damage": 14,
-        "range": 9,
+        "range": 11,
         "cooldown": 0.25,
         "projectileSpeed": 64,
         "type": "kinetic",
-        "targets": "air"
+        "targets": "both"
       },
       "visual": {
         "shape": "cylinder",
@@ -1664,7 +1664,7 @@
       "name": "Tank Shop",
       "structure": true,
       "buildable": true,
-      "cost": 420,
+      "cost": 320,
       "maxHp": 4200,
       "armor": 6,
       "radius": 2.6,
@@ -1957,7 +1957,7 @@
     {
       "id": "uaz",
       "name": "UAZ (MG)",
-      "cost": 55,
+      "cost": 60,
       "maxHp": 220,
       "armor": 1,
       "armorType": "light",
@@ -2001,7 +2001,7 @@
     {
       "id": "mtlb",
       "name": "MT-LB (23 mm)",
-      "cost": 110,
+      "cost": 135,
       "maxHp": 400,
       "armor": 2,
       "armorType": "heavy",
@@ -2088,8 +2088,8 @@
     {
       "id": "grad",
       "name": "BM-21 Grad",
-      "cost": 260,
-      "maxHp": 380,
+      "cost": 230,
+      "maxHp": 480,
       "armor": 1,
       "armorType": "heavy",
       "radius": 0.75,
@@ -2432,7 +2432,7 @@
     {
       "id": "shilka",
       "name": "ZSU-23-4 Shilka",
-      "cost": 240,
+      "cost": 260,
       "maxHp": 520,
       "armor": 3,
       "armorType": "heavy",
@@ -2447,7 +2447,7 @@
       "produceTime": 18,
       "weapon": {
         "type": "kinetic",
-        "damage": 10,
+        "damage": 8,
         "range": 10,
         "cooldown": 0.07,
         "projectileSpeed": 64,
@@ -2469,7 +2469,7 @@
     {
       "id": "gvozdika",
       "name": "2S1 Gvozdika",
-      "cost": 300,
+      "cost": 270,
       "maxHp": 520,
       "armor": 3,
       "armorType": "heavy",
@@ -2694,7 +2694,7 @@
         "light",
         "recon"
       ],
-      "cost": 130,
+      "cost": 150,
       "maxHp": 420,
       "armor": 3,
       "armorType": "heavy",
@@ -2713,7 +2713,7 @@
       ],
       "weapon": {
         "type": "kinetic",
-        "damage": 14,
+        "damage": 12,
         "range": 7,
         "cooldown": 0.28,
         "projectileSpeed": 60,
@@ -3044,7 +3044,7 @@
         "attack"
       ],
       "cost": 420,
-      "maxHp": 950,
+      "maxHp": 820,
       "armor": 4,
       "armorType": "heavy",
       "radius": 1.1,
@@ -3254,7 +3254,7 @@
       {
         "id": "mg",
         "name": "MG",
-        "cost": 20,
+        "cost": 25,
         "turret": "colony_uaz",
         "weapon": {
           "type": "kinetic",
@@ -3402,7 +3402,7 @@
       {
         "id": "howitzer",
         "name": "Howitzer",
-        "cost": 200,
+        "cost": 180,
         "turret": "colony_gvozdika",
         "research": "heavy_artillery",
         "shot": "artillery",
@@ -3424,7 +3424,7 @@
       {
         "id": "aa",
         "name": "AA Guns",
-        "cost": 120,
+        "cost": 130,
         "turret": "colony_shilka",
         "research": "air_defense",
         "spin": true,
@@ -3433,8 +3433,8 @@
         ],
         "weapon": {
           "type": "kinetic",
-          "damage": 10,
-          "range": 10,
+          "damage": 6,
+          "range": 9,
           "cooldown": 0.08,
           "projectileSpeed": 64,
           "turnRate": 4,

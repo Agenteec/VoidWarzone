@@ -13,28 +13,34 @@ namespace {
 
 enum Role { Main, AntiAir, Artillery, Aircraft, Support, RoleCount };
 
-constexpr const char* kBalanced[] = {"workshop",   "power_plant", "gun_tower", "tank_shop",  "laboratory", "power_plant", "repair_bay",
-                                     "radar_station", "tank_shop", "zu23",      "laboratory", "helipad",    "howitzer",    "power_plant",
-                                     "cannon_hardpoint", "sam_site", "power_plant"};
-constexpr const char* kRush[] = {"workshop",   "power_plant", "workshop",  "tank_shop",     "laboratory", "power_plant", "repair_bay",
-                                 "tank_shop",  "gun_tower",   "radar_station", "power_plant", "helipad",  "zu23",        "power_plant"};
-constexpr const char* kTurtle[] = {"workshop",     "gun_tower",  "power_plant",      "laboratory",  "cannon_hardpoint", "gun_tower",
-                                   "zu23",         "laboratory", "mortar_pit",       "power_plant", "tank_shop",        "cannon_hardpoint",
-                                   "radar_station", "howitzer",  "repair_bay",       "rotary_tower", "power_plant",     "sam_site",
-                                   "missile_silo", "howitzer",   "cannon_hardpoint", "power_plant"};
-constexpr const char* kArmor[] = {"workshop",  "power_plant",   "laboratory", "tank_shop", "power_plant", "repair_bay",       "tank_shop",
-                                  "gun_tower", "radar_station", "laboratory", "power_plant", "zu23",      "tank_shop",        "cannon_hardpoint",
-                                  "helipad",   "power_plant"};
-constexpr const char* kArtillery[] = {"workshop",   "power_plant", "laboratory",       "gun_tower", "tank_shop", "radar_station",
-                                      "mortar_pit", "power_plant", "howitzer",         "laboratory", "repair_bay", "cannon_hardpoint",
-                                      "zu23",       "howitzer",    "missile_silo",     "power_plant", "sam_site", "helipad"};
-constexpr const char* kAir[] = {"workshop", "power_plant", "laboratory", "gun_tower", "helipad",   "power_plant", "radar_station",
-                                "laboratory", "helipad",   "zu23",       "repair_bay", "tank_shop", "sam_site",    "power_plant",
+constexpr const char* kBalanced[] = {"workshop", "power_plant", "laboratory", "gun_tower", "power_plant", "laboratory", "tank_shop", "repair_bay",
+                                     "radar_station", "zu23", "tank_shop", "helipad", "howitzer", "power_plant", "cannon_hardpoint", "sam_site", "power_plant"};
+constexpr const char* kRush[] = {"workshop", "power_plant", "workshop", "laboratory", "power_plant", "tank_shop", "repair_bay", "gun_tower", "laboratory",
+                                 "tank_shop", "radar_station", "power_plant", "helipad", "zu23", "power_plant"};
+constexpr const char* kTurtle[] = {"workshop", "power_plant", "gun_tower", "laboratory", "power_plant", "laboratory", "tank_shop", "gun_tower", "repair_bay",
+                                   "cannon_hardpoint", "mortar_pit", "zu23", "radar_station", "power_plant", "howitzer", "tank_shop", "cannon_hardpoint",
+                                   "rotary_tower", "sam_site", "howitzer", "missile_silo", "power_plant"};
+constexpr const char* kArmor[] = {"workshop", "power_plant", "laboratory", "power_plant", "laboratory", "tank_shop", "repair_bay", "gun_tower", "tank_shop",
+                                  "radar_station", "power_plant", "zu23", "tank_shop", "cannon_hardpoint", "helipad", "power_plant"};
+constexpr const char* kArtillery[] = {"workshop", "power_plant", "laboratory", "gun_tower", "power_plant", "laboratory", "tank_shop", "mortar_pit", "radar_station",
+                                      "repair_bay", "howitzer", "zu23", "power_plant", "cannon_hardpoint", "missile_silo", "sam_site", "helipad"};
+constexpr const char* kAir[] = {"workshop", "power_plant", "laboratory", "gun_tower", "tank_shop", "helipad", "power_plant", "radar_station",
+                                "laboratory", "helipad",   "zu23",       "repair_bay", "tank_shop", "tank_shop", "sam_site",    "power_plant",
                                 "cannon_hardpoint"};
+
+// units each style researches towards, in order
+constexpr const char* kBalancedGoals[] = {"t72", "shilka", "gvozdika", "bmp1", "t90", "mi24"};
+constexpr const char* kRushGoals[] = {"bmp1", "btr80", "sprut", "t72"};
+constexpr const char* kTurtleGoals[] = {"t72", "howitzer", "rotary_tower", "missile_silo", "t90"};
+constexpr const char* kArmorGoals[] = {"t72", "sprut", "t90", "shilka"};
+constexpr const char* kArtilleryGoals[] = {"grad", "t72", "gvozdika", "msta", "tos1"};
+constexpr const char* kAirGoals[] = {"mi8", "mi24", "shilka", "t72"};
 
 struct Style {
     const char* const* order;
     std::size_t orderSize;
+    const char* const* goals;
+    std::size_t goalCount;
     std::array<float, RoleCount> want; // main, anti-air, artillery, aircraft, support
     int firstAttack;
     float firstTime;
@@ -44,19 +50,19 @@ struct Style {
     const char* branch;
 };
 
-template <std::size_t N>
-constexpr Style style(const char* const (&order)[N], std::array<float, RoleCount> want, int first, float time, int grow, float keep, bool cheap,
-                      const char* branch) {
-    return {order, N, want, first, time, grow, keep, cheap, branch};
+template <std::size_t N, std::size_t G>
+constexpr Style style(const char* const (&order)[N], const char* const (&goals)[G], std::array<float, RoleCount> want, int first, float time, int grow,
+                      float keep, bool cheap, const char* branch) {
+    return {order, N, goals, G, want, first, time, grow, keep, cheap, branch};
 }
 
 const Style kStyles[] = {
-    style(kBalanced, {0.62f, 0.05f, 0.15f, 0.12f, 0.06f}, 7, 120.0f, 3, 60.0f, false, "economy"),
-    style(kRush, {0.86f, 0.03f, 0.04f, 0.02f, 0.05f}, 8, 150.0f, 2, 180.0f, true, "weapons"),
-    style(kTurtle, {0.55f, 0.10f, 0.25f, 0.03f, 0.07f}, 10, 300.0f, 4, 0.0f, false, "defences"),
-    style(kArmor, {0.76f, 0.06f, 0.08f, 0.03f, 0.07f}, 8, 180.0f, 3, 100.0f, false, "armour"),
-    style(kArtillery, {0.42f, 0.07f, 0.41f, 0.03f, 0.07f}, 9, 240.0f, 3, 60.0f, false, "artillery"),
-    style(kAir, {0.54f, 0.08f, 0.08f, 0.26f, 0.04f}, 6, 150.0f, 3, 60.0f, false, "air"),
+    style(kBalanced, kBalancedGoals, {0.67f, 0.05f, 0.10f, 0.12f, 0.06f}, 7, 120.0f, 3, 60.0f, false, "economy"),
+    style(kRush, kRushGoals, {0.86f, 0.03f, 0.04f, 0.02f, 0.05f}, 7, 130.0f, 2, 100.0f, true, "weapons"),
+    style(kTurtle, kTurtleGoals, {0.70f, 0.08f, 0.12f, 0.03f, 0.07f}, 10, 240.0f, 3, 60.0f, false, "economy"),
+    style(kArmor, kArmorGoals, {0.76f, 0.06f, 0.08f, 0.03f, 0.07f}, 8, 180.0f, 3, 100.0f, false, "armour"),
+    style(kArtillery, kArtilleryGoals, {0.61f, 0.07f, 0.22f, 0.03f, 0.07f}, 10, 300.0f, 3, 60.0f, false, "artillery"),
+    style(kAir, kAirGoals, {0.54f, 0.08f, 0.08f, 0.26f, 0.04f}, 8, 210.0f, 3, 60.0f, false, "air"),
 };
 
 // Per AI level (easy, normal, hard, brutal).
@@ -64,9 +70,9 @@ constexpr int kThink[kAiLevels] = {75, 45, 30, 20};
 constexpr std::size_t kArmyCap[kAiLevels] = {24, 50, 60, 80};
 constexpr float kCooldown[kAiLevels] = {80.0f, 45.0f, 40.0f, 35.0f};
 constexpr std::size_t kBuilders[kAiLevels] = {1, 2, 2, 3};
-constexpr std::size_t kQueue[kAiLevels] = {1, 2, 2, 2};
+constexpr std::size_t kQueue[kAiLevels] = {1, 2, 2, 3};
 // smarter AIs only attack with an army this much stronger than the known defence of the target
-constexpr float kCaution[kAiLevels] = {0.0f, 0.7f, 1.0f, 1.25f};
+constexpr float kCaution[kAiLevels] = {0.0f, 0.7f, 0.95f, 1.05f};
 constexpr float kFirstDelay[kAiLevels] = {300.0f, 0.0f, 0.0f, 0.0f};
 
 bool hasClass(const UnitDef& def, const char* c) {
@@ -227,8 +233,8 @@ void World::thinkAi(std::uint8_t p) {
     for (std::size_t u = 0; u < counts.size(); ++u)
         if (data_->unit(static_cast<UnitDefId>(u)).structure)
             structuresOwned += counts[u];
-    const float perBuilding = me.aiStyle == AiStyle::Turtle ? 0.8f : 1.0f;
-    const bool armyFirst = structuresOwned >= 6 && static_cast<float>(army.size()) < static_cast<float>(structuresOwned - 5) * perBuilding;
+    const float perBuilding = me.aiStyle == AiStyle::Turtle ? 1.0f : 1.2f;
+    const bool armyFirst = structuresOwned >= 4 && static_cast<float>(army.size()) < static_cast<float>(structuresOwned - 3) * perBuilding;
     if (!builders.empty() && !armyFirst) {
         std::vector<int> planned(counts.size(), 0);
         // economy is shared by every style: one more generator every 2.5 minutes
@@ -237,6 +243,17 @@ void World::thinkAi(std::uint8_t p) {
         const int wantPlants = std::min(level >= 3 ? 8 : level == 0 ? 4 : 6, 1 + static_cast<int>(missionTime() / 150.0f));
         if (plant != kInvalidUnitDef && counts[plant] < wantPlants && counts[data_->find("workshop")] > 0)
             order.push_back("power_plant");
+        // enemy aircraft over the base: anti-air emplacements before anything else
+        if (enemyAir > 0) {
+            const UnitDefId zu = data_->find("zu23"), sam = data_->find("sam_site");
+            const int aaOwned = (zu != kInvalidUnitDef ? counts[zu] : 0) + (sam != kInvalidUnitDef ? counts[sam] : 0);
+            if (aaOwned < std::min(4, 1 + enemyAir / 2)) {
+                if (sam != kInvalidUnitDef && unlocked(data_->unit(sam)) && aaOwned >= 2)
+                    order.push_back("sam_site");
+                for (int i = 0; i <= aaOwned; ++i)
+                    order.push_back("zu23");
+            }
+        }
         order.insert(order.end(), st.order, st.order + st.orderSize);
         for (const char* name : order) {
             const UnitDefId id = data_->find(name);
@@ -271,7 +288,23 @@ void World::thinkAi(std::uint8_t p) {
         }
     }
 
-    // Research: unlocks first, then upgrades for classes the army actually fields.
+    // Research: the path to the style's next goal unit first, then upgrades for classes the army actually fields.
+    std::vector<bool> onPath(data_->research().size(), false);
+    for (std::size_t g = 0; g < st.goalCount; ++g) {
+        const UnitDefId goal = data_->find(st.goals[g]);
+        if (goal == kInvalidUnitDef || data_->unit(goal).research == kInvalidId || researched(p, data_->unit(goal).research))
+            continue;
+        std::vector<ResearchId> open{data_->unit(goal).research};
+        while (!open.empty()) {
+            const ResearchId t = open.back();
+            open.pop_back();
+            if (onPath[t] || researched(p, t))
+                continue;
+            onPath[t] = true;
+            open.insert(open.end(), data_->research(t).after.begin(), data_->research(t).after.end());
+        }
+        break;
+    }
     for (const auto lab : labs) {
         if (registry_.get<Lab>(lab).topic != kInvalidId)
             continue;
@@ -282,10 +315,15 @@ void World::thinkAi(std::uint8_t p) {
             if (!canResearch(p, topic))
                 continue;
             const auto& def = data_->research(topic);
-            float score = def.cost;
-            bool unlocks = false;
+            float score = def.cost * (onPath[t] ? 0.25f : 1.0f);
+            bool unlocks = false, unlocksAa = false;
             for (const auto& u : data_->units())
-                unlocks = unlocks || u.research == topic;
+                if (u.research == topic) {
+                    unlocks = true;
+                    unlocksAa = unlocksAa || hasClass(u, "aa");
+                }
+            if (enemyAir > 0 && unlocksAa)
+                score *= 0.4f;
             if (unlocks)
                 score *= 0.6f;
             if (!def.classes.empty()) {
@@ -309,15 +347,21 @@ void World::thinkAi(std::uint8_t p) {
         if (best == kInvalidId)
             continue;
         const float cost = data_->research(best).cost;
-        if (me.energy > cost + reserve + st.researchKeep)
+        // a thin army comes first: research only from the surplus until it has a minimum of units
+        const bool thin = static_cast<float>(army.size()) < std::min(8.0f, 3.0f + missionTime() / 120.0f);
+        if (me.energy > cost + reserve + st.researchKeep + (thin ? 60.0f : 0.0f))
             apply(StructureCommand{p, lab, StructureOp::Research, static_cast<std::uint8_t>(best), {}});
-        else if (!st.cheap || missionTime() > 360.0f)
+        else if (!thin && (!st.cheap || missionTime() > 360.0f))
             reserve += cost * (level >= 2 ? 0.8f : 0.5f); // save up instead of spending everything on units
     }
 
     // Army mix: anti-air grows with the enemy's air force, artillery and aircraft stay a minority.
     const float total = static_cast<float>(army.size()) + 1.0f;
     std::array<float, RoleCount> want = st.want;
+    // early on every style needs line units to hold ground and take points; specialists come later
+    const float ramp = std::clamp(missionTime() / 420.0f, 0.35f, 1.0f);
+    want[Artillery] *= ramp;
+    want[Aircraft] *= ramp;
     if (enemyAir > 0)
         want[AntiAir] = std::max(want[AntiAir], std::clamp(static_cast<float>(enemyAir) / static_cast<float>(enemyArmed) * 1.4f, 0.12f, 0.45f));
     want[Main] = std::max(0.1f, 1.0f - want[AntiAir] - want[Artillery] - want[Aircraft] - want[Support]);
@@ -348,7 +392,7 @@ void World::thinkAi(std::uint8_t p) {
             if (def.builder)
                 truck = id;
             else if (fighter(def) && army.size() < kArmyCap[level] + (me.energy > 1500.0f ? 20u : 0u) &&
-                     (def.weapon || counts[id] < (def.air ? 1 : 3)))
+                     (def.weapon || (counts[id] < (def.air ? 1 : 2) && roles[Support] < 2 + static_cast<int>(army.size()) / 10)))
                 options.push_back(id);
         }
         if (truck != kInvalidUnitDef && builders.size() < kBuilders[level]) {
@@ -367,21 +411,27 @@ void World::thinkAi(std::uint8_t p) {
             }
         }
         UnitDefId pick = kInvalidUnitDef;
-        float pickScore = 0.0f;
+        float pickScore = 0.0f, roleBest = 0.0f;
         for (const auto id : options) {
             const auto& def = data_->unit(id);
-            if (roleOf(def) != role || me.energy < def.cost + reserve)
+            if (roleOf(def) != role)
                 continue;
             // rush: best value per energy; others: the strongest unit they can afford, with some variety
             const float jitter = 1.0f + static_cast<float>((tick_ / 90 + id) % 3) * 0.15f;
             const float score = (st.cheap ? power(def) / std::max(def.cost, 1.0f) : power(def) * std::sqrt(power(def) / std::max(def.cost, 1.0f))) * jitter;
+            roleBest = std::max(roleBest, score);
+            if (me.energy < def.cost + reserve)
+                continue;
             if (pick == kInvalidUnitDef || score > pickScore) {
                 pick = id;
                 pickScore = score;
             }
         }
+        // save up for the best unit of the role instead of buying a much weaker one now
+        if (pick != kInvalidUnitDef && pickScore < roleBest * 0.75f && army.size() >= 4)
+            pick = kInvalidUnitDef;
         // don't let a workshop drain the energy a tank shop needs for much better units
-        if (pick != kInvalidUnitDef && pickScore < bestAnywhere * 0.55f && me.energy < bestAnywhereCost * 2.0f)
+        if (pick != kInvalidUnitDef && pickScore < bestAnywhere * 0.7f && me.energy < bestAnywhereCost * 2.0f)
             pick = kInvalidUnitDef;
         if (pick != kInvalidUnitDef) {
             apply(RecruitCommand{p, pick, f});
@@ -427,7 +477,7 @@ void World::thinkAi(std::uint8_t p) {
         // only units near home turn back; an attack already under way keeps going
         std::vector<entt::entity> defenders;
         for (const auto e : army)
-            if (glm::distance(registry_.get<Position>(e).value, home) < 40.0f)
+            if (glm::distance(registry_.get<Position>(e).value, home) < 40.0f && canHit(e, threat))
                 defenders.push_back(e);
         if (!defenders.empty()) {
             aiMove(defenders, registry_.get<Position>(threat).value);
@@ -468,10 +518,24 @@ void World::thinkAi(std::uint8_t p) {
                 (glm::distance(registry_.get<Position>(e).value, ai.stage) < 10.0f ? ready : late).push_back(e);
             if (static_cast<float>(ready.size()) >= static_cast<float>(ai.attackSize) * 0.75f || missionTime() >= ai.stageUntil) {
                 std::vector<entt::entity> group;
-                for (const auto e : army)
-                    if (registry_.get<Order>(e).type != OrderType::Move && !data_->unit(registry_.get<Unit>(e).def).air)
+                const glm::vec2 to = ai.target != entt::null ? registry_.get<Position>(ai.target).value : ai.goal;
+                for (const auto e : army) {
+                    if (registry_.get<Order>(e).type == OrderType::Move)
+                        continue;
+                    const auto& def = data_->unit(registry_.get<Unit>(e).def);
+                    if (def.air)
+                        continue;
+                    if (roleOf(def) == Artillery && def.weapon) {
+                        // artillery stops short and shells the target from a firing position
+                        const glm::vec2 at = registry_.get<Position>(e).value;
+                        const float d = glm::distance(at, to);
+                        const float keep = def.weapon->range * 0.6f;
+                        aiMove({e}, d > keep ? to + (at - to) / d * keep : at);
+                    } else {
                         group.push_back(e);
-                aiMove(group, ai.target != entt::null ? registry_.get<Position>(ai.target).value : ai.goal);
+                    }
+                }
+                aiMove(group, to);
                 ai.stageUntil = -1.0f;
                 ai.attackSize = std::min(30, ai.attackSize + st.grow);
                 ai.nextAttack = missionTime() + kCooldown[level];
@@ -485,7 +549,9 @@ void World::thinkAi(std::uint8_t p) {
     for (const float v : enemyStrength)
         strongestEnemy = std::max(strongestEnemy, v);
     // unscouted bases are assumed to grow defences over time
-    const bool strongEnough = strength >= (strongestEnemy * 0.6f + missionTime() * 4.0f) * kCaution[level];
+    // rushers accept worse odds
+    const float caution = kCaution[level] * (me.aiStyle == AiStyle::Rush ? 0.6f : 1.0f);
+    const bool strongEnough = strength >= (strongestEnemy * 0.6f + missionTime() * 4.0f) * caution;
     if (static_cast<int>(idle.size()) >= ai.attackSize && missionTime() >= ai.nextAttack && strongEnough) {
         entt::entity target = entt::null;
         float best = 1e9f;
@@ -514,7 +580,7 @@ void World::thinkAi(std::uint8_t p) {
                 targetDefence = defence;
             }
         }
-        if (target != entt::null && strength < targetDefence * kCaution[level]) {
+        if (target != entt::null && strength < targetDefence * caution) {
             ai.nextAttack = missionTime() + 15.0f; // not yet: grow the army, take points meanwhile
             target = entt::null;
             best = -1.0f;

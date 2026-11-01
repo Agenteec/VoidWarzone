@@ -674,7 +674,7 @@ void World::grantEnergyTo(std::uint8_t team, float amount) {
 }
 
 namespace {
-constexpr float kAiIncome[kAiLevels] = {0.8f, 1.0f, 1.2f, 1.45f};
+constexpr float kAiIncome[kAiLevels] = {0.8f, 1.0f, 1.15f, 1.4f};
 }
 
 void World::updateSkirmish() {
@@ -682,7 +682,7 @@ void World::updateSkirmish() {
     std::array<float, kMaxPlayers> income{};
     for (std::size_t i = 0; i < players_.size(); ++i)
         if (players_[i].active)
-            income[i] = def.baseIncome * (players_[i].ai ? kAiIncome[players_[i].aiLevel % kAiLevels] : 1.0f);
+            income[i] = def.baseIncome;
     std::array<bool, 64> alive_{};
     for (auto [e, unit, owner, team] : registry_.view<const Unit, const Owner, const Team>().each()) {
         if (!alive(e) || owner.player >= kMaxPlayers)
@@ -694,7 +694,8 @@ void World::updateSkirmish() {
     }
     for (std::size_t i = 0; i < players_.size(); ++i)
         if (players_[i].active)
-            earn(players_[i], income[i] * kTickDt * (1.0f + economy(static_cast<int>(i)).income));
+            earn(players_[i], income[i] * kTickDt * (1.0f + economy(static_cast<int>(i)).income) *
+                                  (players_[i].ai ? kAiIncome[players_[i].aiLevel % kAiLevels] : 1.0f));
     if (defense_.state != MatchState::Playing)
         return;
     int teams = 0;
