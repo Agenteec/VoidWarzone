@@ -318,7 +318,7 @@ void App::researchTooltip(ResearchId t) {
     if (!mods.empty()) {
         const char* who = r.scope == ResearchScope::Vehicles ? "vehicles" : r.scope == ResearchScope::Structures ? "buildings" : "everything";
         if (r.weapon >= 0)
-            ImGui::TextColored(toVec(kGood), tr("%s(%s weapons, %s)"), mods.c_str(), damageTypeName(static_cast<DamageType>(r.weapon)), who);
+            ImGui::TextColored(toVec(kGood), tr("%s(%s weapons, %s)"), mods.c_str(), tr(damageTypeName(static_cast<DamageType>(r.weapon))), who);
         else
             ImGui::TextColored(toVec(kGood), "%s(%s)", mods.c_str(), who);
     }

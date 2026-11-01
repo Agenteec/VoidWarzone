@@ -1,4 +1,5 @@
 #include "App.h"
+#include "Platform.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -230,10 +231,12 @@ void App::drawMenu() {
         setScreen(Screen::Address);
     }
     ImGui::Dummy({0.0f, 6.0f * s});
+#if !defined(SDL_PLATFORM_ANDROID)
     if (menuButton(tr(ICON_FA_MAP "   Map Editor"), false, full, h)) {
         settingsOpen_ = false;
         openEditor(options_.map);
     }
+#endif
     if (menuButton(tr(ICON_FA_COG "   Settings"), settingsOpen_, full, h)) {
         settingsOpen_ = !settingsOpen_;
         if (settingsOpen_ && screen_ != Screen::Menu)
@@ -286,9 +289,9 @@ void App::drawMenuPage() {
     case Screen::Address: {
         const bool code = screen_ == Screen::Code;
         ImGui::PushFont(ui_.bold(), ImGui::GetStyle().FontSizeBase * 1.3f);
-        ImGui::TextUnformatted(code ? "Join by room code" : "Direct connect");
+        ImGui::TextUnformatted(code ? tr("Join by room code") : tr("Direct connect"));
         ImGui::PopFont();
-        ImGui::TextDisabled(code ? "Ask the host for the code shown in their lobby" : "Host address, port optional (default 27450)");
+        ImGui::TextDisabled("%s", code ? tr("Ask the host for the code shown in their lobby") : tr("Host address, port optional (default 27450)"));
         ImGui::Spacing();
         ImGui::SetNextItemWidth(full);
         if (ImGui::IsWindowAppearing())
@@ -299,7 +302,7 @@ void App::drawMenuPage() {
                                                     ImGuiInputTextFlags_EnterReturnsTrue | (code ? ImGuiInputTextFlags_CharsUppercase : 0));
         ImGui::Spacing();
         ImGui::BeginDisabled(buf[0] == '\0');
-        if (accentButton(code ? "Join" : "Connect", {full, 40.0f * s}) || (enter && buf[0] != '\0')) {
+        if (accentButton(code ? tr("Join") : tr("Connect"), {full, 40.0f * s}) || (enter && buf[0] != '\0')) {
             if (code) {
                 startJoin(buf);
             } else if (const auto addr = net::Address::parse(buf, net::kGamePort)) {
@@ -402,7 +405,9 @@ void App::drawSettings() {
     const float labelW = ImGui::GetContentRegionAvail().x * 0.55f;
     if (!ImGui::BeginTabBar("settings"))
         return;
-    if (ImGui::BeginTabItem(tr("Graphics"))) {
+    const int want = std::exchange(settingsTab_, -1);
+    auto pick = [&](int tab) { return want == tab ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None; };
+    if (ImGui::BeginTabItem(tr("Graphics"), nullptr, pick(0))) {
 #if !defined(SDL_PLATFORM_ANDROID)
         static constexpr const char* kWindowModes[] = {"Windowed", "Borderless fullscreen", "Fullscreen"};
         ImGui::SetNextItemWidth(labelW);
@@ -485,7 +490,7 @@ void App::drawSettings() {
             applyVideo();
             saveSettings();
         }
-        static constexpr const char* kShadows[] = {"Off", "Low", "Medium", "High"};
+        static constexpr const char* kShadows[] = {"Off", "Low", "Moderate", "High"};
         static constexpr const char* kLights[] = {"Day", "Dusk", "Night"};
         ImGui::BeginDisabled(!renderer_.shadowsSupported());
         ImGui::SetNextItemWidth(labelW);
@@ -501,9 +506,9 @@ void App::drawSettings() {
         }
         ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem(tr("Interface"))) {
+    if (ImGui::BeginTabItem(tr("Interface"), nullptr, pick(1))) {
         {
-            const std::string system = std::string("System") + " (" +
+            const std::string system = std::string(tr("System")) + " (" +
                                        std::find_if(std::begin(kLanguages), std::end(kLanguages), [&](const Language& l) { return systemLanguage() == l.code; })->name + ")";
             const char* current = system.c_str();
             for (const auto& l : kLanguages)
@@ -540,7 +545,7 @@ void App::drawSettings() {
             saveSettings();
         ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem(tr("Audio"))) {
+    if (ImGui::BeginTabItem(tr("Audio"), nullptr, pick(2))) {
         auto slider = [&](const char* label, float& value) {
             int percent = static_cast<int>(std::lround(value * 100.0f));
             ImGui::SetNextItemWidth(labelW);
@@ -561,7 +566,7 @@ void App::drawSettings() {
             ImGui::TextColored(toVec(kBad), tr("No audio device"));
         ImGui::EndTabItem();
     }
-    if (screen_ != Screen::Game && screen_ != Screen::Lobby && ImGui::BeginTabItem(tr("Network"))) {
+    if (screen_ != Screen::Game && screen_ != Screen::Lobby && ImGui::BeginTabItem(tr("Network"), nullptr, pick(3))) {
         ImGui::SetNextItemWidth(labelW);
         if (ImGui::InputText(tr("Master server"), masterBuf_.data(), masterBuf_.size()))
             options_.master = masterBuf_.data();
@@ -615,6 +620,10 @@ void App::drawLobby() {
         ImGui::SameLine();
         if (ImGui::SmallButton(tr("Copy")))
             SDL_SetClipboardText(lobby_.code().c_str());
+        ImGui::SameLine();
+        if (ImGui::SmallButton(tr(ICON_FA_SHARE_ALT "  Invite")))
+            shareInvite();
+        ImGui::SetItemTooltip("%s", systemShare() ? tr("Send the room code and an invite link through any app") : tr("Copy an invite message with the room code and link"));
     } else if (host_ && multiplayer && lobby_.state() == net::MasterClient::State::Failed) {
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * s);
         ImGui::TextColored(toVec(kBad), tr("online unavailable: %s (LAN and IP still work)"), tr(lobby_.error()));
@@ -754,11 +763,11 @@ void App::drawLobby() {
 
             ImGui::TableNextColumn();
             ImGui::SetNextItemWidth(-1.0f);
-            char teamLabel[16];
+            char teamLabel[64];
             std::snprintf(teamLabel, sizeof(teamLabel), tr("Team %d"), p.team + 1);
             if (ImGui::BeginCombo("##team", teamLabel)) {
                 for (int t = 0; t < net::kLobbyTeams; ++t) {
-                    char label[16];
+                    char label[64];
                     std::snprintf(label, sizeof(label), tr("Team %d"), t + 1);
                     if (ImGui::Selectable(label, p.team == t))
                         net_.sendPlayerSetup(p.id, p.color, static_cast<std::uint8_t>(t));
@@ -813,7 +822,7 @@ void App::drawLobby() {
         auto mayEdit = [&](std::uint8_t id) { return leader || id == net_.player(); };
         for (int t = 0; t < net::kLobbyTeams; ++t) {
             ImGui::SameLine();
-            char label[16];
+            char label[64];
             std::snprintf(label, sizeof(label), tr("Team %d"), t + 1);
             if (ImGui::SmallButton(label))
                 for (const auto& p : info.players)

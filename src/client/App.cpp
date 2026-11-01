@@ -2,6 +2,7 @@
 
 #include "core/MapGen.h"
 #include "Editor.h"
+#include "Platform.h"
 
 #include <algorithm>
 #include <cmath>
@@ -301,7 +302,7 @@ void App::applyWindow() {
 }
 
 bool App::touchLayout() const {
-    return layout_ == 2 || (layout_ == 0 && touchUi_);
+    return options_.touch || layout_ == 2 || (layout_ == 0 && touchUi_);
 }
 
 void App::cycleShadows() {
@@ -374,6 +375,16 @@ bool App::init(SDL_Window* window, LaunchOptions options) {
             startConnect(*addr);
         else
             status_ = "bad address: " + options_.connect;
+    } else if (options_.open.starts_with("settings")) {
+        settingsOpen_ = true;
+        if (options_.open.size() > 8)
+            settingsTab_ = std::atoi(options_.open.c_str() + 8);
+    } else if (options_.open == "load") {
+        loadOpen_ = true;
+    } else if (options_.open == "code") {
+        setScreen(Screen::Code);
+    } else if (options_.open == "online") {
+        setScreen(Screen::Online);
     }
     return true;
 }
@@ -467,6 +478,15 @@ void App::setScreen(Screen screen) {
         lobbyRefresh_ = now_;
     }
     screen_ = screen;
+}
+
+void App::shareInvite() {
+    const std::string code = lobby_.code();
+    char text[256];
+    std::snprintf(text, sizeof(text), tr("Join me in Void Warzone! Room code: %s\nOpen on the phone: %s"), code.c_str(), inviteLink(code).c_str());
+    shareText(tr("Void Warzone invite"), text);
+    if (!systemShare())
+        status_ = tr("Invite copied to the clipboard");
 }
 
 void App::startJoin(const std::string& code) {
@@ -878,7 +898,7 @@ void App::tap(glm::vec2 p) {
         issueArmed(p);
         return;
     }
-    if (ground)
+    if (ground) {
         if (const auto* e = entityAt(*ground, 0.6f); e && isOwn(*e)) {
             selected_ = {e->id};
             inspected_ = 0;
@@ -887,6 +907,7 @@ void App::tap(glm::vec2 p) {
             inspected_ = e->id;
             return;
         }
+    }
     if (!selected_.empty())
         issueCommand(p, false);
 }
@@ -1420,6 +1441,11 @@ void App::frame(double dt) {
         }
     }
     updateLobby();
+    if (screen_ == Screen::Menu && now_ - joinPolled_ > 0.5) {
+        joinPolled_ = now_;
+        if (const std::string code = takeJoinLink(); !code.empty())
+            startJoin(code);
+    }
     if (screen_ == Screen::Lan)
         lan_.update(now_);
 

@@ -18,7 +18,6 @@ void App::drawDesktopHud() {
     const auto* latest = net_.latest();
     const auto& game = latest->game;
     const float s = uiScale();
-    const ImVec2 display = ImGui::GetIO().DisplaySize;
     const float pad = 8.0f * s;
 
     ImGui::SetNextWindowPos({pad, pad});
@@ -159,7 +158,7 @@ void App::drawMinimap(float size) {
     const auto* latest = net_.latest();
     const auto& defs = map_->resourcePoints();
     for (std::size_t i = 0; i < defs.size(); ++i) {
-        const auto owner = latest && i < latest->game.points.size() ? latest->game.points[i].owner : 0xff;
+        const std::uint8_t owner = latest && i < latest->game.points.size() ? latest->game.points[i].owner : std::uint8_t{0xff};
         const ImU32 c = owner == 0xff ? IM_COL32(170, 170, 180, 255) : owner == myTeam() ? kAccent : owner == 1 ? kVoid
                                                                                           : ImGui::ColorConvertFloat4ToU32(ImVec4{teamColor(owner).r, teamColor(owner).g, teamColor(owner).b, 1.0f});
         const ImVec2 p = toMini(defs[i].pos);

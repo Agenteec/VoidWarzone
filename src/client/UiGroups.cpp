@@ -517,9 +517,9 @@ void App::drawInspect() {
     std::snprintf(label, sizeof(label), "%u / %u", e->hp, e->maxHp);
     bar(frac, {w, 16.0f * s}, hpColor(frac), label);
     if (def.weapon)
-        ImGui::TextDisabled(tr("%s damage %.0f%s  range %.1f  every %.1fs"), damageTypeName(def.weapon->type), def.weapon->damage,
+        ImGui::TextDisabled(tr("%s damage %.0f%s  range %.1f  every %.1fs"), tr(damageTypeName(def.weapon->type)), def.weapon->damage,
                                 def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown);
-    ImGui::TextDisabled(tr("%s armor %.0f"), armorTypeName(def.armorType), def.armor);
+    ImGui::TextDisabled(tr("%s armor %.0f"), tr(armorTypeName(def.armorType)), def.armor);
     if (def.shield > 0.0f) {
         ImGui::SameLine();
         ImGui::TextColored({0.35f, 0.85f, 1.0f, 1.0f}, tr("shield %u / %.0f"), e->shield, def.shield);

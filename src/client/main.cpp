@@ -108,6 +108,8 @@ int main(int argc, char** argv) {
             options.campaign = std::atoi(argv[++i]);
         else if (arg == "--designer")
             options.designer = true;
+        else if (arg == "--open" && hasValue)
+            options.open = argv[++i];
         else if (arg == "--auto-win" && hasValue)
             options.autoWin = static_cast<float>(std::atof(argv[++i]));
         else if (arg == "--research-tree")

@@ -77,14 +77,14 @@ void App::drawDesigner() {
         ImGui::TextUnformatted(def.name.c_str());
         ImGui::PopFont();
         ImGui::Text(tr(ICON_FA_BOLT " %.0f   build %.0f s"), def.cost, def.produceTime);
-        ImGui::Text(tr("Hull %.0f hp, armour %.0f (%s)"), def.maxHp, def.armor, def.armorType == ArmorType::Light ? "light" : "heavy");
+        ImGui::Text(tr("Hull %.0f hp, armour %.0f (%s)"), def.maxHp, def.armor, tr(armorTypeName(def.armorType)));
         ImGui::Text(tr("Speed %.1f, turn %.1f"), def.speed, def.turnRate);
         if (def.weapon) {
             const auto& w = *def.weapon;
             const float dps = w.damage * static_cast<float>(std::max(1, w.burst)) / std::max(0.05f, w.cooldown);
-            ImGui::Text(tr("%s %.0f x%d, range %.1f, every %.1f s (%.0f dps)"), damageTypeName(w.type), w.damage, std::max(1, w.burst), w.range, w.cooldown, dps);
-            ImGui::TextDisabled(tr("hits %s%s"), w.targets == 3 ? "ground and air" : w.targets == 2 ? "air only" : "ground",
-                                w.splash > 0.0f ? ", splash" : "");
+            ImGui::Text(tr("%s %.0f x%d, range %.1f, every %.1f s (%.0f dps)"), tr(damageTypeName(w.type)), w.damage, std::max(1, w.burst), w.range, w.cooldown, dps);
+            ImGui::TextDisabled(tr("hits %s%s"), w.targets == 3 ? tr("ground and air") : w.targets == 2 ? tr("air only") : tr("ground"),
+                                w.splash > 0.0f ? tr(", splash") : "");
         } else if (def.repair > 0.0f) {
             ImGui::Text(tr("Repairs %.0f hp/s within %.0f"), def.repair, def.repairRange);
         }

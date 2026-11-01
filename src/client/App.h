@@ -42,6 +42,7 @@ struct LaunchOptions {
     bool host = false;
     bool stayInLobby = false;
     bool designer = false;
+    std::string open;
     int campaign = 0;
     std::string lang;
     std::optional<std::string> editor;
@@ -172,6 +173,7 @@ private:
     bool touchLayout() const;
     void startConnect(const net::Address& address);
     void startJoin(const std::string& code);
+    void shareInvite();
     void updateLobby();
     void leaveGame(std::string status);
     bool onConnected();
@@ -374,6 +376,7 @@ private:
     net::LanBrowser lan_;
     net::MasterClient lobby_;
     double lobbyRefresh_ = 0.0;
+    double joinPolled_ = 0.0;
     Prediction prediction_;
 
     std::vector<net::InterpolatedEntity> entities_;
@@ -591,7 +594,7 @@ private:
     bool setupSent_ = false;
     bool endDismissed_ = false;
     std::set<std::uint8_t> lobbySelected_;
-    int settingsTab_ = 0;
+    int settingsTab_ = -1;
     bool autoStart_ = false;
     TextureId minimap_ = 0;
     std::uint64_t minimapHash_ = 0;

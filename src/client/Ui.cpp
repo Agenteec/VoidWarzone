@@ -193,13 +193,13 @@ void App::drawTopBar() {
         const auto& info = game.points[i];
         const ImU32 color = info.owner == 0xff ? IM_COL32(120, 125, 140, 255) : info.owner == myTeam() ? kAccent : info.owner == 1 ? kVoid
                                                                                                         : ImGui::ColorConvertFloat4ToU32(ImVec4{teamColor(info.owner).r, teamColor(info.owner).g, teamColor(info.owner).b, 1.0f});
-        const ImVec2 size{30.0f * s, 34.0f * s};
+        const ImVec2 ts = ImGui::CalcTextSize(points[i].name.c_str());
+        const ImVec2 size{std::max(30.0f * s, ts.x + 12.0f * s), 34.0f * s};
         const ImVec2 p = ImGui::GetCursorScreenPos();
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec4 c = toVec(color);
         dl->AddRectFilled(p, {p.x + size.x, p.y + size.y}, ImGui::ColorConvertFloat4ToU32({c.x * 0.35f, c.y * 0.35f, c.z * 0.35f, 0.95f}), 5.0f * s);
         dl->AddRect(p, {p.x + size.x, p.y + size.y}, color, 5.0f * s, 0, 1.5f * s);
-        const ImVec2 ts = ImGui::CalcTextSize(points[i].name.c_str());
         dl->AddText({p.x + (size.x - ts.x) * 0.5f, p.y + 4.0f * s}, IM_COL32(255, 255, 255, 235), points[i].name.c_str());
         const float control = static_cast<float>(info.control) / 127.0f;
         const float w = std::abs(control) * (size.x - 6.0f * s);
@@ -209,7 +209,10 @@ void App::drawTopBar() {
         ImGui::Dummy(size);
         if (ImGui::BeginItemTooltip()) {
             ImGui::Text(tr("Point %s  +%.0f energy/s"), points[i].name.c_str(), points[i].income);
-            ImGui::TextDisabled("%s", info.owner == myTeam() ? "held by your team" : info.owner == 1 ? "held by the enemy" : info.owner == 0xff ? "neutral - stand on it to capture" : "held by another team");
+            ImGui::TextDisabled("%s", info.owner == myTeam() ? tr("held by your team")
+                                      : info.owner == 1      ? tr("held by the enemy")
+                                      : info.owner == 0xff   ? tr("neutral - stand on it to capture")
+                                                             : tr("held by another team"));
             ImGui::EndTooltip();
         }
     }

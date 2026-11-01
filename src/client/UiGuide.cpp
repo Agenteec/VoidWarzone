@@ -15,7 +15,7 @@ using namespace ui;
 namespace {
 
 const char* targetsName(std::uint8_t t) {
-    return t == 3 ? "ground+air" : t == 2 ? "air" : "ground";
+    return t == 3 ? tr("ground and air") : t == 2 ? tr("air only") : tr("ground");
 }
 
 ImVec4 multColor(float v) {
@@ -74,7 +74,7 @@ void App::drawGuide() {
             ImGui::TableNextColumn();
             ImGui::Text("%.0f", u.maxHp);
             ImGui::TableNextColumn();
-            ImGui::Text("%s %.0f", armorTypeName(u.armorType), u.armor);
+            ImGui::Text("%s %.0f", tr(armorTypeName(u.armorType)), u.armor);
             ImGui::TableNextColumn();
             if (u.shield > 0.0f)
                 ImGui::TextColored({0.35f, 0.85f, 1.0f, 1.0f}, "%.0f", u.shield);
@@ -83,7 +83,7 @@ void App::drawGuide() {
                 ImGui::Text("%.1f%s", u.speed, u.air ? " air" : "");
             ImGui::TableNextColumn();
             if (u.weapon) {
-                ImGui::Text("%s%s", damageTypeName(u.weapon->type), u.weapon->splash > 0.0f ? " area" : "");
+                ImGui::Text("%s%s", tr(damageTypeName(u.weapon->type)), u.weapon->splash > 0.0f ? tr(", splash") : "");
                 ImGui::TableNextColumn();
                 ImGui::Text(tr("%.0f / %.1fs"), u.weapon->damage, u.weapon->cooldown);
                 ImGui::TableNextColumn();
@@ -149,13 +149,13 @@ void App::drawGuide() {
             if (ImGui::BeginTable("##combat", static_cast<int>(ArmorType::Count) + 2, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingFixedFit)) {
                 ImGui::TableSetupColumn(tr("Damage \\ armor"));
                 for (int a = 0; a < static_cast<int>(ArmorType::Count); ++a)
-                    ImGui::TableSetupColumn(armorTypeName(static_cast<ArmorType>(a)));
+                    ImGui::TableSetupColumn(tr(armorTypeName(static_cast<ArmorType>(a))));
                 ImGui::TableSetupColumn(tr("shield"));
                 ImGui::TableHeadersRow();
                 for (int dmg = 0; dmg < static_cast<int>(DamageType::Count); ++dmg) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
-                    ImGui::TextUnformatted(damageTypeName(static_cast<DamageType>(dmg)));
+                    ImGui::TextUnformatted(tr(damageTypeName(static_cast<DamageType>(dmg))));
                     for (int a = 0; a < static_cast<int>(ArmorType::Count); ++a) {
                         ImGui::TableNextColumn();
                         const float v = combat.vsHull(static_cast<DamageType>(dmg), static_cast<ArmorType>(a));
@@ -194,7 +194,7 @@ void App::drawGuide() {
                     if (m.weapon) {
                         char buf[128];
                         std::snprintf(buf, sizeof(buf), tr("%s%s gun: %.0f dmg / %.2fs, range %.1f, %s"), effect.empty() ? "" : ", ",
-                                      damageTypeName(m.weapon->type), m.weapon->damage, m.weapon->cooldown, m.weapon->range,
+                                      tr(damageTypeName(m.weapon->type)), m.weapon->damage, m.weapon->cooldown, m.weapon->range,
                                       targetsName(m.weapon->targets));
                         effect += buf;
                     }
@@ -220,11 +220,11 @@ void App::drawGuide() {
                 const bool openNode = ImGui::TreeNodeEx(u.id.c_str(), flags, "%s", label);
                 ImGui::SameLine(460.0f * s);
                 if (u.weapon)
-                    ImGui::TextDisabled(tr("HP %.0f  %s %.0f  %s %.0f dps, range %.1f, %s"), u.maxHp, armorTypeName(u.armorType), u.armor,
-                                        damageTypeName(u.weapon->type), u.weapon->damage / std::max(u.weapon->cooldown, 0.05f), u.weapon->range,
+                    ImGui::TextDisabled(tr("HP %.0f  %s %.0f  %s %.0f dps, range %.1f, %s"), u.maxHp, tr(armorTypeName(u.armorType)), u.armor,
+                                        tr(damageTypeName(u.weapon->type)), u.weapon->damage / std::max(u.weapon->cooldown, 0.05f), u.weapon->range,
                                         targetsName(u.weapon->targets));
                 else
-                    ImGui::TextDisabled(tr("HP %.0f  %s %.0f"), u.maxHp, armorTypeName(u.armorType), u.armor);
+                    ImGui::TextDisabled(tr("HP %.0f  %s %.0f"), u.maxHp, tr(armorTypeName(u.armorType)), u.armor);
                 if (openNode) {
                     for (const auto c : children)
                         node(c);

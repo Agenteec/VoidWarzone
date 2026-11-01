@@ -50,11 +50,11 @@ void unitTooltip(const UnitDef& def, const char* action, const char* key) {
         ImGui::Text("%s %s  [%s]", action, def.name.c_str(), key);
     else
         ImGui::Text("%s %s", action, def.name.c_str());
-    ImGui::TextDisabled(tr("HP %.0f  %s armor %.0f"), def.maxHp, armorTypeName(def.armorType), def.armor);
+    ImGui::TextDisabled(tr("HP %.0f  %s armor %.0f"), def.maxHp, tr(armorTypeName(def.armorType)), def.armor);
     if (def.speed > 0.0f)
         ImGui::TextDisabled(tr("speed %.1f"), def.speed);
     if (def.weapon)
-        ImGui::TextDisabled(tr("%s damage %.0f%s  range %.1f  every %.1fs"), damageTypeName(def.weapon->type), def.weapon->damage,
+        ImGui::TextDisabled(tr("%s damage %.0f%s  range %.1f  every %.1fs"), tr(damageTypeName(def.weapon->type)), def.weapon->damage,
                                 def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown);
     if (def.income > 0.0f)
         ImGui::TextDisabled(tr("+%.1f energy/s"), def.income);
@@ -390,11 +390,11 @@ void App::drawDock() {
                             net_.sendCommand(RefitCommand{0, static_cast<entt::entity>(id), v});
                 if (ImGui::BeginItemTooltip()) {
                     ImGui::Text("%s %s", advance ? "Upgrade to" : "Switch to", def.name.c_str());
-                    ImGui::TextDisabled(tr("HP %.0f  %s armor %.0f  speed %.1f"), def.maxHp, armorTypeName(def.armorType), def.armor, def.speed);
+                    ImGui::TextDisabled(tr("HP %.0f  %s armor %.0f  speed %.1f"), def.maxHp, tr(armorTypeName(def.armorType)), def.armor, def.speed);
                     if (def.weapon)
-                        ImGui::TextDisabled(tr("%s damage %.0f%s  range %.1f  every %.1fs  (%s)"), damageTypeName(def.weapon->type), def.weapon->damage,
+                        ImGui::TextDisabled(tr("%s damage %.0f%s  range %.1f  every %.1fs  (%s)"), tr(damageTypeName(def.weapon->type)), def.weapon->damage,
                                             def.weapon->splash > 0.0f ? " (area)" : "", def.weapon->range, def.weapon->cooldown,
-                                            def.weapon->targets == 3 ? "ground+air" : def.weapon->targets == 2 ? "air" : "ground");
+                                            def.weapon->targets == 3 ? tr("ground and air") : def.weapon->targets == 2 ? tr("air only") : tr("ground"));
                     for (const auto a : def.auras)
                         ImGui::TextColored(toVec(kGood), tr("aura: %s"), data_->skill(a).name.c_str());
                     if (def.repair > 0.0f)
@@ -443,9 +443,9 @@ void App::drawDock() {
                         if (def.shield > 0.0f)
                             ImGui::TextColored({0.35f, 0.85f, 1.0f, 1.0f}, tr("+%.0f energy shield"), def.shield);
                         if (def.weapon)
-                            ImGui::TextDisabled(tr("second weapon: %s %.0f dmg, range %.1f, every %.1fs, hits %s"), damageTypeName(def.weapon->type),
+                            ImGui::TextDisabled(tr("second weapon: %s %.0f dmg, range %.1f, every %.1fs, hits %s"), tr(damageTypeName(def.weapon->type)),
                                                 def.weapon->damage, def.weapon->range, def.weapon->cooldown,
-                                                def.weapon->targets == 3 ? "ground and air" : def.weapon->targets == 2 ? "air" : "ground");
+                                                def.weapon->targets == 3 ? tr("ground and air") : def.weapon->targets == 2 ? tr("air only") : tr("ground"));
                         ImGui::TextDisabled(tr("replaces the module in this slot"));
                         ImGui::EndTooltip();
                     }
