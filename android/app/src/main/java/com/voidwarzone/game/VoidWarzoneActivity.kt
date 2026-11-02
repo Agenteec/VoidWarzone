@@ -24,6 +24,7 @@ class VoidWarzoneActivity : SDLActivity() {
         InviteLink.parse(intent.data)?.let(pendingJoin::set)
     }
 
+    // Called from native code (src/client/Platform.cpp) by name and signature
     fun takePendingJoin(): String? = pendingJoin.getAndSet(null)
 
     fun shareText(title: String, text: String) {

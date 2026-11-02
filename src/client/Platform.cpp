@@ -4,6 +4,7 @@
 
 #if defined(SDL_PLATFORM_ANDROID)
 #include <jni.h>
+#include <spdlog/spdlog.h>
 #endif
 
 namespace vw::client {
@@ -30,6 +31,7 @@ struct Activity {
         jmethodID m = env->GetMethodID(cls, name, sig);
         if (env->ExceptionCheck()) {
             env->ExceptionClear();
+            spdlog::warn("jni: VoidWarzoneActivity.{}{} not found", name, sig);
             return nullptr;
         }
         return m;
